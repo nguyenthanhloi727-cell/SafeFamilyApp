@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../core/constants/feature_flags.dart';
 import '../../../core/services/external_launcher.dart';
 import '../../../core/theme/app_tokens.dart';
+import '../../../core/security/ui/parent_gate.dart';
 import '../../../core/widgets/app_snack_bar.dart';
 import '../../../core/widgets/confirm_delete_dialog.dart';
 import '../data/member_photo.dart';
@@ -65,6 +66,7 @@ class _TeamPageState extends State<TeamPage> {
   void _snack(String message) => showAppSnackBar(context, message);
 
   Future<void> _uploadPhoto(TeamMember member) async {
+    if (!await ParentGate.childAction(context, 'Đổi ảnh thành viên')) return;
     try {
       final path = await _picker.pickFromGallery();
       if (path == null) return; // bấm hủy
@@ -76,6 +78,8 @@ class _TeamPageState extends State<TeamPage> {
   }
 
   Future<void> _deletePhoto(TeamMember member) async {
+    if (!await ParentGate.childAction(context, 'Xóa ảnh thành viên')) return;
+    if (!mounted) return;
     final confirmed = await confirmDelete(
       context,
       title: 'Xóa ảnh?',

@@ -1,13 +1,105 @@
 # SafeFamily
 
-Ứng dụng Android giúp phụ huynh quản lý điện thoại của con, viết bằng Flutter.
-Đồ án nhóm môn Flutter — sản phẩm chung của cả nhóm (xem [Nhóm thực hiện](#nhóm-thực-hiện)).
+**SafeFamily** là ứng dụng Android giúp **phụ huynh có con dưới 13 tuổi** yên tâm khi đưa điện thoại cho con: con vẫn gọi được cho người nhà, còn các thao tác quan trọng (sửa danh bạ, đặt báo thức, cài đặt…) được **khóa bằng vân tay / khuôn mặt hoặc mã PIN của phụ huynh**.
 
-- Nền tảng: **chỉ Android** (Android 7.0 trở lên).
-- Giao diện: Material 3, tiếng Việt, font Be Vietnam Pro đóng gói sẵn trong app.
-- Mã nguồn công khai — ai cũng có thể tải về, build và chạy theo hướng dẫn dưới đây.
+Đồ án nhóm môn Flutter — sản phẩm chung của cả nhóm (xem [Nhóm thực hiện](#nhóm-thực-hiện)). Phiên bản thử nghiệm: **v0.6.0**.
 
-> README được viết dần theo tiến độ dự án. Tính năng nào chưa xong được ghi rõ trạng thái ở [mục 1](#1-tính-năng).
+> 📷 *Ảnh chụp màn hình: đặt vào `docs/screenshots/` và chèn tại đây.*
+
+---
+
+## Tính năng đã có
+
+| Tính năng | Mô tả |
+|---|---|
+| 🔒 **Khóa phụ huynh bằng vân tay / khuôn mặt** | Thiết lập mã PIN lần đầu, bật vân tay/khuôn mặt; **chế độ trẻ em** (thoát phải xác thực); khu vực phụ huynh tự khóa lại khi app ở nền quá 1/5/15 phút; sai PIN 5 lần khóa 30 giây (tăng dần); nhật ký mở khóa |
+| Điều hướng 5 tab | `BottomNavigationBar`: Trang chủ – Dịch – Báo thức – Nhóm – Cá nhân, giữ trạng thái từng tab |
+| Cá nhân | Hồ sơ phụ huynh; **danh bạ gia đình** (chạm để gọi, thêm/sửa/xóa); nút **Mở YouTube**; Cài đặt |
+| Báo thức bằng giọng nói | Nói hoặc gõ câu đặt giờ bằng **5 ngôn ngữ** (Việt, Anh, Nhật, Trung, Hàn) → xác nhận → mở **app Đồng hồ của máy** với giờ điền sẵn |
+| Nhóm | Thẻ thành viên lướt ngang (ảnh, họ tên, MSSV, email, vai trò, lớp); tải ảnh từ thư viện |
+
+### Đối chiếu yêu cầu đồ án
+
+| Mục | Yêu cầu | Trạng thái |
+|---|---|---|
+| 1 | Khung app + `BottomNavigationBar` | ✓ |
+| 2 | Cá nhân: danh bạ gia đình + YouTube | ✓ |
+| 3 | Báo thức bằng giọng nói, 5 ngôn ngữ | ✓ |
+| 4 | Dịch văn bản / giọng nói / ảnh | Đang phát triển |
+| 5 | *(đang cập nhật)* | — |
+| 6 | Nhóm: thẻ thành viên | ✓ |
+| Chức năng chính | Khóa phụ huynh bằng sinh trắc học | ✓ (thử nghiệm) |
+
+### Chỗ nào bị khóa (khi đang ở chế độ trẻ em)
+
+| Bị khóa — cần vân tay/khuôn mặt hoặc PIN | Không khóa |
+|---|---|
+| Thoát chế độ trẻ em; thêm/sửa/xóa danh bạ, sửa tên phụ huynh; đặt/sửa báo thức, đổi ngôn ngữ; tải/đổi/xóa ảnh nhóm; mọi cài đặt; bảo mật, nhật ký, quản lý thiết bị | **Bấm gọi người nhà**, toàn bộ tab Dịch, xem tab Nhóm, mở YouTube |
+
+## Đang phát triển
+
+- **Dịch** văn bản / giọng nói / ảnh — tab Dịch hiện chỉ là màn giữ chỗ.
+- **Camera dịch trực tiếp**.
+- **Quản lý thiết bị của con**: chặn app, giới hạn thời gian (Trang chủ hiện ghi "Sắp có").
+
+---
+
+## Tải APK
+
+👉 **[Tải bản mới nhất tại Releases](https://github.com/nguyenthanhloi727-cell/SafeFamilyApp/releases/latest)** — file `SafeFamily-v0.6.0.apk`.
+
+Cách cài:
+
+1. Mở file APK trên điện thoại (Android 7.0 trở lên).
+2. Máy hỏi → cho phép **cài ứng dụng từ nguồn không xác định** cho trình duyệt / trình quản lý tệp.
+3. Báo **"xung đột với gói hiện có"** / *"App not installed"* → gỡ bản SafeFamily cũ rồi cài lại.
+
+## Chạy từ mã nguồn
+
+Cần **Flutter 3.47** (nhóm dùng 3.47.5) và Android Studio. Chi tiết môi trường, lỗi thường gặp: [docs/DEVELOPER.md](docs/DEVELOPER.md).
+
+```bash
+git clone https://github.com/nguyenthanhloi727-cell/SafeFamilyApp.git
+```
+
+```bash
+cd SafeFamilyApp
+```
+
+Đổi tên app thành tên mình (thành viên nhóm):
+
+```bash
+dart run tool/rename.dart nguyenvana "Nguyễn Văn A"
+```
+
+Bật gỡ lỗi trên điện thoại:
+
+- **Mọi Android:** Cài đặt → Giới thiệu điện thoại → bấm 7 lần *Số hiệu bản dựng* → Tùy chọn nhà phát triển → bật **Gỡ lỗi USB**.
+- **Xiaomi / Redmi / POCO:** bấm 7 lần *Phiên bản MIUI/HyperOS*; bật thêm **Cài đặt qua USB**.
+
+Cắm cáp, cho phép gỡ lỗi, rồi:
+
+```bash
+flutter run
+```
+
+## Kịch bản demo
+
+1. Mở app lần đầu → **đặt mã PIN** (nhập 2 lần) → **Bật** vân tay.
+2. Cá nhân → bật **Chế độ trẻ em** → dải "Đang ở chế độ trẻ em" hiện ở đầu màn hình.
+3. Thử **Thêm / Sửa** danh bạ → bị chặn, hiện hộp thoại vân tay.
+4. **Quét vân tay** → mở khóa, sửa được. Bấm gọi người nhà → gọi được ngay, không cần mở khóa.
+5. Báo thức → nói *"Đặt báo thức 6 giờ 30 sáng"* → Đặt báo thức (xác thực) → app Đồng hồ mở với 06:30.
+6. Thoát chế độ trẻ em (xác thực) → Cá nhân → **Nhật ký mở khóa** xem lại các lần mở khóa.
+
+## Giới hạn đã biết
+
+- **Không phân biệt được vân tay của ai** — chỉ phụ huynh nên đăng ký vân tay/khuôn mặt trên máy.
+- **Khuôn mặt tùy máy** — nhiều máy chỉ cho dùng khuôn mặt ở màn hình khóa, app không gọi được (app ghi rõ trong Cá nhân → Bảo mật).
+- **Chỉ khóa bên trong SafeFamily** — không chặn được app khác trên máy.
+- **Quên mã PIN** chỉ đặt lại được bằng cách xóa dữ liệu app (mất danh bạ, ảnh, cài đặt). Không có câu hỏi bảo mật vì con dễ đoán.
+- Báo thức do **app Đồng hồ của máy** phát; nhận giọng nói cần dịch vụ của Google (có thể cần mạng / tải gói ngôn ngữ).
+- Bản thử nghiệm, mới thử trên Xiaomi 11T Pro (Android 14); APK ký bằng khóa debug.
 
 ## Nhóm thực hiện
 
@@ -18,516 +110,12 @@
 | Phạm Đinh Gia Bảo | _đang cập nhật_ |
 | Phương Bảo Khôi | _đang cập nhật_ |
 
-Repo được lưu trên tài khoản GitHub của một thành viên để nộp bài; mọi thành viên đều là tác giả của dự án.
+Repo lưu trên tài khoản GitHub của một thành viên để nộp bài; mọi thành viên đều là tác giả.
 
-## Bạn cần đọc phần nào?
+## Tài liệu cho lập trình viên
 
-| Bạn là… | Đọc |
-|---|---|
-| Người chỉ muốn **cài app lên điện thoại** | [3.4 Chuẩn bị điện thoại](#34-chuẩn-bị-điện-thoại) → [3.5 Chạy app](#35-chạy-app) (hoặc cài file APK nếu có trong mục *Releases* của repo) |
-| Người muốn **build từ mã nguồn** | Đọc lần lượt [mục 2](#2-yêu-cầu-môi-trường) → [mục 3](#3-cài-đặt-và-chạy) |
-| **Thành viên nhóm** | Thêm [mục 4](#4-đổi-tên-app-theo-thành-viên) (đổi tên app thành tên mình) và [mục 7](#7-kiểm-tra-code) |
-| Gặp lỗi | [mục 8 — Lỗi thường gặp](#8-lỗi-thường-gặp) |
+[docs/DEVELOPER.md](docs/DEVELOPER.md): cấu trúc thư mục, package, quyền Android, `ParentGuard`, script đổi tên, test, git, build APK, lỗi thường gặp.
 
----
+## Giấy phép
 
-## Mục lục
-
-1. [Tính năng](#1-tính-năng)
-2. [Yêu cầu môi trường](#2-yêu-cầu-môi-trường)
-3. [Cài đặt và chạy](#3-cài-đặt-và-chạy)
-4. [Đổi tên app theo thành viên](#4-đổi-tên-app-theo-thành-viên)
-5. [Hướng dẫn sử dụng app](#5-hướng-dẫn-sử-dụng-app)
-6. [Cấu trúc thư mục](#6-cấu-trúc-thư-mục)
-7. [Kiểm tra code](#7-kiểm-tra-code)
-8. [Lỗi thường gặp](#8-lỗi-thường-gặp)
-9. [Giấy phép](#9-giấy-phép)
-
----
-
-## 1. Tính năng
-
-### Tiến độ theo yêu cầu đồ án
-
-| Mục | Yêu cầu | Trạng thái |
-|---|---|---|
-| 1 | Khung app + `BottomNavigationBar` 5 tab | ✓ Xong |
-| 2 | Cá nhân: danh bạ gia đình (bấm để gọi, thêm/sửa/xóa) + nút mở YouTube | ✓ Xong |
-| 3 | Báo thức bằng giọng nói (chọn 1 trong 5 ngôn ngữ) | ✓ Xong |
-| 4 | Dịch văn bản / giọng nói / ảnh (+ điểm cộng: camera dịch trực tiếp) | Chưa làm |
-| 5 | _đang cập nhật_ | Chưa làm |
-| 6 | Nhóm: thẻ thành viên (ảnh, họ tên, MSSV, email, vai trò, lớp) | ✓ Xong |
-
-### Các tab trong app
-
-| Tab | Nội dung | Trạng thái |
-|---|---|---|
-| Trang chủ | Bảng điều khiển quản lý con (thẻ con, thời gian dùng máy, app bị chặn) | Giữ chỗ — "Sắp có" |
-| Dịch | Dịch Văn bản / Giọng nói / Ảnh / Camera trực tiếp — Việt, Anh, Nhật, Trung, Hàn | Giữ chỗ (mục 4) |
-| Báo thức | Nói (hoặc gõ) câu đặt giờ bằng 1 trong 5 ngôn ngữ → xác nhận → app mở **app Đồng hồ của máy** với giờ điền sẵn | ✓ Xong (mục 3) |
-| Nhóm | Thẻ thành viên lướt ngang, tải ảnh, bấm email để gửi mail | ✓ Xong (mục 6) |
-| Cá nhân | Hồ sơ phụ huynh, danh bạ gia đình (bấm để gọi), mở YouTube | ✓ Xong (mục 2) — riêng *Cài đặt* làm cùng mục 3 |
-
-Điều hướng bằng `BottomNavigationBar` 5 tab; chuyển tab qua lại vẫn giữ nguyên trạng thái từng tab.
-
-### Quyền app xin
-
-| Tính năng | Quyền | Ghi chú |
-|---|---|---|
-| Gọi điện từ danh bạ gia đình | **Không cần** | App chỉ mở màn quay số có sẵn số (`tel:`); người dùng tự bấm gọi. App **không** xin quyền `CALL_PHONE`. |
-| Mở YouTube | Không cần | Có app YouTube thì mở app, không có thì mở trình duyệt. |
-| Tải ảnh thành viên | Không cần | Dùng bộ chọn ảnh của hệ thống (Android 13+: Photo Picker), app chỉ nhận đúng ảnh được chọn. |
-| Bấm email thành viên | Không cần | Mở app mail với địa chỉ điền sẵn (`mailto:`). |
-| Nói giờ báo thức | **Micro** (`RECORD_AUDIO`) | Chỉ hỏi khi bấm nút micro lần đầu. Từ chối vẫn dùng được ô **gõ câu lệnh**. Âm thanh chỉ dùng để nhận giờ, không lưu. |
-| Đặt báo thức | `SET_ALARM` (không hỏi) | Gửi giờ sang app Đồng hồ của máy — app SafeFamily **không tự báo thức**. |
-| Nhận giọng nói qua mạng | `INTERNET` (không hỏi) | Dịch vụ nhận giọng nói có thể dùng máy chủ khi máy chưa có gói ngoại tuyến. |
-
-Dữ liệu (tên phụ huynh, danh bạ gia đình, ảnh thành viên đã tải lên) chỉ lưu **trên máy**, không gửi đi đâu.
-
----
-
-## 2. Yêu cầu môi trường
-
-Chưa có Flutter / Android Studio thì cài theo hướng dẫn chính thức trước:
-[Cài Flutter cho Android trên Windows](https://docs.flutter.dev/get-started/install/windows/mobile) ·
-[Tải Android Studio](https://developer.android.com/studio).
-
-| Thành phần | Phiên bản | Ghi chú |
-|---|---|---|
-| Flutter | **3.47.5** (kênh stable) | Dart 3.13.4. Bản 3.47.x khác cũng được. Kiểm tra bằng `flutter --version` |
-| Android Studio | 2026.1 trở lên | Dùng JDK đi kèm (`jbr`) để build |
-| Android SDK Platform | **36** (Android 16) | Flutter 3.47 biên dịch với compileSdk 36 |
-| Android SDK Platform | 35 (Android 15) | Plugin cần; Gradle thường tự tải |
-| CMake | 3.22.1 | Plugin cần; Gradle thường tự tải |
-| Android SDK Build-Tools | 36.0.0 | |
-| **NDK (Side by side)** | **28.2.13676358** | Bắt buộc đúng bản này |
-| Android SDK Platform-Tools | mới nhất | Có `adb` |
-| Git | bất kỳ | |
-| Điện thoại Android | Android 7.0+ | Bật Gỡ lỗi USB (xem mục 3.4) |
-
-### Cài SDK Platform 36 và NDK 28.2 bằng Android Studio
-
-1. Mở Android Studio → **Settings** (`Ctrl+Alt+S`) → **Languages & Frameworks → Android SDK**.
-2. Xem ô **Android SDK Location** ở trên cùng — đúng thư mục SDK của máy mình.
-3. Tab **SDK Platforms**: tick **Android 16.0 ("Baklava")** — API Level **36**.
-4. Tab **SDK Tools**: tick **Show Package Details** (góc dưới phải) → mở **NDK (Side by side)** → tick đúng **28.2.13676358**.
-5. Bấm **Apply** → đồng ý license → chờ tải (NDK khoảng 2–3 GB sau khi cài).
-6. Kiểm tra:
-
-   ```bash
-   flutter doctor
-   ```
-
-   Dòng **Android toolchain** phải có dấu ✓. Mục Visual Studio / Chrome báo lỗi thì bỏ qua (app không làm cho Windows/web).
-
-### (Tuỳ chọn) Để SDK và cache ngoài ổ C
-
-Nếu ổ C ít chỗ, đặt các biến môi trường cấp user (ví dụ cho ổ D — thay bằng ổ/thư mục của bạn):
-
-| Biến | Giá trị ví dụ |
-|---|---|
-| `ANDROID_HOME` | `D:\dev\Android\Sdk` |
-| `ANDROID_USER_HOME` | `D:\dev\.android` |
-| `GRADLE_USER_HOME` | `D:\dev\.gradle` |
-| `PUB_CACHE` | `D:\dev\.pub-cache` |
-| `Path` thêm | `D:\dev\flutter\bin`, `D:\dev\.pub-cache\bin`, `D:\dev\Android\Sdk\platform-tools` |
-
-Sau đó chạy `flutter config --android-sdk D:\dev\Android\Sdk`, đổi đường dẫn SDK trong Android Studio cho khớp, và **khởi động lại terminal / IDE** để biến có hiệu lực.
-
----
-
-## 3. Cài đặt và chạy
-
-### 3.1. Lấy source
-
-Tải bằng Git (link repo lấy ở nút **Code** trên trang GitHub của repo):
-
-```bash
-git clone <link-repo-github>
-```
-
-Hoặc bấm **Code → Download ZIP** rồi giải nén. Sau đó mở terminal **tại thư mục chứa file `pubspec.yaml`** — mọi lệnh bên dưới đều chạy ở đó.
-
-### 3.2. (Tuỳ chọn) Đổi tên app
-
-Bản trên repo build ra app tên **"SafeFamily - Nguyễn Thành Lợi"** (tên thành viên giữ repo). Muốn app mang tên khác — thành viên nhóm bắt buộc, người ngoài tuỳ ý — chạy:
-
-```bash
-dart run tool/rename.dart nguyenvana "Nguyễn Văn A"
-```
-
-Xem chi tiết ở [mục 4](#4-đổi-tên-app-theo-thành-viên).
-
-### 3.3. Tải package
-
-```bash
-flutter pub get
-```
-
-### 3.4. Chuẩn bị điện thoại
-
-**Mọi điện thoại Android:**
-
-1. **Bật Tùy chọn nhà phát triển:** vào **Cài đặt → Giới thiệu điện thoại** (có máy nằm trong *Thông tin phần mềm*) → bấm liên tục **7 lần** vào **Số hiệu bản dựng** (*Build number*) cho tới khi hiện *"Bạn đã là nhà phát triển"*.
-2. Vào **Cài đặt → Hệ thống → Tùy chọn nhà phát triển** (tuỳ hãng có thể nằm ở *Cài đặt bổ sung*) → bật **Gỡ lỗi USB** (*USB debugging*).
-
-**Riêng Xiaomi / Redmi / POCO (MIUI, HyperOS):**
-
-- Bước 1 bấm 7 lần vào **Phiên bản MIUI / HyperOS** (trong *Giới thiệu điện thoại*); Tùy chọn nhà phát triển nằm ở **Cài đặt → Cài đặt bổ sung**.
-- Bật thêm **Cài đặt qua USB** (*Install via USB*) — thiếu cái này `flutter run` sẽ báo `INSTALL_FAILED_USER_RESTRICTED`. Máy có thể yêu cầu đăng nhập tài khoản Mi và **cắm SIM + bật dữ liệu di động** mới cho bật.
-- Nên bật **Gỡ lỗi USB (Cài đặt bảo mật)** nếu có.
-
-**Kết nối:**
-
-3. Cắm cáp **truyền dữ liệu** (không dùng cáp chỉ sạc), chọn chế độ **Truyền tệp**.
-4. Khi điện thoại hỏi *"Cho phép gỡ lỗi USB?"* → tick *Luôn cho phép* → **Cho phép**.
-5. Kiểm tra máy tính đã thấy điện thoại:
-
-   ```bash
-   flutter devices
-   ```
-
-### 3.5. Chạy app
-
-```bash
-flutter run
-```
-
-Nhiều thiết bị thì chỉ định máy bằng id lấy từ `flutter devices`, ví dụ `flutter run -d a7199f47`.
-Xiaomi: nếu hiện hộp thoại *"Cài đặt ứng dụng qua USB?"* thì bấm **Cài đặt** ngay (chỉ chờ khoảng 10 giây).
-
-### 3.6. Build file APK
-
-```bash
-flutter build apk --release
-```
-
-File ra ở `build/app/outputs/flutter-apk/app-release.apk` (hiện ký bằng khoá debug — đủ để cài thử, chưa đủ để đưa lên cửa hàng).
-
----
-
-## 4. Đổi tên app theo thành viên
-
-Cả nhóm dùng chung một source; theo yêu cầu đồ án, app của mỗi thành viên mang tên người đó. Ai tải repo về cũng dùng được script này để đổi sang tên mình. Chạy ở thư mục gốc project (chỗ có `pubspec.yaml`):
-
-```bash
-dart run tool/rename.dart <hovaten_khong_dau> "<Họ Tên có dấu>"
-```
-
-| Thành viên | Lệnh |
-|---|---|
-| Nguyễn Thành Lợi | `dart run tool/rename.dart nguyenthanhloi "Nguyễn Thành Lợi"` |
-| Hồ Ngọc Phú | `dart run tool/rename.dart hongocphu "Hồ Ngọc Phú"` |
-| Phạm Đinh Gia Bảo | `dart run tool/rename.dart phamdinhgiabao "Phạm Đinh Gia Bảo"` |
-| Phương Bảo Khôi | `dart run tool/rename.dart phuongbaokhoi "Phương Bảo Khôi"` |
-
-Script đổi cùng lúc:
-
-| Chỗ | Thành |
-|---|---|
-| `name` trong `pubspec.yaml` | `safe_family_app_<hovaten>` |
-| `applicationId` Android | `com.safefamily.<hovaten>` |
-| Tên app trên điện thoại | `SafeFamily - <Họ Tên>` |
-| `AppInfo.ownerName` (`lib/core/constants/app_info.dart`) | `<Họ Tên>` |
-| `AppInfo.applicationId` (cùng file) | `com.safefamily.<hovaten>` (để mở đúng trang Cài đặt của app) |
-| Import `package:...` trong `test/` | theo tên package mới |
-
-Sau đó script tự chạy `flutter pub get`.
-
-Quy ước để script hoạt động:
-
-- `<hovaten_khong_dau>` chỉ gồm **chữ thường a-z, số, dấu `_`**, bắt đầu bằng chữ.
-- Namespace/package Kotlin **giữ cố định** (`com.safefamily.safe_family_app_nguyenthanhloi`) — không cần dời `MainActivity`.
-- Mọi import trong `lib/` dùng **đường dẫn tương đối** (`import '../core/...'`), không dùng `package:safe_family_app_...`. Lint `prefer_relative_imports` sẽ báo nếu viết sai.
-- Bản trên repo mặc định là `nguyenthanhloi` (thành viên giữ repo). Thành viên nhóm **không commit phần đổi tên của mình** — đổi tên chỉ để build trên máy mình. Trước khi commit, chạy lại script với tên mặc định:
-
-  ```bash
-  dart run tool/rename.dart nguyenthanhloi "Nguyễn Thành Lợi"
-  ```
-
----
-
-## 5. Hướng dẫn sử dụng app
-
-> Tính năng chưa xong (xem [mục 1](#1-tính-năng)) sẽ được bổ sung hướng dẫn khi hoàn thành.
-
-Mở app **SafeFamily - <Họ Tên>** trên điện thoại. Chuyển giữa 5 tab bằng thanh điều hướng dưới cùng: **Trang chủ – Dịch – Báo thức – Nhóm – Cá nhân**.
-
-### Tab Cá nhân
-
-**Tên phụ huynh:** chạm vào thẻ hồ sơ trên cùng (hoặc nút ✎) → nhập họ tên → **Lưu**. Ảnh đại diện là chữ cái đầu của tên.
-
-**Mở YouTube:** bấm nút **Mở YouTube** — máy có app YouTube thì vào app, không có thì mở trang web.
-
-**Danh bạ gia đình** — lần đầu có sẵn **Mẹ** và **Bố** *chưa có số* (app không tự điền số mẫu để tránh gọi nhầm người lạ).
-
-| Muốn… | Làm |
-|---|---|
-| Gọi | Chạm vào thẻ → app **Điện thoại** mở ra với số soạn sẵn → tự bấm gọi |
-| Thêm số cho thẻ chưa có số | Chạm vào thẻ (dòng *"Chạm để thêm số"*) → nhập số → **Lưu** |
-| Thêm liên hệ | Bấm **Thêm** → chọn tên gọi (Mẹ, Bố, Ông, Bà, Anh, Chị, Em, Con) hoặc **Khác** để tự gõ → nhập số (có thể để trống) → **Lưu** |
-| Sửa / Xóa | Bấm **⋮** ở cuối thẻ → **Sửa** hoặc **Xóa** (xóa phải xác nhận) |
-
-Số điện thoại hợp lệ: chỉ chữ số, được có dấu `+` ở đầu, dài **9–12 chữ số**; khoảng trắng và dấu chấm được tự bỏ (`090.123 4567` → `0901234567`). Nhập sai sẽ báo lỗi ngay dưới ô nhập.
-
-Danh bạ và tên lưu trên máy — tắt app mở lại vẫn còn.
-
-### Tab Nhóm
-
-- **Lướt ngang** để xem thẻ từng thành viên; thẻ kế tiếp ló ra ở mép phải. Dưới cùng có chấm trang và số thứ tự (ví dụ `2/4`).
-- Mỗi thẻ: ảnh, họ tên, MSSV, email, vai trò, lớp. Ô nào chưa có thông tin hiện *"Chưa cập nhật"*.
-- **Bấm vào email** → mở app mail với địa chỉ điền sẵn.
-- **Ảnh** (khi chế độ tải ảnh đang MỞ):
-  - **Tải ảnh lên** → chọn ảnh trong thư viện máy. Ảnh được thu nhỏ và **chép vào bộ nhớ riêng của app** — tắt app mở lại vẫn còn, xóa ảnh gốc trong thư viện cũng không mất.
-  - Đã có ảnh thì có **Đổi ảnh** và **Xóa ảnh** (xóa phải xác nhận).
-  - Thứ tự hiển thị: ảnh cố định trong app (`assets/team/`) → ảnh đã tải lên → chữ cái đầu của tên.
-
-Muốn sửa thông tin hoặc gắn ảnh cố định cho thành viên: xem [mục 5.1](#51-cập-nhật-thông-tin-và-ảnh-thành-viên).
-
-### Tab Báo thức
-
-1. Chọn ngôn ngữ ở chip trên cùng (mặc định **Tiếng Việt**; đổi mặc định trong **Cá nhân → Cài đặt**). App nhớ lựa chọn.
-2. Bấm **micro** (lần đầu máy hỏi quyền micro → *Cho phép*) rồi nói câu đặt giờ. Chữ nhận được hiện ngay khi đang nói.
-   Micro lỗi hoặc muốn demo: gõ câu vào ô **"Hoặc gõ câu lệnh"** ở cuối màn hình.
-3. App hiện **giờ đã hiểu** thật to (ví dụ `06:30 · sáng ngày mai`). Sai thì bấm **Sửa giờ**.
-4. Bấm **Đặt báo thức** → **app Đồng hồ của máy** mở ra với giờ và nhãn "SafeFamily" điền sẵn → lưu trong app Đồng hồ (nếu app hỏi).
-
-Không nói sáng/chiều thì app chọn **mốc gần nhất sắp tới** (đang 20:00 nói "7 giờ" → 07:00 sáng mai; đang 10:00 nói "7 giờ" → 19:00). Âm báo do app Đồng hồ quyết định.
-
-**Câu mẫu** (số có thể nói bằng chữ: "sáu giờ", "seven", "七時", "七点", "일곱 시"):
-
-| Ngôn ngữ | Câu mẫu | Hiểu được thêm |
-|---|---|---|
-| Tiếng Việt | *Đặt báo thức 6 giờ 30 sáng* | `6h30`, `6 giờ rưỡi`, `7 giờ kém 15`, sáng / trưa / chiều / tối / đêm |
-| English | *Set an alarm for 7:30 am* | `7 30 pm`, `half past 7`, `quarter to 8`, `7 o'clock`, `noon`, `midnight` |
-| 日本語 | *午前7時半に起こして* | `7時30分`, `7時半`, `7時10分前`, `午前` / `午後` / `夜`, `正午` |
-| 中文 | *明天早上7点半叫我* | `7点30分`, `7点半`, `7点一刻`, `差一刻8点`, `上午` / `下午` / `晚上` |
-| 한국어 | *오전 7시 반에 알람 맞춰줘* | `7시 30분`, `7시 반`, `8시 10분 전`, `오전` / `오후` / `저녁` / `밤`, `정오` |
-
-**Tải gói nhận giọng nói cho ngôn ngữ còn thiếu** (app báo *"Máy chưa có gói nhận giọng nói tiếng X"*):
-
-- Bấm **Mở cài đặt giọng nói** ngay trên thông báo, hoặc
-- **Cài đặt → Hệ thống → Ngôn ngữ & nhập liệu → Nhận dạng giọng nói trên thiết bị** → thêm ngôn ngữ, hoặc
-- **App Google → Cài đặt → Giọng nói → Nhận dạng giọng nói ngoại tuyến** → tải ngôn ngữ.
-
-(Tên mục tuỳ hãng máy.) Chưa tải vẫn có thể thử nói khi có mạng, hoặc gõ câu lệnh.
-
-### Màn Cài đặt (Cá nhân → Cài đặt)
-
-- **Ngôn ngữ giọng nói** mặc định cho tab Báo thức (dùng chung với chip trên màn Báo thức).
-- **Âm báo**: do app Đồng hồ của máy quyết định.
-- **Giới thiệu**: tên app, trang giấy phép mã nguồn mở.
-
-### Các tab khác
-
-- **Dịch:** *chưa làm* — hiện chỉ có màn giữ chỗ (chế độ Văn bản / Giọng nói / Ảnh / Camera, nút ⇄ đổi chiều).
-
-### 5.1. Cập nhật thông tin và ảnh thành viên
-
-**Sửa thông tin** — chỉ sửa file [`assets/team/members.json`](assets/team/members.json), không cần đụng code giao diện:
-
-```json
-{
-  "id": "hongocphu",
-  "fullName": "Hồ Ngọc Phú",
-  "studentId": "2380601699",
-  "email": "ten@example.com",
-  "role": "Tester",
-  "className": "23DTHC5"
-}
-```
-
-- Thứ tự trong file = thứ tự thẻ trong app. Để `""` thì app hiện *"Chưa cập nhật"*.
-- **Không đổi `id`** (dùng để đặt tên ảnh).
-- Sửa xong phải **build lại** (`flutter run`) — hot reload không nhận thay đổi trong `assets/`.
-
-**Gắn ảnh cố định rồi khoá tải ảnh** (dùng khi nộp bài, để ảnh không phụ thuộc máy nào):
-
-1. Đặt ảnh vào `assets/team/`, tên = `id` + `.jpg`, ví dụ `assets/team/hongocphu.jpg` (chữ thường, đuôi `.jpg`; nên ảnh vuông ~600×600 px, dưới 300 KB).
-2. Mở `lib/core/constants/feature_flags.dart`, đổi:
-
-   ```dart
-   const bool kTeamPhotoUploadEnabled = false;
-   ```
-
-3. Build lại (`flutter run`). Các nút *Tải ảnh lên / Đổi ảnh / Xóa ảnh* biến mất; thẻ hiện ảnh trong `assets/team/`, ai chưa có ảnh thì hiện chữ cái đầu.
-
-Ảnh cố định luôn được ưu tiên hơn ảnh tải lên, nên người đã có ảnh trong `assets/team/` sẽ không thấy nút tải ảnh kể cả khi đang MỞ.
-
----
-
-## 6. Cấu trúc thư mục
-
-```
-lib/
-  main.dart
-  app/                      # MaterialApp + khung điều hướng (BottomNavigationBar + IndexedStack)
-  core/
-    constants/              # AppInfo (tên app), AppLanguage (5 ngôn ngữ), feature_flags (khoá tải ảnh)
-    services/               # ExternalLauncher (Điện thoại, YouTube, mail), SystemSettings (mở Cài đặt)
-    settings/               # VoiceLanguageSettings: ngôn ngữ giọng nói dùng chung
-    theme/                  # màu, chữ, khoảng cách, bo góc — theo design/DESIGN.md
-    widgets/                # widget dùng chung
-  features/
-    home/       {presentation, data}
-    translate/  {presentation, data}
-    alarm/
-      domain/               # bộ hiểu giờ 5 ngôn ngữ — Dart thuần, không phụ thuộc Flutter
-      data/                 # nhận giọng nói (speech_to_text), gửi SET_ALARM (android_intent_plus)
-      presentation/         # màn Báo thức, AlarmController (ChangeNotifier)
-    team/
-      data/                 # đọc members.json, chọn/lưu ảnh, thứ tự ưu tiên ảnh
-      presentation/         # màn Nhóm, TeamController (ChangeNotifier), thẻ thành viên
-    profile/
-      data/                 # model liên hệ, kiểm tra số, ProfileRepository + bản lưu trên máy
-      presentation/         # màn Cá nhân, ProfileController (ChangeNotifier), hộp thoại
-assets/fonts/BeVietnamPro/  # font + giấy phép OFL.txt
-assets/team/                # members.json (thông tin nhóm) + ảnh cố định <id>.jpg
-tool/rename.dart            # đổi tên app theo thành viên
-test/
-  widget_test.dart          # chuyển 5 tab + giữ trạng thái tab
-  features/<tính năng>/     # unit test + widget test từng tính năng
-  helpers/                  # đồ giả dùng chung cho test
-```
-
-- Màu, cỡ chữ, khoảng cách lấy từ `lib/core/theme/` — không ghi số cứng trong màn hình.
-- Mỗi tính năng tách `data/` (lưu trữ, sau này thay bằng server chỉ cần viết thêm một bản của interface repository) và `presentation/` (giao diện + state bằng `ChangeNotifier` có sẵn của Flutter).
-
-### Package đang dùng (từ pub.dev)
-
-| Package | Dùng để |
-|---|---|
-| `shared_preferences` | Lưu tên phụ huynh, danh bạ gia đình trên máy |
-| `url_launcher` | Mở màn quay số (`tel:`), mở YouTube, mở app mail (`mailto:`) |
-| `image_picker` | Chọn ảnh thành viên từ thư viện máy |
-| `path_provider` | Lấy thư mục riêng của app để chép ảnh vào |
-| `speech_to_text` | Nhận giọng nói (dịch vụ nhận giọng nói của máy) |
-| `android_intent_plus` | Gửi Intent `SET_ALARM` sang app Đồng hồ, mở trang Cài đặt |
-| `flutter_localizations` *(có sẵn trong Flutter SDK)* | Chữ của Material (chọn giờ, OK/Hủy) bằng tiếng Việt |
-| `shared_preferences_platform_interface` | *(chỉ trong test)* bộ nhớ giả cho test |
-
----
-
-## 7. Kiểm tra code
-
-Trước khi push, chạy:
-
-```bash
-flutter analyze
-```
-
-```bash
-flutter test
-```
-
-Cả hai phải sạch lỗi.
-
----
-
-## 8. Lỗi thường gặp
-
-### Build lỗi: `sdkmanager.bat ... finished with non-zero exit value -1073740791 (NTSTATUS 0xC0000409)`
-
-- **Nguyên nhân:** máy thiếu SDK Platform 36 hoặc NDK 28.2. Gradle tự gọi `sdkmanager` để cài, nhưng **Command-line Tools bản 23** bị crash khi thoát nên cài thất bại.
-- **Cách sửa:** cài tay **SDK Platform 36** và **NDK 28.2.13676358** bằng Android Studio ([mục 2](#cài-sdk-platform-36-và-ndk-282-bằng-android-studio)), rồi build lại.
-- Dùng dòng lệnh thay cho Android Studio (gọi thẳng `android.exe`, không qua `sdkmanager.bat`):
-
-  ```bash
-  "%ANDROID_HOME%\cmdline-tools\latest\bin\android.exe" --no-metrics sdk install platforms/android-36
-  ```
-
-  ```bash
-  "%ANDROID_HOME%\cmdline-tools\latest\bin\android.exe" --no-metrics sdk install ndk/28.2.13676358
-  ```
-
-  Lệnh có thể vẫn báo crash lúc thoát nhưng gói đã được cài — kiểm tra thư mục `platforms\android-36` và `ndk\28.2.13676358` trong SDK.
-
-### Build lỗi: `Package ndk not found` / `Failed to find NDK`
-
-Thiếu NDK đúng bản **28.2.13676358** — cài như trên. Cài bản NDK khác không được.
-
-### `flutter run` lỗi: `INSTALL_FAILED_USER_RESTRICTED: Install canceled by user`
-
-- **Nguyên nhân:** Xiaomi/Redmi/POCO chặn cài app qua USB.
-- **Cách sửa:** Tùy chọn nhà phát triển → bật **Cài đặt qua USB** (cần tài khoản Mi, SIM + dữ liệu di động). Khi chạy lại, để màn hình mở khoá và bấm **Cài đặt** ở hộp thoại hiện lên.
-
-### `adb devices` báo `unauthorized`
-
-Điện thoại chưa cho phép máy tính gỡ lỗi. Mở khoá màn hình → bấm **Cho phép** ở hộp thoại *"Cho phép gỡ lỗi USB?"*. Không thấy hộp thoại: Tùy chọn nhà phát triển → **Thu hồi ủy quyền gỡ lỗi USB** → rút cáp cắm lại.
-
-### `flutter devices` không thấy điện thoại
-
-- Đổi sang **cáp truyền dữ liệu** (cáp chỉ sạc không được), thử cổng USB khác (ưu tiên cổng sau thùng máy).
-- Chọn chế độ USB **Truyền tệp** trên điện thoại. Nếu máy tính không hiện ổ điện thoại trong File Explorer → lỗi cáp/cổng.
-- Kiểm tra đã bật **Gỡ lỗi USB**.
-
-### `'flutter' is not recognized` / `flutter: command not found`
-
-`Path` chưa có `...\flutter\bin`, hoặc vừa sửa biến môi trường mà chưa **khởi động lại terminal / IDE**.
-
-### `Target of URI doesn't exist: 'package:safe_family_app_.../...'` trong test
-
-Tên package trong `pubspec.yaml` và trong import của `test/` không khớp (thường do sửa tên tay). Chạy lại `dart run tool/rename.dart ...` để script đồng bộ, rồi `flutter pub get`.
-
-### `rename.dart`: `hovaten_khong_dau ... không hợp lệ`
-
-Tham số đầu phải là chữ thường không dấu, không khoảng trắng: `nguyenthanhloi` ✓ — `NguyenThanhLoi` ✗ — `nguyễn thành lợi` ✗. Họ tên có dấu đặt trong ngoặc kép ở tham số thứ hai.
-
-### Lint báo `prefer_relative_imports`
-
-Import trong `lib/` đang dùng `package:safe_family_app_...`. Đổi sang đường dẫn tương đối, ví dụ `import '../../core/theme/app_tokens.dart';`.
-
-### Tab Báo thức: *"Chưa có quyền dùng micro"*
-
-Đã từ chối quyền micro. Bấm **Mở Cài đặt** → **Quyền → Micro → Cho phép** → quay lại bấm **Thử lại**. Trong lúc đó vẫn dùng được ô **gõ câu lệnh**.
-
-### Tab Báo thức: *"Máy không có dịch vụ nhận giọng nói"*
-
-Máy chưa có/đã tắt dịch vụ nhận giọng nói. Cài hoặc bật app **Google** (Cài đặt → Ứng dụng → Google → Bật), rồi bấm **Thử lại**.
-
-### Tab Báo thức: *"Máy chưa có gói nhận giọng nói tiếng X"*
-
-Tải gói ngôn ngữ theo hướng dẫn ở [Tab Báo thức](#tab-báo-thức). Chưa tải vẫn thử nói được khi có mạng.
-
-### Tab Báo thức: nói xong báo *"Không hiểu giờ"*
-
-- Kiểm tra chip ngôn ngữ đúng với tiếng đang nói.
-- Nói rõ giờ theo [câu mẫu](#tab-báo-thức); xem dòng *"Bạn nói: …"* để biết máy nghe thành chữ gì.
-
-### Bấm *Đặt báo thức* báo *"Máy không có app Đồng hồ nhận lệnh đặt báo thức"*
-
-App Đồng hồ của máy không hỗ trợ lệnh chuẩn `SET_ALARM` hoặc đã bị tắt. Bật lại app Đồng hồ, hoặc mở app Đồng hồ và đặt tay theo giờ app hiện.
-
-### Build lần đầu tự tải *Android SDK Platform 35* và *CMake 3.22.1*
-
-Bình thường — plugin `image_picker`/`path_provider` cần hai gói này, Gradle tự cài vào thư mục SDK. Nếu bước tự cài báo lỗi `sdkmanager ... 0xC0000409` (xem lỗi đầu mục 8), cài tay trong Android Studio: **SDK Platforms** → *Android 15.0 (API 35)*; **SDK Tools** → *Show Package Details* → **CMake** → *3.22.1*.
-
-### Thêm ảnh vào `assets/team/` hoặc sửa `members.json` mà app không đổi
-
-- Phải **build lại** bằng `flutter run` (dừng hẳn rồi chạy lại) — hot reload / hot restart không nhận file mới trong `assets/`.
-- Tên ảnh phải đúng `id` + `.jpg`, chữ thường: `hongocphu.jpg` ✓ — `HoNgocPhu.jpg` ✗ — `hongocphu.png` ✗ — `hongocphu.JPG` ✗.
-- `members.json` sai cú pháp JSON (thiếu dấu phẩy, ngoặc kép…) thì tab Nhóm báo *"Không đọc được thông tin nhóm"* — kiểm tra lại file bằng một trình kiểm tra JSON.
-
-### Bấm email thành viên báo *"Không mở được app mail"*
-
-Máy chưa có app mail nào (Gmail, Outlook…) hoặc app mail đang bị tắt. Cài/bật một app mail rồi thử lại.
-
-### Chạm thẻ danh bạ báo *"Không mở được app Điện thoại"* / bấm YouTube báo *"Không mở được YouTube"*
-
-- Máy không có app Điện thoại (máy tính bảng chỉ Wi-Fi) hoặc không có trình duyệt nào → không mở được là đúng.
-- Máy có app nhưng vẫn báo lỗi: app Điện thoại / trình duyệt mặc định đang bị tắt trong **Cài đặt → Ứng dụng** — bật lại.
-
-### Log có nhiều dòng `E/AdrenoUtils`, `E/Gralloc4`, `GraphicBuffer ... failed`
-
-Không phải lỗi app — driver GPU Qualcomm dò định dạng ảnh lúc khởi động (Impeller/Vulkan). Bỏ qua.
-
-### `flutter doctor` báo lỗi mục Visual Studio / Chrome
-
-Bỏ qua — app chỉ làm cho Android.
-
----
-
-## 9. Giấy phép
-
-- Mã nguồn: **MIT** — xem file [`LICENSE`](LICENSE). Được tự do dùng, sửa, phân phối lại; chỉ cần giữ nguyên thông báo bản quyền của nhóm.
-- Font **Be Vietnam Pro**: SIL Open Font License 1.1 — xem [`assets/fonts/BeVietnamPro/OFL.txt`](assets/fonts/BeVietnamPro/OFL.txt). Trong app, giấy phép này hiện ở trang *Giấy phép*.
+Mã nguồn: **MIT** — xem [LICENSE](LICENSE). Font Be Vietnam Pro: SIL OFL 1.1 — [assets/fonts/BeVietnamPro/OFL.txt](assets/fonts/BeVietnamPro/OFL.txt).

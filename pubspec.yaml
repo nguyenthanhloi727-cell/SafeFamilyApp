@@ -2,19 +2,23 @@ name: safe_family_app_nguyenthanhloi
 description: "SafeFamily — ứng dụng giúp phụ huynh quản lý điện thoại của con."
 publish_to: 'none'
 
-version: 1.0.0+1
+version: 0.6.0+1
 
 environment:
   sdk: ^3.13.4
 
 dependencies:
   android_intent_plus: ^6.1.0
+  crypto: ^3.0.7
   flutter:
     sdk: flutter
   # Có sẵn trong Flutter SDK: chữ của Material (chọn giờ, OK/Hủy…) bằng tiếng Việt.
   flutter_localizations:
     sdk: flutter
+  flutter_secure_storage: ^11.2.0
   image_picker: ^1.2.3
+  local_auth: ^3.0.2
+  local_auth_android: ^2.2.0
   path_provider: ^2.1.6
   shared_preferences: ^2.5.5
   speech_to_text: ^7.5.0

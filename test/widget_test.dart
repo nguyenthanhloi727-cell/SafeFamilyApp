@@ -4,11 +4,15 @@ import 'package:shared_preferences_platform_interface/in_memory_shared_preferenc
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 
 import 'package:safe_family_app_nguyenthanhloi/app/app.dart';
+import 'package:safe_family_app_nguyenthanhloi/core/security/parent_guard.dart';
+import 'package:safe_family_app_nguyenthanhloi/features/parental/presentation/first_run_setup_page.dart';
 import 'package:safe_family_app_nguyenthanhloi/features/alarm/presentation/alarm_page.dart';
 import 'package:safe_family_app_nguyenthanhloi/features/home/presentation/home_page.dart';
 import 'package:safe_family_app_nguyenthanhloi/features/profile/presentation/profile_page.dart';
 import 'package:safe_family_app_nguyenthanhloi/features/team/presentation/team_page.dart';
 import 'package:safe_family_app_nguyenthanhloi/features/translate/presentation/translate_page.dart';
+
+import 'helpers/security_fakes.dart';
 
 const _tabs = <(String, Type)>[
   ('Trang chủ', HomePage),
@@ -39,8 +43,68 @@ void main() {
         InMemorySharedPreferencesAsync.empty();
   });
 
+  /// App đã thiết lập PIN (bỏ qua màn thiết lập lần đầu).
+  Future<void> pumpApp(WidgetTester tester, {bool childMode = false}) async {
+    final guard = await configuredGuard(childMode: childMode);
+    await tester.pumpWidget(SafeFamilyApp(guard: guard));
+    await tester.pump();
+  }
+
+  Future<void> enterPin(WidgetTester tester, String pin) async {
+    for (final digit in pin.split('')) {
+      await tester.tap(find.bySemanticsLabel('Số $digit'));
+      await tester.pump();
+    }
+    await tester.tap(find.byTooltip('Xác nhận'));
+    await tester.pumpAndSettle();
+  }
+
+  testWidgets('lần đầu mở app: đặt PIN 2 lần → bật vân tay → vào app', (
+    tester,
+  ) async {
+    final guard = ParentGuard(
+      store: InMemorySecureStore(),
+      biometrics: FakeBiometrics(),
+      hasher: fastHasher,
+    );
+    await guard.load();
+    tester.view.physicalSize = const Size(1080, 2400); // 360 × 800 dp
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(SafeFamilyApp(guard: guard));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Chào mừng đến SafeFamily'), findsOneWidget);
+    expect(find.text(biometricOwnershipWarning), findsOneWidget);
+    await tester.ensureVisible(find.text('Bắt đầu'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Bắt đầu'));
+    await tester.pumpAndSettle();
+
+    await enterPin(tester, '1234');
+    expect(find.text('Mã PIN không được là dãy số liên tiếp'), findsOneWidget);
+
+    await enterPin(tester, testPin);
+    expect(find.text('Nhập lại mã PIN'), findsOneWidget);
+    await enterPin(tester, testPin);
+
+    expect(find.text('Bật mở khóa bằng vân tay?'), findsOneWidget);
+    await tester.tap(find.text('Bật'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+
+    expect(guard.isConfigured, isTrue);
+    expect(guard.biometricEnabled, isTrue);
+    expect(find.byType(BottomNavigationBar), findsOneWidget);
+  });
+
+  testWidgets('chế độ trẻ em: có dải báo ở đầu màn hình', (tester) async {
+    await pumpApp(tester, childMode: true);
+    expect(find.text('Đang ở chế độ trẻ em'), findsOneWidget);
+  });
+
   testWidgets('BottomNavigationBar chuyển đủ 5 tab', (tester) async {
-    await tester.pumpWidget(const SafeFamilyApp());
+    await pumpApp(tester);
 
     final barFinder = find.byType(BottomNavigationBar);
     expect(barFinder, findsOneWidget);
@@ -67,7 +131,7 @@ void main() {
   testWidgets('Giữ trạng thái tab khi chuyển qua lại (IndexedStack)', (
     tester,
   ) async {
-    await tester.pumpWidget(const SafeFamilyApp());
+    await pumpApp(tester);
 
     await _tapTab(tester, 'Dịch');
     Finder source() => find.descendant(

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/constants/app_info.dart';
+import '../../../core/security/ui/parent_area_guard.dart';
 import '../../../core/settings/voice_language_settings.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/widgets/language_picker.dart';
@@ -29,6 +30,14 @@ class SettingsPage extends StatelessWidget {
       ),
     );
 
+    return ParentAreaGuard(child: _page(context, settings, section));
+  }
+
+  Widget _page(
+    BuildContext context,
+    VoiceLanguageSettings settings,
+    Widget Function(String) section,
+  ) {
     return Scaffold(
       appBar: AppBar(title: const Text('Cài đặt')),
       body: ListView(

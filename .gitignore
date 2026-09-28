@@ -46,3 +46,10 @@ app.*.map.json
 
 # Widget Preview related
 .widget_preview/
+
+# Phát hành: không commit APK / khóa ký
+*.apk
+*.aab
+*.jks
+*.keystore
+key.properties

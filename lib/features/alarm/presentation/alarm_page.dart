@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/constants/app_languages.dart';
+import '../../../core/security/ui/parent_gate.dart';
 import '../../../core/services/system_settings.dart';
 import '../../../core/settings/voice_language_settings.dart';
 import '../../../core/theme/app_tokens.dart';
@@ -70,6 +71,10 @@ class _AlarmPageState extends State<AlarmPage> {
   }
 
   Future<void> _pickLanguage() async {
+    if (!await ParentGate.childAction(context, 'Đổi ngôn ngữ mặc định')) {
+      return;
+    }
+    if (!mounted) return;
     final picked = await showLanguagePicker(
       context,
       selected: _controller.language,
@@ -79,6 +84,8 @@ class _AlarmPageState extends State<AlarmPage> {
   }
 
   Future<void> _editTime(AlarmTime current) async {
+    if (!await ParentGate.childAction(context, 'Sửa giờ báo thức')) return;
+    if (!mounted) return;
     final picked = await showTimePicker(
       context: context,
       initialTime: TimeOfDay(hour: current.hour, minute: current.minute),
@@ -91,6 +98,11 @@ class _AlarmPageState extends State<AlarmPage> {
     if (picked != null) {
       _controller.editTime(AlarmTime(picked.hour, picked.minute));
     }
+  }
+
+  Future<void> _schedule() async {
+    if (!await ParentGate.childAction(context, 'Đặt báo thức')) return;
+    await _controller.scheduleAlarm();
   }
 
   void _submitTyped() {
@@ -184,7 +196,7 @@ class _AlarmPageState extends State<AlarmPage> {
           AlarmConfirmCard(
             time: pending,
             now: c.now(),
-            onSchedule: c.scheduleAlarm,
+            onSchedule: _schedule,
             onEdit: () => _editTime(pending),
           ),
         ],

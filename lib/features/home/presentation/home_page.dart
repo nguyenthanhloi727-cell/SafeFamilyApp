@@ -1,12 +1,24 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/security/ui/parent_gate.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/widgets/feature_card.dart';
-import '../../../core/widgets/step_notice.dart';
+import 'device_management_page.dart';
 
-/// S01 — Trang chủ: bảng điều khiển giữ chỗ cho tính năng quản lý con.
+/// S01 — Trang chủ: lối vào "Quản lý thiết bị của con" (có cổng xác thực)
+/// + các thẻ giữ chỗ cho tính năng quản lý con.
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
+
+  Future<void> _openDeviceManagement(BuildContext context) async {
+    final navigator = Navigator.of(context);
+    if (!await ParentGate.parentArea(context, 'Quản lý thiết bị của con')) {
+      return;
+    }
+    await navigator.push(
+      MaterialPageRoute<void>(builder: (_) => const DeviceManagementPage()),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -25,10 +37,13 @@ class HomePage extends StatelessWidget {
             ),
           ),
           const SizedBox(height: AppSpace.xl),
-          const StepNotice(
-            'Quản lý con nằm ngoài 8 bước của đồ án — hiện chỉ giữ chỗ.',
+          FeatureCard(
+            icon: Icons.admin_panel_settings_outlined,
+            title: 'Quản lý thiết bị của con',
+            subtitle: 'Chỉ phụ huynh — cần vân tay/khuôn mặt hoặc mã PIN',
+            onTap: () => _openDeviceManagement(context),
           ),
-          const SizedBox(height: AppSpace.lg),
+          const SizedBox(height: AppSpace.md),
           const FeatureCard(
             icon: Icons.child_care_rounded,
             title: 'Thẻ con',

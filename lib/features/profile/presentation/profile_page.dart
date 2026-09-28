@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/constants/app_languages.dart';
+import '../../../core/security/parent_guard.dart';
+import '../../../core/security/ui/parent_gate.dart';
 import '../../../core/services/external_launcher.dart';
 import '../../../core/settings/voice_language_settings.dart';
 import '../../../core/theme/app_tokens.dart';
@@ -10,6 +12,8 @@ import '../../../core/widgets/initial_avatar.dart';
 import '../data/family_contact.dart';
 import '../data/local_profile_repository.dart';
 import '../data/profile_repository.dart';
+import '../../parental/presentation/security_settings_page.dart';
+import '../../parental/presentation/unlock_log_page.dart';
 import 'profile_controller.dart';
 import 'settings_page.dart';
 import 'widgets/contact_card.dart';
@@ -62,6 +66,8 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Future<void> _editParentName() async {
+    if (!await ParentGate.childAction(context, 'Sửa tên phụ huynh')) return;
+    if (!mounted) return;
     final name = await ParentNameDialog.show(
       context,
       _controller.hasParentName ? _controller.parentName : '',
@@ -77,11 +83,14 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Future<void> _onContactTap(FamilyContact contact) async {
     if (!contact.hasPhone) return _editContact(contact, focusPhone: true);
+    // Bấm gọi người nhà KHÔNG bao giờ bị khóa.
     final ok = await _launcher.openDialer(contact.phone);
     if (!ok && mounted) _snack('Không mở được app Điện thoại.');
   }
 
   Future<void> _addContact() async {
+    if (!await ParentGate.childAction(context, 'Thêm liên hệ')) return;
+    if (!mounted) return;
     final draft = await ContactDialog.show(context);
     if (draft == null) return;
     await _save(
@@ -94,6 +103,13 @@ class _ProfilePageState extends State<ProfilePage> {
     FamilyContact contact, {
     bool focusPhone = false,
   }) async {
+    if (!await ParentGate.childAction(
+      context,
+      'Sửa liên hệ ${contact.label}',
+    )) {
+      return;
+    }
+    if (!mounted) return;
     final draft = await ContactDialog.show(
       context,
       initial: contact,
@@ -109,6 +125,13 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Future<void> _deleteContact(FamilyContact contact) async {
+    if (!await ParentGate.childAction(
+      context,
+      'Xóa liên hệ ${contact.label}',
+    )) {
+      return;
+    }
+    if (!mounted) return;
     final confirmed = await confirmDelete(
       context,
       title: 'Xóa liên hệ ${contact.label}?',
@@ -198,6 +221,10 @@ class _ProfilePageState extends State<ProfilePage> {
               ),
             ),
         const SizedBox(height: AppSpace.md),
+        if (ParentGuardScope.maybeOf(context) case final guard?) ...[
+          _ParentalControlsCard(guard: guard, onOpen: _openParentArea),
+          const SizedBox(height: AppSpace.md),
+        ],
         Card(
           clipBehavior: Clip.antiAlias,
           child: ListTile(
@@ -208,12 +235,66 @@ class _ProfilePageState extends State<ProfilePage> {
               '${(VoiceLanguageScope.maybeOf(context)?.language ?? AppLanguage.defaultVoice).nativeName}',
             ),
             trailing: const Icon(Icons.chevron_right_rounded),
-            onTap: () => Navigator.of(context).push(
-              MaterialPageRoute<void>(builder: (_) => const SettingsPage()),
-            ),
+            onTap: () => _openParentArea('Mở Cài đặt', const SettingsPage()),
           ),
         ),
       ],
+    );
+  }
+
+  /// Vào khu vực phụ huynh: xác thực (nếu cần) rồi mở [page].
+  Future<void> _openParentArea(String action, Widget page) async {
+    final navigator = Navigator.of(context);
+    if (!await ParentGate.parentArea(context, action)) return;
+    await navigator.push(MaterialPageRoute<void>(builder: (_) => page));
+  }
+}
+
+/// Khóa phụ huynh: chế độ trẻ em, bảo mật, nhật ký mở khóa.
+class _ParentalControlsCard extends StatelessWidget {
+  const _ParentalControlsCard({required this.guard, required this.onOpen});
+
+  final ParentGuard guard;
+  final Future<void> Function(String action, Widget page) onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        children: [
+          SwitchListTile(
+            secondary: const Icon(Icons.child_care_rounded),
+            title: const Text('Chế độ trẻ em'),
+            subtitle: Text(
+              guard.childMode
+                  ? 'Đang bật — thoát cần xác thực phụ huynh.'
+                  : 'Bật khi đưa máy cho con. Thoát cần vân tay/PIN.',
+            ),
+            value: guard.childMode,
+            onChanged: (on) => guard.setChildMode(
+              on,
+              promptPin: ParentGate.promptFor(context),
+            ),
+          ),
+          const Divider(height: 1),
+          ListTile(
+            leading: const Icon(Icons.shield_outlined),
+            title: const Text('Bảo mật & khóa phụ huynh'),
+            subtitle: const Text('Mã PIN, vân tay/khuôn mặt, thời gian chờ'),
+            trailing: const Icon(Icons.chevron_right_rounded),
+            onTap: () =>
+                onOpen('Mở cài đặt bảo mật', const SecuritySettingsPage()),
+          ),
+          const Divider(height: 1),
+          ListTile(
+            leading: const Icon(Icons.history_rounded),
+            title: const Text('Nhật ký mở khóa'),
+            trailing: const Icon(Icons.chevron_right_rounded),
+            onTap: () => onOpen('Xem nhật ký mở khóa', const UnlockLogPage()),
+          ),
+        ],
+      ),
     );
   }
 }
