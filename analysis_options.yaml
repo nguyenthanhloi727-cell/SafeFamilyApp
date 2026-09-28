@@ -1,0 +1,12 @@
+include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  exclude:
+    - build/**
+    - android/**
+
+linter:
+  rules:
+    # Import trong lib/ phải là đường dẫn tương đối, để tool/rename.dart
+    # đổi tên package mà không phải sửa import.
+    prefer_relative_imports: true

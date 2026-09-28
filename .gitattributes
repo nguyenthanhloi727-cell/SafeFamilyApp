@@ -1,0 +1,5 @@
+# Chuan hoa xuong dong cho ca nhom (Windows/macOS/Linux).
+* text=auto
+*.bat text eol=crlf
+*.png binary
+*.ttf binary

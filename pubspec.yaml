@@ -1,0 +1,36 @@
+name: safe_family_app_nguyenthanhloi
+description: "SafeFamily — ứng dụng giúp phụ huynh quản lý điện thoại của con."
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.13.4
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/fonts/BeVietnamPro/OFL.txt
+
+  # Font đóng gói sẵn (DESIGN.md mục 2) — không tải qua mạng lúc chạy.
+  fonts:
+    - family: BeVietnamPro
+      fonts:
+        - asset: assets/fonts/BeVietnamPro/BeVietnamPro-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/BeVietnamPro/BeVietnamPro-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/BeVietnamPro/BeVietnamPro-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/BeVietnamPro/BeVietnamPro-Bold.ttf
+          weight: 700
