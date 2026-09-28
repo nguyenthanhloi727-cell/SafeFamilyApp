@@ -29,7 +29,7 @@ lib/
     parental/presentation              # thiết lập lần đầu, đổi PIN, bảo mật, nhật ký
 assets/fonts/           # Be Vietnam Pro + OFL.txt
 assets/team/            # members.json + ảnh cố định <id>.jpg (xem assets/team/README.md)
-tool/rename.dart        # đổi tên app theo thành viên
+tool/                   # công cụ nội bộ nhóm
 test/                   # unit + widget test; test/helpers = đồ giả dùng chung
 ```
 
@@ -90,11 +90,9 @@ if (!await ParentGate.always(context, 'Đổi mã PIN')) return;
 - Màn thuộc khu vực phụ huynh bọc bằng `ParentAreaGuard` → tự đóng khi phiên hết hạn.
 - Không có `ParentGuardScope` (test màn lẻ) → `ParentGate` cho qua.
 
-## 6. Đổi tên theo thành viên — `tool/rename.dart`
+## 6. Tên app theo thành viên
 
-Hướng dẫn cho người dùng: [CONTRIBUTING.md mục 8](../CONTRIBUTING.md#8-đổi-app-sang-tên-của-bạn--công-cụ-đổi-tên). Cách gọi: không tham số (menu chọn từ `assets/team/members.json`), `<id>`, `<id> "<Họ Tên>"`, `--reset` (tên mặc định `nguyenthanhloi`). Windows: `doi-ten.bat`.
-
-Đổi: `name` (pubspec), `applicationId`, `namespace` + dời `MainActivity.kt` sang `kotlin/com/safefamily/safe_family_app_<id>/` (sửa dòng `package`), nhãn app, `AppInfo.ownerName`, `AppInfo.applicationId`, import `package:` trong `test/`; rồi `flutter pub get`. Đọc và kiểm tra hết (mỗi mẫu phải khớp đúng 1 chỗ) trước khi ghi. Thêm chỗ mới mang tên thành viên → thêm vào script và bảng trong CONTRIBUTING.md.
+Repo luôn để tên mặc định `nguyenthanhloi`. Thành viên nhóm dùng công cụ nội bộ `tool/rename.dart` (hướng dẫn gửi riêng trong nhóm) và trả về tên mặc định trước khi commit.
 
 ## 7. Test
 
@@ -164,14 +162,6 @@ Thiếu NDK đúng bản **28.2.13676358** — cài như trên. Cài bản NDK k
 
 `Path` chưa có `...\flutter\bin`, hoặc vừa sửa biến môi trường mà chưa **khởi động lại terminal / IDE**.
 
-### `Target of URI doesn't exist: 'package:safe_family_app_.../...'` trong test
-
-Tên package trong `pubspec.yaml` và trong import của `test/` không khớp (thường do sửa tên tay). Chạy lại `dart run tool/rename.dart ...` để script đồng bộ, rồi `flutter pub get`.
-
-### `rename.dart`: `hovaten_khong_dau ... không hợp lệ`
-
-Tham số đầu phải là chữ thường không dấu, không khoảng trắng: `nguyenthanhloi` ✓ — `NguyenThanhLoi` ✗ — `nguyễn thành lợi` ✗. Họ tên có dấu đặt trong ngoặc kép ở tham số thứ hai.
-
 ### Lint báo `prefer_relative_imports`
 
 Import trong `lib/` đang dùng `package:safe_family_app_...`. Đổi sang đường dẫn tương đối, ví dụ `import '../../core/theme/app_tokens.dart';`.
@@ -199,7 +189,7 @@ App Đồng hồ của máy không hỗ trợ lệnh chuẩn `SET_ALARM` hoặc 
 
 ### Build lần đầu tự tải *Android SDK Platform 35* và *CMake 3.22.1*
 
-Bình thường — plugin `image_picker`/`path_provider` cần hai gói này, Gradle tự cài vào thư mục SDK. Nếu bước tự cài báo lỗi `sdkmanager ... 0xC0000409` (xem lỗi đầu mục 8), cài tay trong Android Studio: **SDK Platforms** → *Android 15.0 (API 35)*; **SDK Tools** → *Show Package Details* → **CMake** → *3.22.1*.
+Bình thường — plugin `image_picker`/`path_provider` cần hai gói này, Gradle tự cài vào thư mục SDK. Nếu bước tự cài báo lỗi `sdkmanager ... 0xC0000409` (xem lỗi đầu mục 9), cài tay trong Android Studio: **SDK Platforms** → *Android 15.0 (API 35)*; **SDK Tools** → *Show Package Details* → **CMake** → *3.22.1*.
 
 ### Thêm ảnh vào `assets/team/` hoặc sửa `members.json` mà app không đổi
 

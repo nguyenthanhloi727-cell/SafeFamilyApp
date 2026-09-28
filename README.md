@@ -70,14 +70,6 @@ git clone https://github.com/nguyenthanhloi727-cell/SafeFamilyApp.git
 cd SafeFamilyApp
 ```
 
-Đổi app sang tên mình (thành viên nhóm): bấm đúp `doi-ten.bat` rồi chọn số, hoặc:
-
-```bash
-dart run tool/rename.dart
-```
-
-Chi tiết: [CONTRIBUTING.md mục 8](CONTRIBUTING.md#8-đổi-app-sang-tên-của-bạn--công-cụ-đổi-tên).
-
 Bật gỡ lỗi trên điện thoại:
 
 - **Mọi Android:** Cài đặt → Giới thiệu điện thoại → bấm 7 lần *Số hiệu bản dựng* → Tùy chọn nhà phát triển → bật **Gỡ lỗi USB**.

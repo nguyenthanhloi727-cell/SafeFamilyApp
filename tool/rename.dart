@@ -1,6 +1,6 @@
 // Đổi app sang tên thành viên nhóm (4 người dùng chung source, chỉ khác tên).
 //
-// Cách dùng (ở thư mục gốc project — hoặc bấm đúp doi-ten.bat trên Windows):
+// Cách dùng (ở thư mục gốc project — hoặc bấm đúp tool\doi-ten.bat trên Windows):
 //   dart run tool/rename.dart                       → chọn tên trong danh sách nhóm
 //   dart run tool/rename.dart hongocphu             → lấy họ tên từ assets/team/members.json
 //   dart run tool/rename.dart nguyenvana "Nguyễn Văn A"   → người ngoài nhóm
