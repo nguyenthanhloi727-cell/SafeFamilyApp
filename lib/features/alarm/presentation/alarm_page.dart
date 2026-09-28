@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/constants/app_languages.dart';
 import '../../../core/theme/app_tokens.dart';
+import '../../../core/widgets/app_snack_bar.dart';
 import '../../../core/widgets/step_notice.dart';
 
 /// S05 — Báo thức (trạng thái chờ): chip ngôn ngữ + nút micro lớn (giữ chỗ).
@@ -43,7 +44,7 @@ class AlarmPage extends StatelessWidget {
                   padding: EdgeInsets.zero,
                 ),
                 onPressed: () =>
-                    showNotYetSnackBar(context, 'Micro sẽ làm ở bước 5.'),
+                    showAppSnackBar(context, 'Micro sẽ làm ở bước 5.'),
                 child: Icon(
                   Icons.mic_rounded,
                   size: AppSize.iconLg + AppSpace.sm,

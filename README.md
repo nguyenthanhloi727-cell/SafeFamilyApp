@@ -52,7 +52,7 @@ Repo được lưu trên tài khoản GitHub của một thành viên để nộ
 | Mục | Yêu cầu | Trạng thái |
 |---|---|---|
 | 1 | Khung app + `BottomNavigationBar` 5 tab | ✓ Xong |
-| 2 | Cá nhân: danh bạ gia đình (bấm để gọi, thêm/sửa/xóa) + nút mở YouTube | Chưa làm |
+| 2 | Cá nhân: danh bạ gia đình (bấm để gọi, thêm/sửa/xóa) + nút mở YouTube | ✓ Xong |
 | 3 | Báo thức bằng giọng nói (chọn 1 trong 5 ngôn ngữ) | Chưa làm |
 | 4 | Dịch văn bản / giọng nói / ảnh (+ điểm cộng: camera dịch trực tiếp) | Chưa làm |
 | 5 | _đang cập nhật_ | Chưa làm |
@@ -66,9 +66,18 @@ Repo được lưu trên tài khoản GitHub của một thành viên để nộ
 | Dịch | Dịch Văn bản / Giọng nói / Ảnh / Camera trực tiếp — Việt, Anh, Nhật, Trung, Hàn | Giữ chỗ (mục 4) |
 | Báo thức | Nói câu đặt giờ → app đặt báo thức vào app Đồng hồ của máy | Giữ chỗ (mục 3) |
 | Nhóm | Thẻ thành viên lướt ngang | Giữ chỗ (mục 6) |
-| Cá nhân | Hồ sơ phụ huynh, danh bạ gia đình (bấm để gọi), mở YouTube, Cài đặt | Giữ chỗ (mục 2) |
+| Cá nhân | Hồ sơ phụ huynh, danh bạ gia đình (bấm để gọi), mở YouTube | ✓ Xong (mục 2) — riêng *Cài đặt* làm cùng mục 3 |
 
 Điều hướng bằng `BottomNavigationBar` 5 tab; chuyển tab qua lại vẫn giữ nguyên trạng thái từng tab.
+
+### Quyền app xin
+
+| Tính năng | Quyền | Ghi chú |
+|---|---|---|
+| Gọi điện từ danh bạ gia đình | **Không cần** | App chỉ mở màn quay số có sẵn số (`tel:`); người dùng tự bấm gọi. App **không** xin quyền `CALL_PHONE`. |
+| Mở YouTube | Không cần | Có app YouTube thì mở app, không có thì mở trình duyệt. |
+
+Dữ liệu (tên phụ huynh, danh bạ gia đình) chỉ lưu **trên máy**, không gửi đi đâu.
 
 ---
 
@@ -232,12 +241,33 @@ Quy ước để script hoạt động:
 
 ## 5. Hướng dẫn sử dụng app
 
-> Các tab hiện là màn giữ chỗ; hướng dẫn chi tiết từng tính năng sẽ bổ sung khi hoàn thành.
+> Tính năng chưa xong (xem [mục 1](#1-tính-năng)) sẽ được bổ sung hướng dẫn khi hoàn thành.
 
-- Mở app **SafeFamily - <Họ Tên>** trên điện thoại.
-- Chuyển giữa 5 tab bằng thanh điều hướng dưới cùng: **Trang chủ – Dịch – Báo thức – Nhóm – Cá nhân**.
+Mở app **SafeFamily - <Họ Tên>** trên điện thoại. Chuyển giữa 5 tab bằng thanh điều hướng dưới cùng: **Trang chủ – Dịch – Báo thức – Nhóm – Cá nhân**.
+
+### Tab Cá nhân
+
+**Tên phụ huynh:** chạm vào thẻ hồ sơ trên cùng (hoặc nút ✎) → nhập họ tên → **Lưu**. Ảnh đại diện là chữ cái đầu của tên.
+
+**Mở YouTube:** bấm nút **Mở YouTube** — máy có app YouTube thì vào app, không có thì mở trang web.
+
+**Danh bạ gia đình** — lần đầu có sẵn **Mẹ** và **Bố** *chưa có số* (app không tự điền số mẫu để tránh gọi nhầm người lạ).
+
+| Muốn… | Làm |
+|---|---|
+| Gọi | Chạm vào thẻ → app **Điện thoại** mở ra với số soạn sẵn → tự bấm gọi |
+| Thêm số cho thẻ chưa có số | Chạm vào thẻ (dòng *"Chạm để thêm số"*) → nhập số → **Lưu** |
+| Thêm liên hệ | Bấm **Thêm** → chọn tên gọi (Mẹ, Bố, Ông, Bà, Anh, Chị, Em, Con) hoặc **Khác** để tự gõ → nhập số (có thể để trống) → **Lưu** |
+| Sửa / Xóa | Bấm **⋮** ở cuối thẻ → **Sửa** hoặc **Xóa** (xóa phải xác nhận) |
+
+Số điện thoại hợp lệ: chỉ chữ số, được có dấu `+` ở đầu, dài **9–12 chữ số**; khoảng trắng và dấu chấm được tự bỏ (`090.123 4567` → `0901234567`). Nhập sai sẽ báo lỗi ngay dưới ô nhập.
+
+Danh bạ và tên lưu trên máy — tắt app mở lại vẫn còn.
+
+### Các tab khác
+
 - **Dịch:** chọn chế độ ở thanh trên (Văn bản / Giọng nói / Ảnh / Camera); bấm nút ⇄ để đổi chiều ngôn ngữ nguồn – đích.
-- **Báo thức:** ngôn ngữ giọng nói mặc định là Tiếng Việt (đổi trong Cá nhân → Cài đặt). Báo thức được đặt vào **app Đồng hồ của máy**; âm báo do app Đồng hồ quyết định.
+- **Báo thức:** ngôn ngữ giọng nói mặc định là Tiếng Việt. Báo thức được đặt vào **app Đồng hồ của máy**; âm báo do app Đồng hồ quyết định.
 - **Nhóm:** lướt ngang để xem thẻ từng thành viên.
 
 ---
@@ -250,6 +280,7 @@ lib/
   app/                      # MaterialApp + khung điều hướng (BottomNavigationBar + IndexedStack)
   core/
     constants/              # AppInfo (tên app), AppLanguage (5 ngôn ngữ)
+    services/               # ExternalLauncher: mở app Điện thoại, YouTube… (url_launcher)
     theme/                  # màu, chữ, khoảng cách, bo góc — theo design/DESIGN.md
     widgets/                # widget dùng chung
   features/
@@ -257,13 +288,27 @@ lib/
     translate/  {presentation, data}
     alarm/      {presentation, data}
     team/       {presentation, data}
-    profile/    {presentation, data}
+    profile/
+      data/                 # model liên hệ, kiểm tra số, ProfileRepository + bản lưu trên máy
+      presentation/         # màn Cá nhân, ProfileController (ChangeNotifier), hộp thoại
 assets/fonts/BeVietnamPro/  # font + giấy phép OFL.txt
 tool/rename.dart            # đổi tên app theo thành viên
-test/widget_test.dart       # test chuyển 5 tab + giữ trạng thái tab
+test/
+  widget_test.dart          # chuyển 5 tab + giữ trạng thái tab
+  features/<tính năng>/     # unit test + widget test từng tính năng
+  helpers/                  # đồ giả dùng chung cho test
 ```
 
-Màu, cỡ chữ, khoảng cách lấy từ `lib/core/theme/` — không ghi số cứng trong màn hình.
+- Màu, cỡ chữ, khoảng cách lấy từ `lib/core/theme/` — không ghi số cứng trong màn hình.
+- Mỗi tính năng tách `data/` (lưu trữ, sau này thay bằng server chỉ cần viết thêm một bản của interface repository) và `presentation/` (giao diện + state bằng `ChangeNotifier` có sẵn của Flutter).
+
+### Package đang dùng (từ pub.dev)
+
+| Package | Dùng để |
+|---|---|
+| `shared_preferences` | Lưu tên phụ huynh, danh bạ gia đình trên máy |
+| `url_launcher` | Mở màn quay số (`tel:`), mở YouTube |
+| `shared_preferences_platform_interface` | *(chỉ trong test)* bộ nhớ giả cho test |
 
 ---
 
@@ -335,6 +380,11 @@ Tham số đầu phải là chữ thường không dấu, không khoảng trắn
 ### Lint báo `prefer_relative_imports`
 
 Import trong `lib/` đang dùng `package:safe_family_app_...`. Đổi sang đường dẫn tương đối, ví dụ `import '../../core/theme/app_tokens.dart';`.
+
+### Chạm thẻ danh bạ báo *"Không mở được app Điện thoại"* / bấm YouTube báo *"Không mở được YouTube"*
+
+- Máy không có app Điện thoại (máy tính bảng chỉ Wi-Fi) hoặc không có trình duyệt nào → không mở được là đúng.
+- Máy có app nhưng vẫn báo lỗi: app Điện thoại / trình duyệt mặc định đang bị tắt trong **Cài đặt → Ứng dụng** — bật lại.
 
 ### Log có nhiều dòng `E/AdrenoUtils`, `E/Gralloc4`, `GraphicBuffer ... failed`
 

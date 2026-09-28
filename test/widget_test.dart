@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
+import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 
 import 'package:safe_family_app_nguyenthanhloi/app/app.dart';
 import 'package:safe_family_app_nguyenthanhloi/features/alarm/presentation/alarm_page.dart';
@@ -23,10 +25,20 @@ Future<void> _tapTab(WidgetTester tester, String label) async {
       matching: find.text(label),
     ),
   );
-  await tester.pumpAndSettle();
+  // Không dùng pumpAndSettle: IndexedStack dựng cả 5 tab ngay từ đầu, tab Nhóm
+  // đọc assets thật (IO thật) nên vòng loading chưa dừng trong thời gian giả
+  // của test. Chỉ cần xong hiệu ứng chuyển tab.
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 500));
 }
 
 void main() {
+  setUp(() {
+    // Tab Cá nhân đọc dữ liệu đã lưu — dùng bộ nhớ giả, không đụng máy thật.
+    SharedPreferencesAsyncPlatform.instance =
+        InMemorySharedPreferencesAsync.empty();
+  });
+
   testWidgets('BottomNavigationBar chuyển đủ 5 tab', (tester) async {
     await tester.pumpWidget(const SafeFamilyApp());
 
@@ -65,7 +77,7 @@ void main() {
     expect(tester.widget<Text>(source()).data, 'Tiếng Việt');
 
     await tester.tap(find.byTooltip('Đổi chiều'));
-    await tester.pumpAndSettle();
+    await tester.pump();
     expect(tester.widget<Text>(source()).data, 'English');
 
     await _tapTab(tester, 'Nhóm');

@@ -33,10 +33,3 @@ class StepNotice extends StatelessWidget {
     );
   }
 }
-
-/// Báo "chưa làm" khi bấm vào chức năng giữ chỗ.
-void showNotYetSnackBar(BuildContext context, String message) {
-  ScaffoldMessenger.of(context)
-    ..hideCurrentSnackBar()
-    ..showSnackBar(SnackBar(content: Text(message)));
-}
