@@ -56,7 +56,11 @@ Cách cài:
 
 ## Chạy từ mã nguồn
 
-Cần **Flutter 3.47** (nhóm dùng 3.47.5) và Android Studio. Chi tiết môi trường, lỗi thường gặp: [docs/DEVELOPER.md](docs/DEVELOPER.md).
+Cần **Flutter 3.47** (nhóm dùng 3.47.5) và Android Studio.
+
+👉 **Hướng dẫn từng bước bằng Android Studio** (mở project, nối điện thoại, Run/Debug, chạy test): [CONTRIBUTING.md](CONTRIBUTING.md). Chi tiết kỹ thuật, lỗi thường gặp: [docs/DEVELOPER.md](docs/DEVELOPER.md).
+
+Hoặc bằng dòng lệnh:
 
 ```bash
 git clone https://github.com/nguyenthanhloi727-cell/SafeFamilyApp.git
