@@ -46,7 +46,7 @@
 
 ## Tải APK
 
-👉 **[Tải bản mới nhất tại Releases](https://github.com/nguyenthanhloi727-cell/SafeFamilyApp/releases/latest)** — file `SafeFamily-v0.6.0.apk`.
+👉 **[⬇ Tải SafeFamily-v0.6.0.apk](https://github.com/nguyenthanhloi727-cell/SafeFamilyApp/releases/latest/download/SafeFamily-v0.6.0.apk)** (tải thẳng) · [Xem mọi bản phát hành](https://github.com/nguyenthanhloi727-cell/SafeFamilyApp/releases)
 
 Cách cài:
 
