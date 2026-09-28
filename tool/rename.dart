@@ -9,7 +9,7 @@
 //   - name trong pubspec.yaml         -> safe_family_app_<hovaten>
 //   - applicationId Android           -> com.safefamily.<hovaten>
 //   - tên hiển thị trên điện thoại    -> "SafeFamily - <Họ Tên>"
-//   - AppInfo.ownerName (lib/core/constants/app_info.dart)
+//   - AppInfo.ownerName, AppInfo.applicationId (lib/core/constants/app_info.dart)
 //   - import package:... trong test/ theo tên package mới
 // Giữ nguyên namespace/package Kotlin để không phải dời MainActivity.
 // Import trong lib/ là đường dẫn tương đối nên không cần sửa.
@@ -72,10 +72,15 @@ void main(List<String> args) {
       RegExp(r'android:label="[^"]*"'),
       'android:label="${_xmlEscape(displayName)}"',
     ),
-    _appInfo: _replaceOnce(
+    _appInfo: _replaceOnceIn(
       _appInfo,
-      RegExp(r"static const ownerName = '(?:[^'\\]|\\.)*';"),
-      "static const ownerName = '${_dartEscape(fullName)}';",
+      _replaceOnce(
+        _appInfo,
+        RegExp(r"static const ownerName = '(?:[^'\\]|\\.)*';"),
+        "static const ownerName = '${_dartEscape(fullName)}';",
+      ),
+      RegExp(r"static const applicationId = '[^']*';"),
+      "static const applicationId = '$applicationId';",
     ),
   };
 
@@ -116,7 +121,16 @@ void main(List<String> args) {
 String _replaceOnce(String path, RegExp pattern, String replacement) {
   final file = File(path);
   if (!file.existsSync()) _fail('Không thấy file $path.');
-  final content = file.readAsStringSync();
+  return _replaceOnceIn(path, file.readAsStringSync(), pattern, replacement);
+}
+
+/// Như [_replaceOnce] nhưng trên nội dung [content] đã đọc sẵn của [path].
+String _replaceOnceIn(
+  String path,
+  String content,
+  RegExp pattern,
+  String replacement,
+) {
   final count = pattern.allMatches(content).length;
   if (count != 1) {
     _fail('$path: cần đúng 1 chỗ khớp "${pattern.pattern}", thấy $count.');

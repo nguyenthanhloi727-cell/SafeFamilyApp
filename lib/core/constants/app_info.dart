@@ -1,9 +1,13 @@
 /// Thông tin app theo thành viên nhóm.
 ///
-/// [ownerName] do `tool/rename.dart` cập nhật — không sửa tay.
+/// [ownerName] và [applicationId] do `tool/rename.dart` cập nhật — không sửa tay.
 abstract final class AppInfo {
   static const appName = 'SafeFamily';
   static const ownerName = 'Nguyễn Thành Lợi';
+
+  /// Trùng `applicationId` trong android/app/build.gradle.kts
+  /// (dùng để mở trang Cài đặt của chính app).
+  static const applicationId = 'com.safefamily.nguyenthanhloi';
 
   /// Tên hiển thị, trùng với nhãn app trên điện thoại.
   static const displayName = '$appName - $ownerName';

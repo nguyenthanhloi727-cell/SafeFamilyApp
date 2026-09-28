@@ -1,4 +1,11 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Báo thức bằng giọng nói (bước 5):
+         micro để nhận giọng nói (xin lúc bấm micro lần đầu);
+         mạng vì dịch vụ nhận giọng nói có thể dùng máy chủ;
+         SET_ALARM để gửi giờ sang app Đồng hồ của máy. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <uses-permission android:name="com.android.alarm.permission.SET_ALARM"/>
     <application
         android:label="SafeFamily - Nguyễn Thành Lợi"
         android:name="${applicationName}"
@@ -63,6 +70,14 @@
         <intent>
             <action android:name="android.intent.action.SENDTO"/>
             <data android:scheme="mailto"/>
+        </intent>
+        <!-- Báo thức bằng giọng nói: dịch vụ nhận giọng nói (speech_to_text)
+             và app Đồng hồ nhận Intent SET_ALARM. -->
+        <intent>
+            <action android:name="android.speech.RecognitionService"/>
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.SET_ALARM"/>
         </intent>
     </queries>
 </manifest>

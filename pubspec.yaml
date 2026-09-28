@@ -8,11 +8,16 @@ environment:
   sdk: ^3.13.4
 
 dependencies:
+  android_intent_plus: ^6.1.0
   flutter:
+    sdk: flutter
+  # Có sẵn trong Flutter SDK: chữ của Material (chọn giờ, OK/Hủy…) bằng tiếng Việt.
+  flutter_localizations:
     sdk: flutter
   image_picker: ^1.2.3
   path_provider: ^2.1.6
   shared_preferences: ^2.5.5
+  speech_to_text: ^7.5.0
   url_launcher: ^6.3.2
 
 dev_dependencies:

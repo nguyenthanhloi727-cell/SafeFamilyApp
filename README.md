@@ -53,7 +53,7 @@ Repo được lưu trên tài khoản GitHub của một thành viên để nộ
 |---|---|---|
 | 1 | Khung app + `BottomNavigationBar` 5 tab | ✓ Xong |
 | 2 | Cá nhân: danh bạ gia đình (bấm để gọi, thêm/sửa/xóa) + nút mở YouTube | ✓ Xong |
-| 3 | Báo thức bằng giọng nói (chọn 1 trong 5 ngôn ngữ) | Chưa làm |
+| 3 | Báo thức bằng giọng nói (chọn 1 trong 5 ngôn ngữ) | ✓ Xong |
 | 4 | Dịch văn bản / giọng nói / ảnh (+ điểm cộng: camera dịch trực tiếp) | Chưa làm |
 | 5 | _đang cập nhật_ | Chưa làm |
 | 6 | Nhóm: thẻ thành viên (ảnh, họ tên, MSSV, email, vai trò, lớp) | ✓ Xong |
@@ -64,7 +64,7 @@ Repo được lưu trên tài khoản GitHub của một thành viên để nộ
 |---|---|---|
 | Trang chủ | Bảng điều khiển quản lý con (thẻ con, thời gian dùng máy, app bị chặn) | Giữ chỗ — "Sắp có" |
 | Dịch | Dịch Văn bản / Giọng nói / Ảnh / Camera trực tiếp — Việt, Anh, Nhật, Trung, Hàn | Giữ chỗ (mục 4) |
-| Báo thức | Nói câu đặt giờ → app đặt báo thức vào app Đồng hồ của máy | Giữ chỗ (mục 3) |
+| Báo thức | Nói (hoặc gõ) câu đặt giờ bằng 1 trong 5 ngôn ngữ → xác nhận → app mở **app Đồng hồ của máy** với giờ điền sẵn | ✓ Xong (mục 3) |
 | Nhóm | Thẻ thành viên lướt ngang, tải ảnh, bấm email để gửi mail | ✓ Xong (mục 6) |
 | Cá nhân | Hồ sơ phụ huynh, danh bạ gia đình (bấm để gọi), mở YouTube | ✓ Xong (mục 2) — riêng *Cài đặt* làm cùng mục 3 |
 
@@ -78,6 +78,9 @@ Repo được lưu trên tài khoản GitHub của một thành viên để nộ
 | Mở YouTube | Không cần | Có app YouTube thì mở app, không có thì mở trình duyệt. |
 | Tải ảnh thành viên | Không cần | Dùng bộ chọn ảnh của hệ thống (Android 13+: Photo Picker), app chỉ nhận đúng ảnh được chọn. |
 | Bấm email thành viên | Không cần | Mở app mail với địa chỉ điền sẵn (`mailto:`). |
+| Nói giờ báo thức | **Micro** (`RECORD_AUDIO`) | Chỉ hỏi khi bấm nút micro lần đầu. Từ chối vẫn dùng được ô **gõ câu lệnh**. Âm thanh chỉ dùng để nhận giờ, không lưu. |
+| Đặt báo thức | `SET_ALARM` (không hỏi) | Gửi giờ sang app Đồng hồ của máy — app SafeFamily **không tự báo thức**. |
+| Nhận giọng nói qua mạng | `INTERNET` (không hỏi) | Dịch vụ nhận giọng nói có thể dùng máy chủ khi máy chưa có gói ngoại tuyến. |
 
 Dữ liệu (tên phụ huynh, danh bạ gia đình, ảnh thành viên đã tải lên) chỉ lưu **trên máy**, không gửi đi đâu.
 
@@ -226,6 +229,7 @@ Script đổi cùng lúc:
 | `applicationId` Android | `com.safefamily.<hovaten>` |
 | Tên app trên điện thoại | `SafeFamily - <Họ Tên>` |
 | `AppInfo.ownerName` (`lib/core/constants/app_info.dart`) | `<Họ Tên>` |
+| `AppInfo.applicationId` (cùng file) | `com.safefamily.<hovaten>` (để mở đúng trang Cài đặt của app) |
 | Import `package:...` trong `test/` | theo tên package mới |
 
 Sau đó script tự chạy `flutter pub get`.
@@ -280,10 +284,43 @@ Danh bạ và tên lưu trên máy — tắt app mở lại vẫn còn.
 
 Muốn sửa thông tin hoặc gắn ảnh cố định cho thành viên: xem [mục 5.1](#51-cập-nhật-thông-tin-và-ảnh-thành-viên).
 
+### Tab Báo thức
+
+1. Chọn ngôn ngữ ở chip trên cùng (mặc định **Tiếng Việt**; đổi mặc định trong **Cá nhân → Cài đặt**). App nhớ lựa chọn.
+2. Bấm **micro** (lần đầu máy hỏi quyền micro → *Cho phép*) rồi nói câu đặt giờ. Chữ nhận được hiện ngay khi đang nói.
+   Micro lỗi hoặc muốn demo: gõ câu vào ô **"Hoặc gõ câu lệnh"** ở cuối màn hình.
+3. App hiện **giờ đã hiểu** thật to (ví dụ `06:30 · sáng ngày mai`). Sai thì bấm **Sửa giờ**.
+4. Bấm **Đặt báo thức** → **app Đồng hồ của máy** mở ra với giờ và nhãn "SafeFamily" điền sẵn → lưu trong app Đồng hồ (nếu app hỏi).
+
+Không nói sáng/chiều thì app chọn **mốc gần nhất sắp tới** (đang 20:00 nói "7 giờ" → 07:00 sáng mai; đang 10:00 nói "7 giờ" → 19:00). Âm báo do app Đồng hồ quyết định.
+
+**Câu mẫu** (số có thể nói bằng chữ: "sáu giờ", "seven", "七時", "七点", "일곱 시"):
+
+| Ngôn ngữ | Câu mẫu | Hiểu được thêm |
+|---|---|---|
+| Tiếng Việt | *Đặt báo thức 6 giờ 30 sáng* | `6h30`, `6 giờ rưỡi`, `7 giờ kém 15`, sáng / trưa / chiều / tối / đêm |
+| English | *Set an alarm for 7:30 am* | `7 30 pm`, `half past 7`, `quarter to 8`, `7 o'clock`, `noon`, `midnight` |
+| 日本語 | *午前7時半に起こして* | `7時30分`, `7時半`, `7時10分前`, `午前` / `午後` / `夜`, `正午` |
+| 中文 | *明天早上7点半叫我* | `7点30分`, `7点半`, `7点一刻`, `差一刻8点`, `上午` / `下午` / `晚上` |
+| 한국어 | *오전 7시 반에 알람 맞춰줘* | `7시 30분`, `7시 반`, `8시 10분 전`, `오전` / `오후` / `저녁` / `밤`, `정오` |
+
+**Tải gói nhận giọng nói cho ngôn ngữ còn thiếu** (app báo *"Máy chưa có gói nhận giọng nói tiếng X"*):
+
+- Bấm **Mở cài đặt giọng nói** ngay trên thông báo, hoặc
+- **Cài đặt → Hệ thống → Ngôn ngữ & nhập liệu → Nhận dạng giọng nói trên thiết bị** → thêm ngôn ngữ, hoặc
+- **App Google → Cài đặt → Giọng nói → Nhận dạng giọng nói ngoại tuyến** → tải ngôn ngữ.
+
+(Tên mục tuỳ hãng máy.) Chưa tải vẫn có thể thử nói khi có mạng, hoặc gõ câu lệnh.
+
+### Màn Cài đặt (Cá nhân → Cài đặt)
+
+- **Ngôn ngữ giọng nói** mặc định cho tab Báo thức (dùng chung với chip trên màn Báo thức).
+- **Âm báo**: do app Đồng hồ của máy quyết định.
+- **Giới thiệu**: tên app, trang giấy phép mã nguồn mở.
+
 ### Các tab khác
 
-- **Dịch:** chọn chế độ ở thanh trên (Văn bản / Giọng nói / Ảnh / Camera); bấm nút ⇄ để đổi chiều ngôn ngữ nguồn – đích.
-- **Báo thức:** ngôn ngữ giọng nói mặc định là Tiếng Việt. Báo thức được đặt vào **app Đồng hồ của máy**; âm báo do app Đồng hồ quyết định.
+- **Dịch:** *chưa làm* — hiện chỉ có màn giữ chỗ (chế độ Văn bản / Giọng nói / Ảnh / Camera, nút ⇄ đổi chiều).
 
 ### 5.1. Cập nhật thông tin và ảnh thành viên
 
@@ -327,13 +364,17 @@ lib/
   app/                      # MaterialApp + khung điều hướng (BottomNavigationBar + IndexedStack)
   core/
     constants/              # AppInfo (tên app), AppLanguage (5 ngôn ngữ), feature_flags (khoá tải ảnh)
-    services/               # ExternalLauncher: mở app Điện thoại, YouTube, mail (url_launcher)
+    services/               # ExternalLauncher (Điện thoại, YouTube, mail), SystemSettings (mở Cài đặt)
+    settings/               # VoiceLanguageSettings: ngôn ngữ giọng nói dùng chung
     theme/                  # màu, chữ, khoảng cách, bo góc — theo design/DESIGN.md
     widgets/                # widget dùng chung
   features/
     home/       {presentation, data}
     translate/  {presentation, data}
-    alarm/      {presentation, data}
+    alarm/
+      domain/               # bộ hiểu giờ 5 ngôn ngữ — Dart thuần, không phụ thuộc Flutter
+      data/                 # nhận giọng nói (speech_to_text), gửi SET_ALARM (android_intent_plus)
+      presentation/         # màn Báo thức, AlarmController (ChangeNotifier)
     team/
       data/                 # đọc members.json, chọn/lưu ảnh, thứ tự ưu tiên ảnh
       presentation/         # màn Nhóm, TeamController (ChangeNotifier), thẻ thành viên
@@ -360,6 +401,9 @@ test/
 | `url_launcher` | Mở màn quay số (`tel:`), mở YouTube, mở app mail (`mailto:`) |
 | `image_picker` | Chọn ảnh thành viên từ thư viện máy |
 | `path_provider` | Lấy thư mục riêng của app để chép ảnh vào |
+| `speech_to_text` | Nhận giọng nói (dịch vụ nhận giọng nói của máy) |
+| `android_intent_plus` | Gửi Intent `SET_ALARM` sang app Đồng hồ, mở trang Cài đặt |
+| `flutter_localizations` *(có sẵn trong Flutter SDK)* | Chữ của Material (chọn giờ, OK/Hủy) bằng tiếng Việt |
 | `shared_preferences_platform_interface` | *(chỉ trong test)* bộ nhớ giả cho test |
 
 ---
@@ -432,6 +476,27 @@ Tham số đầu phải là chữ thường không dấu, không khoảng trắn
 ### Lint báo `prefer_relative_imports`
 
 Import trong `lib/` đang dùng `package:safe_family_app_...`. Đổi sang đường dẫn tương đối, ví dụ `import '../../core/theme/app_tokens.dart';`.
+
+### Tab Báo thức: *"Chưa có quyền dùng micro"*
+
+Đã từ chối quyền micro. Bấm **Mở Cài đặt** → **Quyền → Micro → Cho phép** → quay lại bấm **Thử lại**. Trong lúc đó vẫn dùng được ô **gõ câu lệnh**.
+
+### Tab Báo thức: *"Máy không có dịch vụ nhận giọng nói"*
+
+Máy chưa có/đã tắt dịch vụ nhận giọng nói. Cài hoặc bật app **Google** (Cài đặt → Ứng dụng → Google → Bật), rồi bấm **Thử lại**.
+
+### Tab Báo thức: *"Máy chưa có gói nhận giọng nói tiếng X"*
+
+Tải gói ngôn ngữ theo hướng dẫn ở [Tab Báo thức](#tab-báo-thức). Chưa tải vẫn thử nói được khi có mạng.
+
+### Tab Báo thức: nói xong báo *"Không hiểu giờ"*
+
+- Kiểm tra chip ngôn ngữ đúng với tiếng đang nói.
+- Nói rõ giờ theo [câu mẫu](#tab-báo-thức); xem dòng *"Bạn nói: …"* để biết máy nghe thành chữ gì.
+
+### Bấm *Đặt báo thức* báo *"Máy không có app Đồng hồ nhận lệnh đặt báo thức"*
+
+App Đồng hồ của máy không hỗ trợ lệnh chuẩn `SET_ALARM` hoặc đã bị tắt. Bật lại app Đồng hồ, hoặc mở app Đồng hồ và đặt tay theo giờ app hiện.
 
 ### Build lần đầu tự tải *Android SDK Platform 35* và *CMake 3.22.1*
 

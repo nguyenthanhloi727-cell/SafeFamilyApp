@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/constants/app_languages.dart';
 import '../../../core/services/external_launcher.dart';
+import '../../../core/settings/voice_language_settings.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/widgets/app_snack_bar.dart';
 import '../../../core/widgets/confirm_delete_dialog.dart';
@@ -10,6 +11,7 @@ import '../data/family_contact.dart';
 import '../data/local_profile_repository.dart';
 import '../data/profile_repository.dart';
 import 'profile_controller.dart';
+import 'settings_page.dart';
 import 'widgets/contact_card.dart';
 import 'widgets/contact_dialog.dart';
 import 'widgets/parent_name_dialog.dart';
@@ -202,10 +204,13 @@ class _ProfilePageState extends State<ProfilePage> {
             leading: const Icon(Icons.settings_outlined),
             title: const Text('Cài đặt'),
             subtitle: Text(
-              'Ngôn ngữ giọng nói: ${AppLanguage.defaultVoice.nativeName}',
+              'Ngôn ngữ giọng nói: '
+              '${(VoiceLanguageScope.maybeOf(context)?.language ?? AppLanguage.defaultVoice).nativeName}',
             ),
             trailing: const Icon(Icons.chevron_right_rounded),
-            onTap: () => _snack('Cài đặt sẽ làm ở bước 5.'),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(builder: (_) => const SettingsPage()),
+            ),
           ),
         ),
       ],
