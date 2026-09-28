@@ -6,6 +6,7 @@ class FakeLauncher implements ExternalLauncher {
 
   final bool succeed;
   final dialed = <String>[];
+  final emailed = <String>[];
   var youTubeOpened = 0;
 
   @override
@@ -17,6 +18,12 @@ class FakeLauncher implements ExternalLauncher {
   @override
   Future<bool> openYouTube() async {
     youTubeOpened++;
+    return succeed;
+  }
+
+  @override
+  Future<bool> openEmail(String email) async {
+    emailed.add(email);
     return succeed;
   }
 }

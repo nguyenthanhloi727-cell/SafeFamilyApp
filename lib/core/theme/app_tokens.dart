@@ -34,6 +34,5 @@ abstract final class AppSize {
   static const double iconLg = 32;
   static const double micButton = 96;
   static const double micButtonListening = 128;
-  static const double memberCardWidth = 296;
-  static const double memberCardHeight = 440;
+  static const double memberPhoto = 128;
 }

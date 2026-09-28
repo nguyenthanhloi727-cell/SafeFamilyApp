@@ -1,0 +1,34 @@
+[
+  {
+    "id": "nguyenthanhloi",
+    "fullName": "Nguyễn Thành Lợi",
+    "studentId": "2380601289",
+    "email": "nguyenthanhloi727@gmail.com",
+    "role": "Developer",
+    "className": "23DTHC5"
+  },
+  {
+    "id": "hongocphu",
+    "fullName": "Hồ Ngọc Phú",
+    "studentId": "2380601699",
+    "email": "Phuho357@gmail.com",
+    "role": "Tester",
+    "className": "23DTHC5"
+  },
+  {
+    "id": "phamdinhgiabao",
+    "fullName": "Phạm Đinh Gia Bảo",
+    "studentId": "",
+    "email": "",
+    "role": "",
+    "className": ""
+  },
+  {
+    "id": "phuongbaokhoi",
+    "fullName": "Phương Bảo Khôi",
+    "studentId": "",
+    "email": "",
+    "role": "",
+    "className": ""
+  }
+]

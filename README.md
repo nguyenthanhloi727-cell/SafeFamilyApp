@@ -13,8 +13,8 @@
 
 | Thành viên | Vai trò |
 |---|---|
-| Nguyễn Thành Lợi | _đang cập nhật_ |
-| Hồ Ngọc Phú | _đang cập nhật_ |
+| Nguyễn Thành Lợi | Developer |
+| Hồ Ngọc Phú | Tester |
 | Phạm Đinh Gia Bảo | _đang cập nhật_ |
 | Phương Bảo Khôi | _đang cập nhật_ |
 
@@ -56,7 +56,7 @@ Repo được lưu trên tài khoản GitHub của một thành viên để nộ
 | 3 | Báo thức bằng giọng nói (chọn 1 trong 5 ngôn ngữ) | Chưa làm |
 | 4 | Dịch văn bản / giọng nói / ảnh (+ điểm cộng: camera dịch trực tiếp) | Chưa làm |
 | 5 | _đang cập nhật_ | Chưa làm |
-| 6 | Nhóm: thẻ thành viên | Chưa làm |
+| 6 | Nhóm: thẻ thành viên (ảnh, họ tên, MSSV, email, vai trò, lớp) | ✓ Xong |
 
 ### Các tab trong app
 
@@ -65,7 +65,7 @@ Repo được lưu trên tài khoản GitHub của một thành viên để nộ
 | Trang chủ | Bảng điều khiển quản lý con (thẻ con, thời gian dùng máy, app bị chặn) | Giữ chỗ — "Sắp có" |
 | Dịch | Dịch Văn bản / Giọng nói / Ảnh / Camera trực tiếp — Việt, Anh, Nhật, Trung, Hàn | Giữ chỗ (mục 4) |
 | Báo thức | Nói câu đặt giờ → app đặt báo thức vào app Đồng hồ của máy | Giữ chỗ (mục 3) |
-| Nhóm | Thẻ thành viên lướt ngang | Giữ chỗ (mục 6) |
+| Nhóm | Thẻ thành viên lướt ngang, tải ảnh, bấm email để gửi mail | ✓ Xong (mục 6) |
 | Cá nhân | Hồ sơ phụ huynh, danh bạ gia đình (bấm để gọi), mở YouTube | ✓ Xong (mục 2) — riêng *Cài đặt* làm cùng mục 3 |
 
 Điều hướng bằng `BottomNavigationBar` 5 tab; chuyển tab qua lại vẫn giữ nguyên trạng thái từng tab.
@@ -76,8 +76,10 @@ Repo được lưu trên tài khoản GitHub của một thành viên để nộ
 |---|---|---|
 | Gọi điện từ danh bạ gia đình | **Không cần** | App chỉ mở màn quay số có sẵn số (`tel:`); người dùng tự bấm gọi. App **không** xin quyền `CALL_PHONE`. |
 | Mở YouTube | Không cần | Có app YouTube thì mở app, không có thì mở trình duyệt. |
+| Tải ảnh thành viên | Không cần | Dùng bộ chọn ảnh của hệ thống (Android 13+: Photo Picker), app chỉ nhận đúng ảnh được chọn. |
+| Bấm email thành viên | Không cần | Mở app mail với địa chỉ điền sẵn (`mailto:`). |
 
-Dữ liệu (tên phụ huynh, danh bạ gia đình) chỉ lưu **trên máy**, không gửi đi đâu.
+Dữ liệu (tên phụ huynh, danh bạ gia đình, ảnh thành viên đã tải lên) chỉ lưu **trên máy**, không gửi đi đâu.
 
 ---
 
@@ -92,6 +94,8 @@ Chưa có Flutter / Android Studio thì cài theo hướng dẫn chính thức t
 | Flutter | **3.47.5** (kênh stable) | Dart 3.13.4. Bản 3.47.x khác cũng được. Kiểm tra bằng `flutter --version` |
 | Android Studio | 2026.1 trở lên | Dùng JDK đi kèm (`jbr`) để build |
 | Android SDK Platform | **36** (Android 16) | Flutter 3.47 biên dịch với compileSdk 36 |
+| Android SDK Platform | 35 (Android 15) | Plugin cần; Gradle thường tự tải |
+| CMake | 3.22.1 | Plugin cần; Gradle thường tự tải |
 | Android SDK Build-Tools | 36.0.0 | |
 | **NDK (Side by side)** | **28.2.13676358** | Bắt buộc đúng bản này |
 | Android SDK Platform-Tools | mới nhất | Có `adb` |
@@ -264,11 +268,54 @@ Số điện thoại hợp lệ: chỉ chữ số, được có dấu `+` ở đ
 
 Danh bạ và tên lưu trên máy — tắt app mở lại vẫn còn.
 
+### Tab Nhóm
+
+- **Lướt ngang** để xem thẻ từng thành viên; thẻ kế tiếp ló ra ở mép phải. Dưới cùng có chấm trang và số thứ tự (ví dụ `2/4`).
+- Mỗi thẻ: ảnh, họ tên, MSSV, email, vai trò, lớp. Ô nào chưa có thông tin hiện *"Chưa cập nhật"*.
+- **Bấm vào email** → mở app mail với địa chỉ điền sẵn.
+- **Ảnh** (khi chế độ tải ảnh đang MỞ):
+  - **Tải ảnh lên** → chọn ảnh trong thư viện máy. Ảnh được thu nhỏ và **chép vào bộ nhớ riêng của app** — tắt app mở lại vẫn còn, xóa ảnh gốc trong thư viện cũng không mất.
+  - Đã có ảnh thì có **Đổi ảnh** và **Xóa ảnh** (xóa phải xác nhận).
+  - Thứ tự hiển thị: ảnh cố định trong app (`assets/team/`) → ảnh đã tải lên → chữ cái đầu của tên.
+
+Muốn sửa thông tin hoặc gắn ảnh cố định cho thành viên: xem [mục 5.1](#51-cập-nhật-thông-tin-và-ảnh-thành-viên).
+
 ### Các tab khác
 
 - **Dịch:** chọn chế độ ở thanh trên (Văn bản / Giọng nói / Ảnh / Camera); bấm nút ⇄ để đổi chiều ngôn ngữ nguồn – đích.
 - **Báo thức:** ngôn ngữ giọng nói mặc định là Tiếng Việt. Báo thức được đặt vào **app Đồng hồ của máy**; âm báo do app Đồng hồ quyết định.
-- **Nhóm:** lướt ngang để xem thẻ từng thành viên.
+
+### 5.1. Cập nhật thông tin và ảnh thành viên
+
+**Sửa thông tin** — chỉ sửa file [`assets/team/members.json`](assets/team/members.json), không cần đụng code giao diện:
+
+```json
+{
+  "id": "hongocphu",
+  "fullName": "Hồ Ngọc Phú",
+  "studentId": "2380601699",
+  "email": "ten@example.com",
+  "role": "Tester",
+  "className": "23DTHC5"
+}
+```
+
+- Thứ tự trong file = thứ tự thẻ trong app. Để `""` thì app hiện *"Chưa cập nhật"*.
+- **Không đổi `id`** (dùng để đặt tên ảnh).
+- Sửa xong phải **build lại** (`flutter run`) — hot reload không nhận thay đổi trong `assets/`.
+
+**Gắn ảnh cố định rồi khoá tải ảnh** (dùng khi nộp bài, để ảnh không phụ thuộc máy nào):
+
+1. Đặt ảnh vào `assets/team/`, tên = `id` + `.jpg`, ví dụ `assets/team/hongocphu.jpg` (chữ thường, đuôi `.jpg`; nên ảnh vuông ~600×600 px, dưới 300 KB).
+2. Mở `lib/core/constants/feature_flags.dart`, đổi:
+
+   ```dart
+   const bool kTeamPhotoUploadEnabled = false;
+   ```
+
+3. Build lại (`flutter run`). Các nút *Tải ảnh lên / Đổi ảnh / Xóa ảnh* biến mất; thẻ hiện ảnh trong `assets/team/`, ai chưa có ảnh thì hiện chữ cái đầu.
+
+Ảnh cố định luôn được ưu tiên hơn ảnh tải lên, nên người đã có ảnh trong `assets/team/` sẽ không thấy nút tải ảnh kể cả khi đang MỞ.
 
 ---
 
@@ -279,19 +326,22 @@ lib/
   main.dart
   app/                      # MaterialApp + khung điều hướng (BottomNavigationBar + IndexedStack)
   core/
-    constants/              # AppInfo (tên app), AppLanguage (5 ngôn ngữ)
-    services/               # ExternalLauncher: mở app Điện thoại, YouTube… (url_launcher)
+    constants/              # AppInfo (tên app), AppLanguage (5 ngôn ngữ), feature_flags (khoá tải ảnh)
+    services/               # ExternalLauncher: mở app Điện thoại, YouTube, mail (url_launcher)
     theme/                  # màu, chữ, khoảng cách, bo góc — theo design/DESIGN.md
     widgets/                # widget dùng chung
   features/
     home/       {presentation, data}
     translate/  {presentation, data}
     alarm/      {presentation, data}
-    team/       {presentation, data}
+    team/
+      data/                 # đọc members.json, chọn/lưu ảnh, thứ tự ưu tiên ảnh
+      presentation/         # màn Nhóm, TeamController (ChangeNotifier), thẻ thành viên
     profile/
       data/                 # model liên hệ, kiểm tra số, ProfileRepository + bản lưu trên máy
       presentation/         # màn Cá nhân, ProfileController (ChangeNotifier), hộp thoại
 assets/fonts/BeVietnamPro/  # font + giấy phép OFL.txt
+assets/team/                # members.json (thông tin nhóm) + ảnh cố định <id>.jpg
 tool/rename.dart            # đổi tên app theo thành viên
 test/
   widget_test.dart          # chuyển 5 tab + giữ trạng thái tab
@@ -307,7 +357,9 @@ test/
 | Package | Dùng để |
 |---|---|
 | `shared_preferences` | Lưu tên phụ huynh, danh bạ gia đình trên máy |
-| `url_launcher` | Mở màn quay số (`tel:`), mở YouTube |
+| `url_launcher` | Mở màn quay số (`tel:`), mở YouTube, mở app mail (`mailto:`) |
+| `image_picker` | Chọn ảnh thành viên từ thư viện máy |
+| `path_provider` | Lấy thư mục riêng của app để chép ảnh vào |
 | `shared_preferences_platform_interface` | *(chỉ trong test)* bộ nhớ giả cho test |
 
 ---
@@ -380,6 +432,20 @@ Tham số đầu phải là chữ thường không dấu, không khoảng trắn
 ### Lint báo `prefer_relative_imports`
 
 Import trong `lib/` đang dùng `package:safe_family_app_...`. Đổi sang đường dẫn tương đối, ví dụ `import '../../core/theme/app_tokens.dart';`.
+
+### Build lần đầu tự tải *Android SDK Platform 35* và *CMake 3.22.1*
+
+Bình thường — plugin `image_picker`/`path_provider` cần hai gói này, Gradle tự cài vào thư mục SDK. Nếu bước tự cài báo lỗi `sdkmanager ... 0xC0000409` (xem lỗi đầu mục 8), cài tay trong Android Studio: **SDK Platforms** → *Android 15.0 (API 35)*; **SDK Tools** → *Show Package Details* → **CMake** → *3.22.1*.
+
+### Thêm ảnh vào `assets/team/` hoặc sửa `members.json` mà app không đổi
+
+- Phải **build lại** bằng `flutter run` (dừng hẳn rồi chạy lại) — hot reload / hot restart không nhận file mới trong `assets/`.
+- Tên ảnh phải đúng `id` + `.jpg`, chữ thường: `hongocphu.jpg` ✓ — `HoNgocPhu.jpg` ✗ — `hongocphu.png` ✗ — `hongocphu.JPG` ✗.
+- `members.json` sai cú pháp JSON (thiếu dấu phẩy, ngoặc kép…) thì tab Nhóm báo *"Không đọc được thông tin nhóm"* — kiểm tra lại file bằng một trình kiểm tra JSON.
+
+### Bấm email thành viên báo *"Không mở được app mail"*
+
+Máy chưa có app mail nào (Gmail, Outlook…) hoặc app mail đang bị tắt. Cài/bật một app mail rồi thử lại.
 
 ### Chạm thẻ danh bạ báo *"Không mở được app Điện thoại"* / bấm YouTube báo *"Không mở được YouTube"*
 

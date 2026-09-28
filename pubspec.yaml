@@ -10,6 +10,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  image_picker: ^1.2.3
+  path_provider: ^2.1.6
   shared_preferences: ^2.5.5
   url_launcher: ^6.3.2
 
@@ -24,6 +26,8 @@ flutter:
 
   assets:
     - assets/fonts/BeVietnamPro/OFL.txt
+    # Thông tin + ảnh cố định thành viên nhóm (xem assets/team/README.md).
+    - assets/team/
 
   # Font đóng gói sẵn (DESIGN.md mục 2) — không tải qua mạng lúc chạy.
   fonts:

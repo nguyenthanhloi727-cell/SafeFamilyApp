@@ -9,6 +9,9 @@ abstract interface class ExternalLauncher {
 
   /// Mở YouTube: ưu tiên app YouTube, không có thì mở trình duyệt.
   Future<bool> openYouTube();
+
+  /// Mở app mail với [email] điền sẵn ở ô người nhận (mailto:).
+  Future<bool> openEmail(String email);
 }
 
 class UrlExternalLauncher implements ExternalLauncher {
@@ -29,6 +32,12 @@ class UrlExternalLauncher implements ExternalLauncher {
     // …không có thì để hệ thống mở bằng trình duyệt.
     return _launch(youTubeUri, LaunchMode.externalApplication);
   }
+
+  @override
+  Future<bool> openEmail(String email) => _launch(
+    Uri(scheme: 'mailto', path: email),
+    LaunchMode.externalApplication,
+  );
 
   Future<bool> _launch(Uri uri, LaunchMode mode) async {
     try {
