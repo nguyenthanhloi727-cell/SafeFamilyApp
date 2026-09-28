@@ -70,11 +70,13 @@ git clone https://github.com/nguyenthanhloi727-cell/SafeFamilyApp.git
 cd SafeFamilyApp
 ```
 
-Đổi tên app thành tên mình (thành viên nhóm):
+Đổi app sang tên mình (thành viên nhóm): bấm đúp `doi-ten.bat` rồi chọn số, hoặc:
 
 ```bash
-dart run tool/rename.dart nguyenvana "Nguyễn Văn A"
+dart run tool/rename.dart
 ```
+
+Chi tiết: [CONTRIBUTING.md mục 8](CONTRIBUTING.md#8-đổi-app-sang-tên-của-bạn--công-cụ-đổi-tên).
 
 Bật gỡ lỗi trên điện thoại:
 

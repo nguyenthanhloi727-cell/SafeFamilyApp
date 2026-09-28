@@ -92,11 +92,9 @@ if (!await ParentGate.always(context, 'Đổi mã PIN')) return;
 
 ## 6. Đổi tên theo thành viên — `tool/rename.dart`
 
-```bash
-dart run tool/rename.dart <hovaten_khong_dau> "<Họ Tên có dấu>"
-```
+Hướng dẫn cho người dùng: [CONTRIBUTING.md mục 8](../CONTRIBUTING.md#8-đổi-app-sang-tên-của-bạn--công-cụ-đổi-tên). Cách gọi: không tham số (menu chọn từ `assets/team/members.json`), `<id>`, `<id> "<Họ Tên>"`, `--reset` (tên mặc định `nguyenthanhloi`). Windows: `doi-ten.bat`.
 
-Đổi: `name` (pubspec), `applicationId` (`com.safefamily.<hovaten>`), nhãn app (`SafeFamily - <Họ Tên>`), `AppInfo.ownerName`, `AppInfo.applicationId`, import `package:` trong `test/`; rồi chạy `flutter pub get`. Kiểm tra hết trước khi ghi. Namespace Kotlin giữ cố định. Repo luôn để tên mặc định `nguyenthanhloi` — đổi lại trước khi commit.
+Đổi: `name` (pubspec), `applicationId`, `namespace` + dời `MainActivity.kt` sang `kotlin/com/safefamily/safe_family_app_<id>/` (sửa dòng `package`), nhãn app, `AppInfo.ownerName`, `AppInfo.applicationId`, import `package:` trong `test/`; rồi `flutter pub get`. Đọc và kiểm tra hết (mỗi mẫu phải khớp đúng 1 chỗ) trước khi ghi. Thêm chỗ mới mang tên thành viên → thêm vào script và bảng trong CONTRIBUTING.md.
 
 ## 7. Test
 
