@@ -351,6 +351,10 @@ class ParentGuard extends ChangeNotifier {
     return true;
   }
 
+  /// Ghi cảnh báo của hệ thống vào nhật ký (khóa ứng dụng bị vô hiệu hóa…).
+  Future<void> recordWarning(String action) =>
+      _record(action, UnlockMethod.system, UnlockResult.warning);
+
   // ------------------------------------------- Phiên & app vào nền
 
   void _startSession() {

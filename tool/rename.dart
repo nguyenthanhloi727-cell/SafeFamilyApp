@@ -85,7 +85,7 @@ void main(List<String> args) {
     ),
     _manifest: _replaceOnce(
       _manifest,
-      RegExp(r'android:label="[^"]*"'),
+      RegExp(r'android:label="(?!@)[^"]*"'),
       'android:label="${_xmlEscape(displayName)}"',
     ),
     _appInfo: _replaceOnceIn(

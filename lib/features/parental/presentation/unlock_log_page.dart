@@ -107,6 +107,7 @@ class _EntryTile extends StatelessWidget {
         Icons.remove_circle_outline_rounded,
         theme.colorScheme.outline,
       ),
+      UnlockResult.warning => (Icons.warning_rounded, theme.colorScheme.error),
     };
     return ListTile(
       leading: Icon(icon, color: color),

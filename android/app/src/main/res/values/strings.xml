@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Khóa ứng dụng: tên và mô tả dịch vụ Trợ năng của app_blocker hiện
+         trong Cài đặt → Trợ năng (thay chữ tiếng Anh "App Blocker"). -->
+    <string name="app_lock_service_label">SafeFamily - Khóa ứng dụng</string>
+    <string name="accessibility_service_description">Cho SafeFamily biết khi con mở ứng dụng bị phụ huynh chặn để hiện màn chặn. Không đọc nội dung trên màn hình.</string>
+</resources>

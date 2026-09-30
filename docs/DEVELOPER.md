@@ -27,6 +27,11 @@ lib/
     team/{data,presentation}           # members.json, ảnh thành viên
     profile/{data,presentation}        # danh bạ gia đình, Cài đặt
     parental/presentation              # thiết lập lần đầu, đổi PIN, bảo mật, nhật ký
+    app_lock/                          # Khóa ứng dụng khác (mục 6)
+      app_lock_config.dart             #   chữ màn chặn, số phút mở tạm, package YouTube
+      domain/                          #   app không được chặn, hạn mở tạm (Dart thuần)
+      data/                            #   app_blocker + kênh safefamily/app_lock, lưu hạn mở tạm
+      presentation/                    #   AppLockController, màn Khóa ứng dụng, màn Thiết lập
 assets/fonts/           # Be Vietnam Pro + OFL.txt
 assets/team/            # members.json + ảnh cố định <id>.jpg (xem assets/team/README.md)
 tool/                   # công cụ nội bộ nhóm
@@ -51,6 +56,7 @@ Phiên bản: xem `pubspec.yaml`.
 | local_auth_android | Chữ tiếng Việt trên hộp thoại sinh trắc | [pub.dev](https://pub.dev/packages/local_auth_android) |
 | flutter_secure_storage | Lưu PIN đã băm, trạng thái khóa, nhật ký (Android Keystore) | [pub.dev](https://pub.dev/packages/flutter_secure_storage) |
 | crypto | HMAC-SHA256 cho PBKDF2 băm PIN | [pub.dev](https://pub.dev/packages/crypto) |
+| app_blocker | Khóa ứng dụng khác: liệt kê app, chặn bằng dịch vụ Trợ năng, lịch tự chặn lại | [pub.dev](https://pub.dev/packages/app_blocker) |
 | flutter_localizations | *(Flutter SDK)* chữ Material tiếng Việt | — |
 | shared_preferences_platform_interface | *(chỉ test)* bộ nhớ giả | [pub.dev](https://pub.dev/packages/shared_preferences_platform_interface) |
 
@@ -62,10 +68,16 @@ Phiên bản: xem `pubspec.yaml`.
 | `INTERNET` | Dịch vụ nhận giọng nói có thể dùng máy chủ |
 | `com.android.alarm.permission.SET_ALARM` | Gửi giờ sang app Đồng hồ (không hỏi người dùng) |
 | `USE_BIOMETRIC` | Khóa phụ huynh bằng vân tay / khuôn mặt |
+| `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` | Khóa ứng dụng: nút "Tắt tối ưu pin" hỏi thẳng (không cần tìm trong Cài đặt) |
+| `QUERY_ALL_PACKAGES` *(app_blocker tự thêm)* | Liệt kê app đã cài để chọn chặn; tìm app Điện thoại / Cài đặt / launcher |
+| `RECEIVE_BOOT_COMPLETED` *(app_blocker tự thêm)* | Đặt lại lịch chặn sau khi khởi động máy |
+| `SCHEDULE_EXACT_ALARM` *(app_blocker tự thêm)* | Lịch tự chặn lại đúng giờ sau khi mở tạm; Android 12+ phải bật tay (*Báo thức & lời nhắc*) |
+| Dịch vụ Trợ năng `AppBlockerAccessibilityService` *(app_blocker)* | Phát hiện app bị chặn lên màn hình; người dùng bật tay trong Cài đặt → Trợ năng |
 
 **Không** xin `CALL_PHONE` (chỉ mở màn quay số) và không xin quyền Bluetooth.
 `<queries>`: `tel`, `https`, `mailto`, `android.speech.RecognitionService`, `SET_ALARM` (Android 11+).
-`MainActivity` là `FlutterFragmentActivity` (local_auth yêu cầu) và có MethodChannel `safefamily/biometric_hardware` báo máy có vân tay/khuôn mặt. `LaunchTheme` dùng `Theme.AppCompat.DayNight.NoActionBar`.
+`MainActivity` là `FlutterFragmentActivity` (local_auth yêu cầu) và có 2 MethodChannel: `safefamily/biometric_hardware` (máy có vân tay/khuôn mặt) và `safefamily/app_lock` (trạng thái từng quyền khóa ứng dụng; package của app Điện thoại / Cài đặt / launcher). `LaunchTheme` dùng `Theme.AppCompat.DayNight.NoActionBar`.
+Manifest khai báo lại dịch vụ Trợ năng của app_blocker chỉ để đổi nhãn (`tools:replace="android:label"`, chữ trong `res/values/strings.xml`; cùng file ghi đè mô tả `accessibility_service_description`). Nhãn phải là `@string/…` vì `tool/rename.dart` sửa đúng một nhãn dạng chữ (nhãn app).
 
 ## 5. Khóa phụ huynh — `ParentGuard`
 
@@ -89,12 +101,36 @@ if (!await ParentGate.always(context, 'Đổi mã PIN')) return;
 - Sai 5 lần khóa 30 giây, sau đó gấp đôi (tối đa 30 phút); lưu qua khi tắt app.
 - Màn thuộc khu vực phụ huynh bọc bằng `ParentAreaGuard` → tự đóng khi phiên hết hạn.
 - Không có `ParentGuardScope` (test màn lẻ) → `ParentGate` cho qua.
+- `ParentGuard.recordWarning(action)` ghi dòng *Hệ thống · Cảnh báo* vào nhật ký (khóa ứng dụng bị vô hiệu hóa).
 
-## 6. Tên app theo thành viên
+## 6. Khóa ứng dụng — `lib/features/app_lock`
+
+**Package:** `app_blocker` 2.2.0 — so với `zo_app_blocker` 0.0.6 (còn non, ít người dùng) và `block_app` 0.0.1 (bỏ từ 05/2025): cập nhật gần nhất (08/2026), 150/160 điểm pub, dùng dịch vụ Trợ năng (không cần quyền "hiện trên app khác", không tốn pin khi rảnh), có liệt kê app và lịch hẹn giờ.
+
+**Màn chặn:** dùng màn gốc của package (`BlockedAppActivity`), chỉ đổi chữ + màu qua `setBlockScreenConfig`. Chữ ở `app_lock_config.dart` (`BlockScreenTexts`), đặt lại mỗi lần chặn. Màn này không có nút, không biết tên app bị chặn; nút ✕ / Back về màn hình chính. Mở khóa làm trong SafeFamily.
+
+**Luồng:**
+
+- `AppLockController` (đưa xuống cây bằng `AppLockScope`, tạo trong `app.dart`) là chỗ duy nhất gọi `AppLockPlatform`. Màn hình chỉ gọi controller; chặn / bỏ chặn / mở tạm / chặn lại đều qua `ParentGate.always(...)` trước.
+- **Không bao giờ chặn** `ProtectedApps`: SafeFamily + app máy trả về cho `CATEGORY_HOME`, `ACTION_DIAL`, `ACTION_SETTINGS`, app gọi điện mặc định (kênh `safefamily/app_lock`) + danh sách dự phòng. Lỡ bị chặn (bản cũ) → mở app là gỡ.
+- **Mở tạm** (`tempUnlockMinutes`, mặc định 15): lưu hạn vào `shared_preferences` → tạo lịch MỘT LẦN của app_blocker bắt đầu đúng giờ hết hạn, kết thúc 00:00 cùng ngày (đã qua) → bỏ chặn. Tới giờ, báo thức của app_blocker chặn lại **dù SafeFamily đã tắt**. Giờ kết thúc phải ở quá khứ: báo thức kết thúc của package sẽ **bỏ chặn**. Vì lịch nằm trong 1 ngày nên hạn không qua 23:59.
+- Mỗi lần SafeFamily chạy, app_blocker (`rescheduleAll`) xóa các lịch "đã qua giờ kết thúc" đó → controller đặt lại lịch còn hạn và chặn lại app đã hết hạn. Khi app đang mở còn có `Timer`.
+- Xóa lịch đang chạy thì app_blocker bỏ chặn app của lịch → chặn lại luôn **xóa lịch trước, chặn sau**.
+- **Mỗi lần mở / quay lại app**: kiểm tra quyền. Đang chặn app mà thiếu quyền bắt buộc (Trợ năng, Báo thức & lời nhắc) → cảnh báo đỏ ở Trang chủ + ghi nhật ký 1 lần (bật lại quyền rồi tắt nữa thì ghi tiếp).
+
+**Thử nhanh trên máy** (mở tạm 1 phút thay cho 15):
+
+```bash
+flutter run --dart-define=SF_UNLOCK_MINUTES=1
+```
+
+**Test:** `test/features/app_lock/` — danh sách không được chặn, hạn mở tạm với đồng hồ giả, đối soát khi mở lại app, cảnh báo thiếu quyền, màn danh sách / thiết lập / cảnh báo Trang chủ. Đồ giả: `test/helpers/app_lock_fakes.dart`.
+
+## 7. Tên app theo thành viên
 
 Repo luôn để tên mặc định `nguyenthanhloi`. Thành viên nhóm dùng công cụ nội bộ `tool/rename.dart` (hướng dẫn gửi riêng trong nhóm) và trả về tên mặc định trước khi commit.
 
-## 7. Test
+## 8. Test
 
 ```bash
 flutter analyze
@@ -104,9 +140,9 @@ flutter analyze
 flutter test
 ```
 
-Test app-level (`test/widget_test.dart`) không dùng `pumpAndSettle` sau khi vào app (tab Nhóm đọc assets thật). Đồ giả: `test/helpers/` (launcher, kho bảo mật, sinh trắc).
+Test app-level (`test/widget_test.dart`) không dùng `pumpAndSettle` sau khi vào app (tab Nhóm đọc assets thật). Đồ giả: `test/helpers/` (launcher, kho bảo mật, sinh trắc, app_blocker). `SafeFamilyApp(appLock: …)` nhận controller giả; không truyền thì dùng app_blocker thật, lỗi kênh native trong test được bỏ qua.
 
-## 8. Quy trình git & phát hành
+## 9. Quy trình git & phát hành
 
 1. Tra pub.dev → code → `flutter analyze` → `flutter test` → chạy trên máy thật → duyệt → commit + push.
 2. Thêm/bỏ package hoặc quyền Android → **cập nhật file này trong cùng commit**.
@@ -121,7 +157,7 @@ flutter build apk --release
    - Ký bằng khóa debug (đủ cho thử nghiệm). **Không** commit APK, keystore, `key.properties`, `local.properties` (đã chặn trong `.gitignore`).
    - Tạo Release: `gh release create v<phiên bản> <file.apk> --prerelease --title ... --notes ...`
 
-## 9. Lỗi thường gặp
+## 10. Lỗi thường gặp
 
 ### Build lỗi: `sdkmanager.bat ... finished with non-zero exit value -1073740791 (NTSTATUS 0xC0000409)`
 
@@ -189,7 +225,7 @@ App Đồng hồ của máy không hỗ trợ lệnh chuẩn `SET_ALARM` hoặc 
 
 ### Build lần đầu tự tải *Android SDK Platform 35* và *CMake 3.22.1*
 
-Bình thường — plugin `image_picker`/`path_provider` cần hai gói này, Gradle tự cài vào thư mục SDK. Nếu bước tự cài báo lỗi `sdkmanager ... 0xC0000409` (xem lỗi đầu mục 9), cài tay trong Android Studio: **SDK Platforms** → *Android 15.0 (API 35)*; **SDK Tools** → *Show Package Details* → **CMake** → *3.22.1*.
+Bình thường — plugin `image_picker`/`path_provider` cần hai gói này, Gradle tự cài vào thư mục SDK. Nếu bước tự cài báo lỗi `sdkmanager ... 0xC0000409` (xem lỗi đầu mục 10), cài tay trong Android Studio: **SDK Platforms** → *Android 15.0 (API 35)*; **SDK Tools** → *Show Package Details* → **CMake** → *3.22.1*.
 
 ### Thêm ảnh vào `assets/team/` hoặc sửa `members.json` mà app không đổi
 
@@ -205,6 +241,22 @@ Máy chưa có app mail nào (Gmail, Outlook…) hoặc app mail đang bị tắ
 
 - Máy không có app Điện thoại (máy tính bảng chỉ Wi-Fi) hoặc không có trình duyệt nào → không mở được là đúng.
 - Máy có app nhưng vẫn báo lỗi: app Điện thoại / trình duyệt mặc định đang bị tắt trong **Cài đặt → Ứng dụng** — bật lại.
+
+### Khóa ứng dụng: công tắc Trợ năng bị mờ, báo *"Cài đặt bị hạn chế"*
+
+Android 13 trở lên chặn quyền Trợ năng cho app cài từ file APK (trình duyệt, trình quản lý tệp). Mở **Thông tin ứng dụng** của SafeFamily → nút **⋮** góc trên → **Cho phép cài đặt bị hạn chế** → quay lại Trợ năng bật **SafeFamily - Khóa ứng dụng**. App cài bằng `flutter run` / Android Studio không bị.
+
+### Khóa ứng dụng: đã chặn mà con vẫn mở được app
+
+- Mở lại SafeFamily: Trang chủ có cảnh báo đỏ → quyền Trợ năng hoặc *Báo thức & lời nhắc* đã bị tắt → **Bật lại**.
+- Máy Xiaomi / Oppo / Vivo / Samsung tự tắt dịch vụ chạy nền: làm theo *Ghi chú theo hãng máy* ở màn Thiết lập khóa ứng dụng (tự khởi động, pin *Không giới hạn*), trên Xiaomi khóa SafeFamily trong đa nhiệm (kéo thẻ app xuống → biểu tượng ổ khóa).
+- Trợ năng vẫn bật mà không chặn: tắt rồi bật lại dịch vụ trong Cài đặt → Trợ năng.
+
+### Khóa ứng dụng: hết giờ mở tạm mà app chưa bị chặn lại
+
+- Kiểm tra quyền **Báo thức & lời nhắc** (Android 12+) — thiếu thì không hẹn giờ được.
+- Máy vừa **khởi động lại** trong lúc mở tạm: lịch bị xóa, app chặn lại khi mở SafeFamily lần sau (giới hạn đã ghi trong README).
+- Lịch tính theo phút: chặn lại ở đầu phút ghi trên màn (*Đang mở tạm tới 15:32*), có thể trễ vài giây.
 
 ### Log có nhiều dòng `E/AdrenoUtils`, `E/Gralloc4`, `GraphicBuffer ... failed`
 

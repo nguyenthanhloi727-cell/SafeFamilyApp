@@ -8,7 +8,10 @@ enum UnlockMethod {
 
   /// Máy có cả vân tay lẫn khuôn mặt: Android không cho biết đã dùng cái nào.
   biometric('Vân tay/khuôn mặt'),
-  pin('Mã PIN');
+  pin('Mã PIN'),
+
+  /// SafeFamily tự ghi (ví dụ khóa ứng dụng bị vô hiệu hóa).
+  system('Hệ thống');
 
   const UnlockMethod(this.label);
   final String label;
@@ -17,7 +20,8 @@ enum UnlockMethod {
 enum UnlockResult {
   success('Thành công'),
   failure('Thất bại'),
-  canceled('Đã hủy');
+  canceled('Đã hủy'),
+  warning('Cảnh báo');
 
   const UnlockResult(this.label);
   final String label;
