@@ -125,9 +125,9 @@ flutter run --dart-define=SF_UNLOCK_MINUTES=1
 
 **Test:** `test/features/app_lock/` — danh sách không được chặn, hạn mở tạm với đồng hồ giả, đối soát khi mở lại app, cảnh báo thiếu quyền, màn danh sách / thiết lập / cảnh báo Trang chủ. Đồ giả: `test/helpers/app_lock_fakes.dart`.
 
-## 7. Tên app theo thành viên
+## 7. Mã ứng dụng theo thành viên
 
-Repo luôn để tên mặc định `nguyenthanhloi`. Thành viên nhóm dùng công cụ nội bộ `tool/rename.dart` (hướng dẫn gửi riêng trong nhóm) và trả về tên mặc định trước khi commit.
+Tên hiển thị trên điện thoại luôn là **SafeFamily**. Mã ứng dụng (`applicationId`, tên project) mặc định theo `nguyenthanhloi`; thành viên nhóm dùng công cụ nội bộ `tool/rename.dart` (hướng dẫn gửi riêng trong nhóm) và trả về tên mặc định trước khi commit.
 
 ## 8. Test
 

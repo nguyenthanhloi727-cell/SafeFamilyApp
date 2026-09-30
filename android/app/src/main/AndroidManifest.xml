@@ -14,7 +14,7 @@
          SCHEDULE_EXACT_ALARM và dịch vụ Trợ năng (xem docs/DEVELOPER.md). -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"/>
     <application
-        android:label="SafeFamily - Nguyễn Thành Lợi"
+        android:label="SafeFamily"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

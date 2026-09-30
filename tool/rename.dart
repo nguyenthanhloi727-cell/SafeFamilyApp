@@ -46,7 +46,8 @@ void main(List<String> args) {
   final packageName = 'safe_family_app_$slug';
   final applicationId = 'com.safefamily.$slug';
   final namespace = 'com.safefamily.$packageName';
-  final displayName = 'SafeFamily - $fullName';
+  // Tên trên điện thoại luôn là "SafeFamily" (không kèm tên thành viên).
+  const displayName = 'SafeFamily';
 
   // Đọc & kiểm tra hết trước, rồi mới ghi — tránh đổi nửa chừng.
   final pubspec = File(_pubspec).readAsStringSync();

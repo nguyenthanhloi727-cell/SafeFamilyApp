@@ -9,6 +9,6 @@ abstract final class AppInfo {
   /// (dùng để mở trang Cài đặt của chính app).
   static const applicationId = 'com.safefamily.nguyenthanhloi';
 
-  /// Tên hiển thị, trùng với nhãn app trên điện thoại.
-  static const displayName = '$appName - $ownerName';
+  /// Tên hiển thị, trùng với nhãn app trên điện thoại (không kèm tên thành viên).
+  static const displayName = appName;
 }
