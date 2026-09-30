@@ -70,6 +70,17 @@ Cắm cáp, cho phép gỡ lỗi, rồi:
 flutter run
 ```
 
+## Dùng Khóa phụ huynh (vân tay)
+
+Tên ô ghi đúng như trên màn hình app (đã kiểm trên Xiaomi 11T Pro). **Tất cả nằm trong app SafeFamily**, không phải trong Cài đặt của điện thoại.
+
+1. **Bật vân tay:** tab **Cá nhân** (góc dưới bên phải) → kéo xuống → ô **Bảo mật & khóa phụ huynh** → công tắc **Mở khóa bằng vân tay/khuôn mặt** → nhập mã PIN → hộp thoại **Xác thực phụ huynh** *("Quét để bật mở khóa bằng vân tay/khuôn mặt")* → chạm cảm biến vân tay → công tắc chuyển màu xanh. Ô trên cùng ghi máy hỗ trợ gì (ví dụ *"Máy này hỗ trợ: Vân tay"*).
+2. **Mở khóa bằng vân tay:** khi đang ở chế độ trẻ em, bấm việc cần mở khóa (ví dụ **Thêm** cạnh *Danh bạ gia đình*) → hiện hộp thoại **Xác thực phụ huynh** → quét vân tay → vào thẳng, không phải nhập PIN. Quét sai thì Android tự báo trên hộp thoại và cho quét lại.
+3. **Dùng PIN thay vân tay:** trong hộp thoại vân tay bấm **Dùng mã PIN** → màn **Nhập mã PIN phụ huynh** → nhập PIN → **✓**.
+4. **Xem lại:** tab **Cá nhân** → ô **Nhật ký mở khóa** → mỗi dòng ghi việc, giờ, cách mở (*Vân tay* / *Mã PIN*) và kết quả (*Thành công* / *Đã hủy*).
+5. **Tắt vân tay:** ô **Bảo mật & khóa phụ huynh** → gạt tắt công tắc **Mở khóa bằng vân tay/khuôn mặt** (phải xác thực trước).
+6. Máy vừa **thêm/xóa vân tay** hoặc vừa cập nhật app → màn nhập PIN có khung vàng *"…mở khóa sinh trắc đã tắt"* → nhập PIN rồi làm lại bước 1.
+
 ## Dùng Khóa ứng dụng
 
 1. Trang chủ → **Quản lý thiết bị của con** (xác thực) → **Thiết lập khóa ứng dụng**. Bấm **Mở Cài đặt** ở từng quyền, bật xong bấm quay lại — trạng thái tự đổi thành *Đã bật*:
@@ -82,10 +93,10 @@ flutter run
 
 ## Kịch bản demo
 
-1. Mở app lần đầu → **đặt mã PIN** (nhập 2 lần) → **Bật** vân tay.
+1. Mở app lần đầu → **đặt mã PIN** (nhập 2 lần) → bấm **Bật** vân tay (quét 1 lần), hoặc **Để sau** rồi bật theo mục *Dùng Khóa phụ huynh*.
 2. Cá nhân → bật **Chế độ trẻ em** → dải "Đang ở chế độ trẻ em" hiện ở đầu màn hình.
-3. Thử **Thêm / Sửa** danh bạ → bị chặn, hiện hộp thoại vân tay.
-4. **Quét vân tay** → mở khóa, sửa được. Bấm gọi người nhà → gọi được ngay, không cần mở khóa.
+3. Bấm **Thêm** cạnh *Danh bạ gia đình* → hiện hộp thoại vân tay **Xác thực phụ huynh**.
+4. **Quét vân tay** → mở màn **Thêm liên hệ**. Lần sau bấm **Dùng mã PIN** trong hộp thoại → nhập PIN cũng vào được. Bấm gọi người nhà → gọi được ngay, không cần mở khóa.
 5. Báo thức → nói *"Đặt báo thức 6 giờ 30 sáng"* → Đặt báo thức (xác thực) → app Đồng hồ mở với 06:30.
 6. Thoát chế độ trẻ em (xác thực) → Cá nhân → **Nhật ký mở khóa** xem lại các lần mở khóa.
 7. Thiết lập khóa ứng dụng (mục trên) → chặn YouTube → mở YouTube → hiện màn chặn → mẹ mở tạm bằng vân tay → dùng được YouTube, 15 phút sau bị chặn lại.
@@ -93,8 +104,8 @@ flutter run
 ## Giới hạn đã biết
 
 - **Không phân biệt được vân tay của ai** — chỉ phụ huynh nên đăng ký vân tay/khuôn mặt trên máy.
-- **Chỉ nhận sinh trắc loại mạnh** (package `biometric_storage`): trên hầu hết máy Android chỉ **vân tay** dùng được. Khuôn mặt tùy máy — nhiều máy (ví dụ Xiaomi 11T Pro) chỉ cho dùng khuôn mặt ở màn hình khóa, app không gọi được (app ghi rõ trong Cá nhân → Bảo mật). Không dùng mật khẩu màn hình của máy thay vân tay (con có thể biết) — không quét được thì nhập PIN phụ huynh.
-- **Thêm / xóa vân tay trên máy** → mở khóa bằng vân tay tự tắt (Android hủy chìa khóa), app báo nhập PIN rồi bật lại trong Cá nhân → Bảo mật. Cập nhật từ bản v0.6.0 cũng phải bật lại một lần.
+- **Chỉ nhận sinh trắc loại mạnh** (package `biometric_storage`): trên hầu hết máy Android chỉ **vân tay** dùng được. Khuôn mặt tùy máy — nhiều máy (ví dụ Xiaomi 11T Pro) chỉ cho dùng khuôn mặt ở màn hình khóa, app không gọi được (app ghi rõ trong Cá nhân → Bảo mật & khóa phụ huynh). Không dùng mật khẩu màn hình của máy thay vân tay (con có thể biết) — không quét được thì nhập PIN phụ huynh.
+- **Thêm / xóa vân tay trên máy** → mở khóa bằng vân tay tự tắt (Android hủy chìa khóa), app báo nhập PIN rồi bật lại trong Cá nhân → Bảo mật & khóa phụ huynh. Cập nhật từ bản v0.6.0 cũng phải bật lại một lần.
 - **Khóa ứng dụng là chặn mềm**: dựa vào quyền Trợ năng, nên con có thể vào Cài đặt tắt quyền hoặc gỡ SafeFamily. Tắt quyền thì phụ huynh thấy cảnh báo đỏ ở Trang chủ và dòng ghi trong nhật ký (khi mở lại SafeFamily). Chặn cứng cần chế độ **Device Owner** (đang phát triển).
 - **Màn chặn không có nút và không hiện tên app** — dùng màn chặn có sẵn của package `app_blocker`; mẹ mở khóa trong SafeFamily. App không ghi lại những lần con mở app bị chặn.
 - **Mở tạm** tính theo phút và không qua nửa đêm (mở lúc 23:50 thì chặn lại lúc 23:59). **Khởi động lại máy** trong lúc đang mở tạm → app đó mở tới khi SafeFamily được mở lại.

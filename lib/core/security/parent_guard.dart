@@ -229,7 +229,7 @@ class ParentGuard extends ChangeNotifier {
           notice =
               'Vân tay trên máy đã thay đổi (hoặc app vừa cập nhật) nên mở '
               'khóa sinh trắc đã tắt. Hãy nhập mã PIN, rồi bật lại trong '
-              'Cá nhân → Bảo mật.';
+              'Cá nhân → Bảo mật & khóa phụ huynh.';
         case BiometricResult.failed:
           await _record(action, _capability.logMethod, UnlockResult.failure);
           notice = 'Xác thực sinh trắc không thành công. Hãy nhập mã PIN.';

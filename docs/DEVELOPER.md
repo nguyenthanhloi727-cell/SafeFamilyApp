@@ -269,7 +269,7 @@ biometric_storage chỉ nhận sinh trắc **loại mạnh** (Class 3). Mở kh�
 
 ### Khóa phụ huynh: báo *"Vân tay trên máy đã thay đổi… bật lại"*
 
-Máy vừa thêm/xóa vân tay (Android hủy chìa khóa để vân tay mới thêm không mở được khóa phụ huynh), hoặc app vừa cập nhật từ bản dùng local_auth. Nhập PIN → **Cá nhân → Bảo mật** → bật lại vân tay.
+Máy vừa thêm/xóa vân tay (Android hủy chìa khóa để vân tay mới thêm không mở được khóa phụ huynh), hoặc app vừa cập nhật từ bản dùng local_auth. Nhập PIN → **Cá nhân → Bảo mật & khóa phụ huynh** → bật lại vân tay.
 
 ### Log có nhiều dòng `E/AdrenoUtils`, `E/Gralloc4`, `GraphicBuffer ... failed`
 

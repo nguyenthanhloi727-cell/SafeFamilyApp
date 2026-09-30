@@ -42,7 +42,7 @@ class _FirstRunSetupPageState extends State<FirstRunSetupPage> {
     if (enableBiometric && !biometricOk && mounted) {
       showAppSnackBar(
         context,
-        'Chưa quét được — có thể bật sau trong Cá nhân → Bảo mật.',
+        'Chưa quét được — có thể bật sau trong Cá nhân → Bảo mật & khóa phụ huynh.',
       );
     }
   }
