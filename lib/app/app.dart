@@ -16,7 +16,7 @@ class SafeFamilyApp extends StatefulWidget {
   const SafeFamilyApp({super.key, this.guard, this.appLock});
 
   /// Mặc định: PIN/khóa lưu bằng flutter_secure_storage, sinh trắc qua
-  /// local_auth. Test truyền bản giả.
+  /// biometric_storage. Test truyền bản giả.
   final ParentGuard? guard;
 
   /// Mặc định: app_blocker thật. Test truyền bản giả.
@@ -38,7 +38,9 @@ class _SafeFamilyAppState extends State<SafeFamilyApp> {
         widget.guard ??
         (ParentGuard(
             store: const FlutterSecureStore(),
-            biometrics: LocalAuthBiometricAuthenticator(),
+            biometrics: BiometricStorageAuthenticator(
+              store: const FlutterSecureStore(),
+            ),
           )
           ..load()
           ..attachLifecycle());

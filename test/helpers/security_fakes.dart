@@ -31,16 +31,32 @@ class FakeBiometrics implements BiometricAuthenticator {
   BiometricCapability cap;
   final List<BiometricResult> results;
   BiometricResult fallback;
+
+  /// Số lần mở khóa ([authenticate]).
   int calls = 0;
+  int enrollCalls = 0;
+  int disableCalls = 0;
+
+  BiometricResult _next() =>
+      results.isNotEmpty ? results.removeAt(0) : fallback;
 
   @override
   Future<BiometricCapability> capability() async => cap;
 
   @override
+  Future<BiometricResult> enroll(String reason) async {
+    enrollCalls++;
+    return _next();
+  }
+
+  @override
   Future<BiometricResult> authenticate(String reason) async {
     calls++;
-    return results.isNotEmpty ? results.removeAt(0) : fallback;
+    return _next();
   }
+
+  @override
+  Future<void> disable() async => disableCalls++;
 }
 
 /// Băm nhanh cho test (không isolate, ít vòng).

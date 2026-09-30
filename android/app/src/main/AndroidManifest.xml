@@ -7,7 +7,7 @@
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="com.android.alarm.permission.SET_ALARM"/>
-    <!-- Khóa phụ huynh (bước 6): xác thực vân tay / khuôn mặt bằng local_auth. -->
+    <!-- Khóa phụ huynh (bước 6): xác thực vân tay / khuôn mặt bằng biometric_storage. -->
     <uses-permission android:name="android.permission.USE_BIOMETRIC"/>
     <!-- Khóa ứng dụng (bước 6B): hỏi thẳng "tắt tối ưu pin" cho SafeFamily.
          Package app_blocker tự thêm QUERY_ALL_PACKAGES, RECEIVE_BOOT_COMPLETED,

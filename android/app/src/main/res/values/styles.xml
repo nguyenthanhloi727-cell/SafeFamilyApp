@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- Theme applied to the Android Window while the process is starting when the OS's Dark Mode setting is off -->
-    <!-- local_auth: LaunchTheme phải là theme AppCompat (tránh crash trên Android 8 trở xuống).
+    <!-- biometric_storage: LaunchTheme phải là theme AppCompat (máy dưới Android 9 dùng hộp thoại vân tay AppCompat).
          Dùng bản NoActionBar để màn chờ không hiện thanh tiêu đề. -->
     <style name="LaunchTheme" parent="Theme.AppCompat.DayNight.NoActionBar">
         <!-- Show a splash screen on the activity. Automatically removed when

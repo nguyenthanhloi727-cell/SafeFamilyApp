@@ -223,6 +223,13 @@ class ParentGuard extends ChangeNotifier {
               'Không dùng được vân tay/khuôn mặt lúc này. '
               'Hãy nhập mã PIN.';
           await refreshCapability();
+        case BiometricResult.invalidated:
+          await _record(action, _capability.logMethod, UnlockResult.failure);
+          await _saveBiometricEnabled(false);
+          notice =
+              'Vân tay trên máy đã thay đổi (hoặc app vừa cập nhật) nên mở '
+              'khóa sinh trắc đã tắt. Hãy nhập mã PIN, rồi bật lại trong '
+              'Cá nhân → Bảo mật.';
         case BiometricResult.failed:
           await _record(action, _capability.logMethod, UnlockResult.failure);
           notice = 'Xác thực sinh trắc không thành công. Hãy nhập mã PIN.';
@@ -297,11 +304,11 @@ class ParentGuard extends ChangeNotifier {
     return true;
   }
 
-  /// Quét thử sinh trắc (khi bật lần đầu).
+  /// Quét sinh trắc để tạo chìa khóa phụ huynh (khi bật).
   Future<bool> confirmBiometric(String action) async {
     await refreshCapability();
     if (!_capability.canAuthenticate) return false;
-    final result = await _biometrics.authenticate(
+    final result = await _biometrics.enroll(
       'Quét để bật mở khóa bằng vân tay/khuôn mặt',
     );
     final ok = result == BiometricResult.success;
@@ -321,6 +328,7 @@ class ParentGuard extends ChangeNotifier {
   Future<void> enableBiometricAfterSetup() => _saveBiometricEnabled(true);
 
   Future<void> _saveBiometricEnabled(bool enabled) async {
+    if (!enabled) await _biometrics.disable();
     _biometricEnabled = enabled;
     await _store.write(biometricKey, '$enabled');
     _notify();

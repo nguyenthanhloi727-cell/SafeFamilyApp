@@ -17,13 +17,13 @@ import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
-// local_auth yêu cầu FlutterFragmentActivity (hộp thoại BiometricPrompt).
+// biometric_storage yêu cầu FlutterFragmentActivity (hộp thoại BiometricPrompt).
 class MainActivity : FlutterFragmentActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         val messenger = flutterEngine.dartExecutor.binaryMessenger
         // Cho Dart biết máy có phần cứng vân tay / khuôn mặt hay không
-        // (local_auth chỉ báo loại yếu/mạnh, không báo vân tay hay khuôn mặt).
+        // (biometric_storage chỉ báo dùng được hay không, không báo vân tay hay khuôn mặt).
         MethodChannel(messenger, "safefamily/biometric_hardware")
             .setMethodCallHandler { call, result ->
                 if (call.method == "features") {

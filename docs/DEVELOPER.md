@@ -14,7 +14,7 @@ lib/
   app/                  # MaterialApp, cổng thiết lập lần đầu, khung 4 tab (BottomNavigationBar + IndexedStack)
   core/
     constants/          # AppInfo (tên app, applicationId), AppLanguage, feature_flags
-    security/           # ParentGuard, băm PIN, khóa khi sai, sinh trắc (local_auth), nhật ký
+    security/           # ParentGuard, băm PIN, khóa khi sai, sinh trắc (biometric_storage), nhật ký
       ui/               # bàn phím PIN, màn nhập PIN, ParentGate, dải chế độ trẻ em
     services/           # ExternalLauncher (tel/YouTube/mailto), SystemSettings (mở Cài đặt)
     settings/           # VoiceLanguageSettings (ngôn ngữ giọng nói dùng chung)
@@ -50,8 +50,7 @@ Phiên bản: xem `pubspec.yaml`.
 | path_provider | Thư mục riêng của app để chép ảnh | [pub.dev](https://pub.dev/packages/path_provider) |
 | speech_to_text | Nhận giọng nói (Báo thức) | [pub.dev](https://pub.dev/packages/speech_to_text) |
 | android_intent_plus | Intent `SET_ALARM`, mở trang Cài đặt | [pub.dev](https://pub.dev/packages/android_intent_plus) |
-| local_auth | Xác thực vân tay / khuôn mặt | [pub.dev](https://pub.dev/packages/local_auth) |
-| local_auth_android | Chữ tiếng Việt trên hộp thoại sinh trắc | [pub.dev](https://pub.dev/packages/local_auth_android) |
+| biometric_storage | Khóa phụ huynh bằng vân tay: kho mã hóa Keystore chỉ mở được sau khi quét sinh trắc mạnh. **Bản 6.0.0-dev.5 (tiền phát hành)** — bản ổn định 5.0.1 xung đột `win32` với flutter_secure_storage 11 | [pub.dev](https://pub.dev/packages/biometric_storage) |
 | flutter_secure_storage | Lưu PIN đã băm, trạng thái khóa, nhật ký (Android Keystore) | [pub.dev](https://pub.dev/packages/flutter_secure_storage) |
 | crypto | HMAC-SHA256 cho PBKDF2 băm PIN | [pub.dev](https://pub.dev/packages/crypto) |
 | app_blocker | Khóa ứng dụng khác: liệt kê app, chặn bằng dịch vụ Trợ năng, lịch tự chặn lại | [pub.dev](https://pub.dev/packages/app_blocker) |
@@ -74,7 +73,7 @@ Phiên bản: xem `pubspec.yaml`.
 
 **Không** xin `CALL_PHONE` (chỉ mở màn quay số) và không xin quyền Bluetooth.
 `<queries>`: `tel`, `https`, `mailto`, `android.speech.RecognitionService`, `SET_ALARM` (Android 11+).
-`MainActivity` là `FlutterFragmentActivity` (local_auth yêu cầu) và có 2 MethodChannel: `safefamily/biometric_hardware` (máy có vân tay/khuôn mặt) và `safefamily/app_lock` (trạng thái từng quyền khóa ứng dụng; package của app Điện thoại / Cài đặt / launcher). `LaunchTheme` dùng `Theme.AppCompat.DayNight.NoActionBar`.
+`MainActivity` là `FlutterFragmentActivity` (biometric_storage yêu cầu — hộp thoại BiometricPrompt) và có 2 MethodChannel: `safefamily/biometric_hardware` (máy có vân tay/khuôn mặt) và `safefamily/app_lock` (trạng thái từng quyền khóa ứng dụng; package của app Điện thoại / Cài đặt / launcher). `LaunchTheme` dùng `Theme.AppCompat.DayNight.NoActionBar`.
 Manifest khai báo lại dịch vụ Trợ năng của app_blocker chỉ để đổi nhãn (`tools:replace="android:label"`, chữ trong `res/values/strings.xml`; cùng file ghi đè mô tả `accessibility_service_description`).
 
 ## 5. Khóa phụ huynh — `ParentGuard`
@@ -95,6 +94,13 @@ if (!await ParentGate.always(context, 'Đổi mã PIN')) return;
 ```
 
 - Ưu tiên sinh trắc (nếu máy hỗ trợ và đã bật), không được thì nhập PIN.
+- **Sinh trắc = chìa khóa phụ huynh** (`BiometricStorageAuthenticator` trong `biometric_authenticator.dart`):
+  - *Bật* (`enroll`, màn thiết lập lần đầu / Bảo mật): tạo 32 byte ngẫu nhiên (`Random.secure`), ghi vào kho biometric_storage `parent_key` (xác thực **mỗi lần**, `androidBiometricOnly: true` → chỉ `BIOMETRIC_STRONG`, không nhận mật khẩu màn hình) → hiện hộp thoại vân tay. `flutter_secure_storage` chỉ giữ SHA-256 của chìa khóa (`guard.biometric_key_hash`).
+  - *Mở khóa* (`authenticate`): đọc kho (hộp thoại *Xác thực phụ huynh*, nút *Dùng mã PIN*) → so băm → khớp là thành công.
+  - *Tắt* (`disable`): xóa kho + bản băm.
+  - Máy **đổi/xóa vân tay** → Keystore hủy khóa, gói tự xóa kho, đọc ra `null` → `BiometricResult.invalidated` → ParentGuard tắt sinh trắc, báo nhập PIN rồi bật lại. Chưa có bản băm (cập nhật từ bản dùng local_auth) cũng vậy.
+  - Lỗi của gói → kết quả: hủy / hết giờ → `canceled`. Mọi lỗi khác gói gộp thành `unknown` (kể cả **khóa tạm khi sai 5 lần — Android mã 7**) → `canAuthenticate()` vẫn `success` thì `lockedOut`, không thì `notAvailable`; lỗi nhắc `activity` (hộp thoại không hiện được) → `failed`.
+  - Test: `test/core/security/biometric_storage_authenticator_test.dart` (kho giả `FakeVault`).
 - PIN 4–6 số, chặn dãy dễ đoán; chỉ lưu `pbkdf2-sha256$100000$<salt>$<hash>`.
 - Sai 5 lần khóa 30 giây, sau đó gấp đôi (tối đa 30 phút); lưu qua khi tắt app.
 - Màn thuộc khu vực phụ huynh bọc bằng `ParentAreaGuard` → tự đóng khi phiên hết hạn.
@@ -252,6 +258,18 @@ Android 13 trở lên chặn quyền Trợ năng cho app cài từ file APK (tr�
 - Kiểm tra quyền **Báo thức & lời nhắc** (Android 12+) — thiếu thì không hẹn giờ được.
 - Máy vừa **khởi động lại** trong lúc mở tạm: lịch bị xóa, app chặn lại khi mở SafeFamily lần sau (giới hạn đã ghi trong README).
 - Lịch tính theo phút: chặn lại ở đầu phút ghi trên màn (*Đang mở tạm tới 15:32*), có thể trễ vài giây.
+
+### Khóa phụ huynh: không có tùy chọn khuôn mặt / công tắc vân tay mờ
+
+biometric_storage chỉ nhận sinh trắc **loại mạnh** (Class 3). Mở khóa khuôn mặt của đa số máy Android (Xiaomi, Oppo…) là loại yếu, chỉ dùng ở màn hình khóa → app không gọi được, đúng như thiết kế. Công tắc mờ: máy chưa đăng ký vân tay → vào Cài đặt thêm vân tay.
+
+### Khóa phụ huynh: quét sai vân tay mà app không báo gì
+
+Đúng như thiết kế của Android: sai một lần thì hệ thống tự báo trên hộp thoại và cho quét tiếp, app chỉ nhận kết quả cuối (đúng / hủy / khóa tạm). Sai 5 lần → Android khóa tạm vân tay (~30 giây), app báo *"tạm bị khóa"* và chuyển sang PIN. Xem log: `adb logcat -s BiometricStorage` (`onAuthenticationFailed` = sai một lần, `onAuthenticationError(7, …)` = khóa tạm).
+
+### Khóa phụ huynh: báo *"Vân tay trên máy đã thay đổi… bật lại"*
+
+Máy vừa thêm/xóa vân tay (Android hủy chìa khóa để vân tay mới thêm không mở được khóa phụ huynh), hoặc app vừa cập nhật từ bản dùng local_auth. Nhập PIN → **Cá nhân → Bảo mật** → bật lại vân tay.
 
 ### Log có nhiều dòng `E/AdrenoUtils`, `E/Gralloc4`, `GraphicBuffer ... failed`
 
