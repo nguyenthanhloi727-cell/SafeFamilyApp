@@ -3,13 +3,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 
-import 'package:safe_family_app_nguyenthanhloi/app/app.dart';
-import 'package:safe_family_app_nguyenthanhloi/core/security/parent_guard.dart';
-import 'package:safe_family_app_nguyenthanhloi/features/parental/presentation/first_run_setup_page.dart';
-import 'package:safe_family_app_nguyenthanhloi/features/alarm/presentation/alarm_page.dart';
-import 'package:safe_family_app_nguyenthanhloi/features/home/presentation/home_page.dart';
-import 'package:safe_family_app_nguyenthanhloi/features/profile/presentation/profile_page.dart';
-import 'package:safe_family_app_nguyenthanhloi/features/team/presentation/team_page.dart';
+import 'package:safe_family_app/app/app.dart';
+import 'package:safe_family_app/core/security/parent_guard.dart';
+import 'package:safe_family_app/features/parental/presentation/first_run_setup_page.dart';
+import 'package:safe_family_app/features/alarm/presentation/alarm_page.dart';
+import 'package:safe_family_app/features/home/presentation/home_page.dart';
+import 'package:safe_family_app/features/profile/presentation/profile_page.dart';
+import 'package:safe_family_app/features/team/presentation/team_page.dart';
 
 import 'helpers/security_fakes.dart';
 

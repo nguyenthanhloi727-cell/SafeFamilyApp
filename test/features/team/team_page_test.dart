@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:safe_family_app_nguyenthanhloi/core/theme/app_theme.dart';
-import 'package:safe_family_app_nguyenthanhloi/features/team/data/member_photo_store.dart';
-import 'package:safe_family_app_nguyenthanhloi/features/team/data/photo_picker.dart';
-import 'package:safe_family_app_nguyenthanhloi/features/team/data/team_member.dart';
-import 'package:safe_family_app_nguyenthanhloi/features/team/data/team_repository.dart';
-import 'package:safe_family_app_nguyenthanhloi/features/team/presentation/team_page.dart';
+import 'package:safe_family_app/core/theme/app_theme.dart';
+import 'package:safe_family_app/features/team/data/member_photo_store.dart';
+import 'package:safe_family_app/features/team/data/photo_picker.dart';
+import 'package:safe_family_app/features/team/data/team_member.dart';
+import 'package:safe_family_app/features/team/data/team_repository.dart';
+import 'package:safe_family_app/features/team/presentation/team_page.dart';
 
 import '../../helpers/fake_launcher.dart';
 

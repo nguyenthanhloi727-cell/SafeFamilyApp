@@ -1,4 +1,4 @@
-package com.safefamily.safe_family_app_nguyenthanhloi
+package com.safefamily.app
 
 import android.accessibilityservice.AccessibilityServiceInfo
 import android.app.AlarmManager

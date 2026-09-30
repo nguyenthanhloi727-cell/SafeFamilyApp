@@ -1,8 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:safe_family_app_nguyenthanhloi/core/constants/app_languages.dart';
-import 'package:safe_family_app_nguyenthanhloi/features/alarm/domain/alarm_time.dart';
-import 'package:safe_family_app_nguyenthanhloi/features/alarm/domain/time_parser.dart';
+import 'package:safe_family_app/core/constants/app_languages.dart';
+import 'package:safe_family_app/features/alarm/domain/alarm_time.dart';
+import 'package:safe_family_app/features/alarm/domain/time_parser.dart';
 
 /// "Bây giờ" cố định cho test: 20:00.
 final evening = DateTime(2026, 9, 28, 20, 0);

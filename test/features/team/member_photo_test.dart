@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:safe_family_app_nguyenthanhloi/features/team/data/member_photo.dart';
+import 'package:safe_family_app/features/team/data/member_photo.dart';
 
 void main() {
   group('resolveMemberPhoto — thứ tự ưu tiên', () {

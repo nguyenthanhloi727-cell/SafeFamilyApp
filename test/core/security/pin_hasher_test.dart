@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:safe_family_app_nguyenthanhloi/core/security/pin_hasher.dart';
+import 'package:safe_family_app/core/security/pin_hasher.dart';
 
 String hex(List<int> bytes) =>
     bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();

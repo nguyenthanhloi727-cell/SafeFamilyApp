@@ -1,8 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:safe_family_app_nguyenthanhloi/core/security/biometric_authenticator.dart';
-import 'package:safe_family_app_nguyenthanhloi/core/security/parent_guard.dart';
-import 'package:safe_family_app_nguyenthanhloi/core/security/unlock_log.dart';
+import 'package:safe_family_app/core/security/biometric_authenticator.dart';
+import 'package:safe_family_app/core/security/parent_guard.dart';
+import 'package:safe_family_app/core/security/unlock_log.dart';
 
 import '../../helpers/security_fakes.dart';
 

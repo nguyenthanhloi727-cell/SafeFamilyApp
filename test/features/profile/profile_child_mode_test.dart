@@ -3,11 +3,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 
-import 'package:safe_family_app_nguyenthanhloi/core/security/parent_guard.dart';
-import 'package:safe_family_app_nguyenthanhloi/core/security/unlock_log.dart';
-import 'package:safe_family_app_nguyenthanhloi/core/theme/app_theme.dart';
-import 'package:safe_family_app_nguyenthanhloi/features/profile/data/local_profile_repository.dart';
-import 'package:safe_family_app_nguyenthanhloi/features/profile/presentation/profile_page.dart';
+import 'package:safe_family_app/core/security/parent_guard.dart';
+import 'package:safe_family_app/core/security/unlock_log.dart';
+import 'package:safe_family_app/core/theme/app_theme.dart';
+import 'package:safe_family_app/features/profile/data/local_profile_repository.dart';
+import 'package:safe_family_app/features/profile/presentation/profile_page.dart';
 
 import '../../helpers/fake_launcher.dart';
 import '../../helpers/security_fakes.dart';

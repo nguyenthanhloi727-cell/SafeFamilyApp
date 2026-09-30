@@ -1,7 +1,7 @@
-import 'package:safe_family_app_nguyenthanhloi/core/security/biometric_authenticator.dart';
-import 'package:safe_family_app_nguyenthanhloi/core/security/parent_guard.dart';
-import 'package:safe_family_app_nguyenthanhloi/core/security/pin_hasher.dart';
-import 'package:safe_family_app_nguyenthanhloi/core/security/secure_store.dart';
+import 'package:safe_family_app/core/security/biometric_authenticator.dart';
+import 'package:safe_family_app/core/security/parent_guard.dart';
+import 'package:safe_family_app/core/security/pin_hasher.dart';
+import 'package:safe_family_app/core/security/secure_store.dart';
 
 /// Kho bảo mật trong bộ nhớ. Dùng chung 1 instance = "tắt app mở lại".
 class InMemorySecureStore implements SecureStore {

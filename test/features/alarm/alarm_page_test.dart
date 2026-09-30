@@ -3,14 +3,14 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 
-import 'package:safe_family_app_nguyenthanhloi/core/constants/app_languages.dart';
-import 'package:safe_family_app_nguyenthanhloi/core/services/system_settings.dart';
-import 'package:safe_family_app_nguyenthanhloi/core/settings/voice_language_settings.dart';
-import 'package:safe_family_app_nguyenthanhloi/core/theme/app_theme.dart';
-import 'package:safe_family_app_nguyenthanhloi/features/alarm/data/alarm_scheduler.dart';
-import 'package:safe_family_app_nguyenthanhloi/features/alarm/data/speech_recognizer.dart';
-import 'package:safe_family_app_nguyenthanhloi/features/alarm/domain/alarm_time.dart';
-import 'package:safe_family_app_nguyenthanhloi/features/alarm/presentation/alarm_page.dart';
+import 'package:safe_family_app/core/constants/app_languages.dart';
+import 'package:safe_family_app/core/services/system_settings.dart';
+import 'package:safe_family_app/core/settings/voice_language_settings.dart';
+import 'package:safe_family_app/core/theme/app_theme.dart';
+import 'package:safe_family_app/features/alarm/data/alarm_scheduler.dart';
+import 'package:safe_family_app/features/alarm/data/speech_recognizer.dart';
+import 'package:safe_family_app/features/alarm/domain/alarm_time.dart';
+import 'package:safe_family_app/features/alarm/presentation/alarm_page.dart';
 
 /// Micro giả: test tự "nói" bằng cách gọi [say].
 class FakeRecognizer implements SpeechRecognizer {

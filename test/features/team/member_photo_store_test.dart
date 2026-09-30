@@ -4,7 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 
-import 'package:safe_family_app_nguyenthanhloi/features/team/data/member_photo_store.dart';
+import 'package:safe_family_app/features/team/data/member_photo_store.dart';
 
 void main() {
   late Directory appDir; // giả làm thư mục riêng của app

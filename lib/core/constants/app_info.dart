@@ -5,7 +5,7 @@ abstract final class AppInfo {
 
   /// Trùng `applicationId` trong android/app/build.gradle.kts
   /// (dùng để mở trang Cài đặt của chính app).
-  static const applicationId = 'com.safefamily.nguyenthanhloi';
+  static const applicationId = 'com.safefamily.app';
 
   static const displayName = appName;
 }

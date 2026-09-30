@@ -2,9 +2,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 
-import 'package:safe_family_app_nguyenthanhloi/core/constants/app_languages.dart';
-import 'package:safe_family_app_nguyenthanhloi/core/settings/voice_language_settings.dart';
-import 'package:safe_family_app_nguyenthanhloi/features/alarm/data/speech_recognizer.dart';
+import 'package:safe_family_app/core/constants/app_languages.dart';
+import 'package:safe_family_app/core/settings/voice_language_settings.dart';
+import 'package:safe_family_app/features/alarm/data/speech_recognizer.dart';
 
 void main() {
   group('isLanguageSupported', () {

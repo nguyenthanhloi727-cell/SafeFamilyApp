@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:safe_family_app_nguyenthanhloi/features/profile/data/phone_number.dart';
+import 'package:safe_family_app/features/profile/data/phone_number.dart';
 
 void main() {
   group('normalizePhone', () {

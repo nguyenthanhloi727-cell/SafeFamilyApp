@@ -3,10 +3,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 
-import 'package:safe_family_app_nguyenthanhloi/features/app_lock/app_lock_config.dart';
-import 'package:safe_family_app_nguyenthanhloi/features/app_lock/data/app_lock_platform.dart';
-import 'package:safe_family_app_nguyenthanhloi/features/app_lock/data/app_lock_store.dart';
-import 'package:safe_family_app_nguyenthanhloi/features/app_lock/presentation/app_lock_controller.dart';
+import 'package:safe_family_app/features/app_lock/app_lock_config.dart';
+import 'package:safe_family_app/features/app_lock/data/app_lock_platform.dart';
+import 'package:safe_family_app/features/app_lock/data/app_lock_store.dart';
+import 'package:safe_family_app/features/app_lock/presentation/app_lock_controller.dart';
 
 import '../../helpers/app_lock_fakes.dart';
 

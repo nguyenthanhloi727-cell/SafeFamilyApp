@@ -1,4 +1,4 @@
-import 'package:safe_family_app_nguyenthanhloi/core/services/external_launcher.dart';
+import 'package:safe_family_app/core/services/external_launcher.dart';
 
 /// Ghi lại thay vì mở app thật.
 class FakeLauncher implements ExternalLauncher {

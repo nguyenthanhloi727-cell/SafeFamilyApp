@@ -4,13 +4,13 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 
-import 'package:safe_family_app_nguyenthanhloi/core/theme/app_theme.dart';
-import 'package:safe_family_app_nguyenthanhloi/features/app_lock/data/app_lock_platform.dart';
-import 'package:safe_family_app_nguyenthanhloi/features/app_lock/data/app_lock_store.dart';
-import 'package:safe_family_app_nguyenthanhloi/features/app_lock/presentation/app_lock_controller.dart';
-import 'package:safe_family_app_nguyenthanhloi/features/app_lock/presentation/app_lock_page.dart';
-import 'package:safe_family_app_nguyenthanhloi/features/app_lock/presentation/app_lock_setup_page.dart';
-import 'package:safe_family_app_nguyenthanhloi/features/home/presentation/home_page.dart';
+import 'package:safe_family_app/core/theme/app_theme.dart';
+import 'package:safe_family_app/features/app_lock/data/app_lock_platform.dart';
+import 'package:safe_family_app/features/app_lock/data/app_lock_store.dart';
+import 'package:safe_family_app/features/app_lock/presentation/app_lock_controller.dart';
+import 'package:safe_family_app/features/app_lock/presentation/app_lock_page.dart';
+import 'package:safe_family_app/features/app_lock/presentation/app_lock_setup_page.dart';
+import 'package:safe_family_app/features/home/presentation/home_page.dart';
 
 import '../../helpers/app_lock_fakes.dart';
 

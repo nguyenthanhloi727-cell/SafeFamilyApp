@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:safe_family_app_nguyenthanhloi/features/team/data/team_repository.dart';
+import 'package:safe_family_app/features/team/data/team_repository.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

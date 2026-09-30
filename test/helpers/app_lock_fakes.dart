@@ -1,4 +1,4 @@
-import 'package:safe_family_app_nguyenthanhloi/features/app_lock/data/app_lock_platform.dart';
+import 'package:safe_family_app/features/app_lock/data/app_lock_platform.dart';
 
 /// app_blocker giả: lưu trong bộ nhớ, ghi lại lịch tự chặn lại.
 class FakeAppLockPlatform implements AppLockPlatform {

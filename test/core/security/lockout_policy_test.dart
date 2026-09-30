@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:safe_family_app_nguyenthanhloi/core/security/lockout_policy.dart';
+import 'package:safe_family_app/core/security/lockout_policy.dart';
 
 void main() {
   test('sai 1–4 lần: chưa khóa', () {

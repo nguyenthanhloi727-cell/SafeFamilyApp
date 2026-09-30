@@ -1,8 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:safe_family_app_nguyenthanhloi/core/constants/app_info.dart';
-import 'package:safe_family_app_nguyenthanhloi/features/app_lock/domain/protected_apps.dart';
-import 'package:safe_family_app_nguyenthanhloi/features/app_lock/domain/temp_unlock.dart';
+import 'package:safe_family_app/core/constants/app_info.dart';
+import 'package:safe_family_app/features/app_lock/domain/protected_apps.dart';
+import 'package:safe_family_app/features/app_lock/domain/temp_unlock.dart';
 
 void main() {
   group('ProtectedApps — không bao giờ được chặn', () {
