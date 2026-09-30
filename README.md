@@ -13,34 +13,21 @@
 | Tính năng | Mô tả |
 |---|---|
 | 🔒 **Khóa phụ huynh bằng vân tay / khuôn mặt** | Thiết lập mã PIN lần đầu, bật vân tay/khuôn mặt; **chế độ trẻ em** (thoát phải xác thực); khu vực phụ huynh tự khóa lại khi app ở nền quá 1/5/15 phút; sai PIN 5 lần khóa 30 giây (tăng dần); nhật ký mở khóa |
-| Điều hướng 5 tab | `BottomNavigationBar`: Trang chủ – Dịch – Báo thức – Nhóm – Cá nhân, giữ trạng thái từng tab |
+| Điều hướng 4 tab | `BottomNavigationBar`: Trang chủ – Báo thức – Nhóm – Cá nhân, giữ trạng thái từng tab |
 | Cá nhân | Hồ sơ phụ huynh; **danh bạ gia đình** (chạm để gọi, thêm/sửa/xóa); nút **Mở YouTube**; Cài đặt |
 | Báo thức bằng giọng nói | Nói hoặc gõ câu đặt giờ bằng **5 ngôn ngữ** (Việt, Anh, Nhật, Trung, Hàn) → xác nhận → mở **app Đồng hồ của máy** với giờ điền sẵn |
 | Nhóm | Thẻ thành viên lướt ngang (ảnh, họ tên, MSSV, email, vai trò, lớp); tải ảnh từ thư viện |
 | ⛔ **Khóa ứng dụng** | Phụ huynh chọn app con không được mở (ô tìm kiếm, nút **chặn nhanh YouTube**); con mở app bị chặn → màn chặn *"Con làm xong bài tập chưa?"*; mẹ **mở tạm 15 phút** bằng vân tay/khuôn mặt/PIN, hết giờ tự chặn lại; quyền bị tắt → cảnh báo đỏ ở Trang chủ + ghi nhật ký |
 
-### Đối chiếu yêu cầu đồ án
-
-| Mục | Yêu cầu | Trạng thái |
-|---|---|---|
-| 1 | Khung app + `BottomNavigationBar` | ✓ |
-| 2 | Cá nhân: danh bạ gia đình + YouTube | ✓ |
-| 3 | Báo thức bằng giọng nói, 5 ngôn ngữ | ✓ |
-| 4 | Dịch văn bản / giọng nói / ảnh | Đang phát triển |
-| 5 | *(đang cập nhật)* | — |
-| 6 | Nhóm: thẻ thành viên | ✓ |
-| Chức năng chính | Khóa phụ huynh bằng sinh trắc học | ✓ (thử nghiệm) |
-
 ### Chỗ nào bị khóa (khi đang ở chế độ trẻ em)
 
 | Bị khóa — cần vân tay/khuôn mặt hoặc PIN | Không khóa |
 |---|---|
-| Thoát chế độ trẻ em; thêm/sửa/xóa danh bạ, sửa tên phụ huynh; đặt/sửa báo thức, đổi ngôn ngữ; tải/đổi/xóa ảnh nhóm; mọi cài đặt; bảo mật, nhật ký, quản lý thiết bị; **chặn / bỏ chặn / mở tạm app khác** (luôn hỏi, kể cả ngoài chế độ trẻ em) | **Bấm gọi người nhà**, toàn bộ tab Dịch, xem tab Nhóm, mở YouTube |
+| Thoát chế độ trẻ em; thêm/sửa/xóa danh bạ, sửa tên phụ huynh; đặt/sửa báo thức, đổi ngôn ngữ; tải/đổi/xóa ảnh nhóm; mọi cài đặt; bảo mật, nhật ký, quản lý thiết bị; **chặn / bỏ chặn / mở tạm app khác** (luôn hỏi, kể cả ngoài chế độ trẻ em) | **Bấm gọi người nhà**, xem tab Nhóm, mở YouTube |
 
 ## Đang phát triển
 
-- **Dịch** văn bản / giọng nói / ảnh — tab Dịch hiện chỉ là màn giữ chỗ.
-- **Camera dịch trực tiếp**.
+- **Quản lý từ xa**: máy bố mẹ kết nối và quản lý máy con (ví dụ đặt báo thức từ xa).
 - **Giới hạn thời gian dùng máy** (Quản lý thiết bị của con hiện ghi "Sắp có").
 - **Chặn cứng** (con không tự tắt được) bằng chế độ Device Owner.
 

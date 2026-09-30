@@ -10,13 +10,11 @@ import 'package:safe_family_app_nguyenthanhloi/features/alarm/presentation/alarm
 import 'package:safe_family_app_nguyenthanhloi/features/home/presentation/home_page.dart';
 import 'package:safe_family_app_nguyenthanhloi/features/profile/presentation/profile_page.dart';
 import 'package:safe_family_app_nguyenthanhloi/features/team/presentation/team_page.dart';
-import 'package:safe_family_app_nguyenthanhloi/features/translate/presentation/translate_page.dart';
 
 import 'helpers/security_fakes.dart';
 
 const _tabs = <(String, Type)>[
   ('Trang chủ', HomePage),
-  ('Dịch', TranslatePage),
   ('Báo thức', AlarmPage),
   ('Nhóm', TeamPage),
   ('Cá nhân', ProfilePage),
@@ -29,7 +27,7 @@ Future<void> _tapTab(WidgetTester tester, String label) async {
       matching: find.text(label),
     ),
   );
-  // Không dùng pumpAndSettle: IndexedStack dựng cả 5 tab ngay từ đầu, tab Nhóm
+  // Không dùng pumpAndSettle: IndexedStack dựng cả 4 tab ngay từ đầu, tab Nhóm
   // đọc assets thật (IO thật) nên vòng loading chưa dừng trong thời gian giả
   // của test. Chỉ cần xong hiệu ứng chuyển tab.
   await tester.pump();
@@ -103,7 +101,7 @@ void main() {
     expect(find.text('Đang ở chế độ trẻ em'), findsOneWidget);
   });
 
-  testWidgets('BottomNavigationBar chuyển đủ 5 tab', (tester) async {
+  testWidgets('BottomNavigationBar chuyển đủ 4 tab', (tester) async {
     await pumpApp(tester);
 
     final barFinder = find.byType(BottomNavigationBar);
@@ -133,23 +131,17 @@ void main() {
   ) async {
     await pumpApp(tester);
 
-    await _tapTab(tester, 'Dịch');
-    Finder source() => find.descendant(
-      of: find.byKey(const Key('source-lang')),
-      matching: find.byType(Text),
-    );
-    expect(tester.widget<Text>(source()).data, 'Tiếng Việt');
-
-    await tester.tap(find.byTooltip('Đổi chiều'));
+    await _tapTab(tester, 'Báo thức');
+    final typed = find.byKey(const Key('typed-command'));
+    await tester.enterText(typed, 'Đặt báo thức 6 giờ');
     await tester.pump();
-    expect(tester.widget<Text>(source()).data, 'English');
 
     await _tapTab(tester, 'Nhóm');
-    await _tapTab(tester, 'Dịch');
+    await _tapTab(tester, 'Báo thức');
     expect(
-      tester.widget<Text>(source()).data,
-      'English',
-      reason: 'Quay lại tab Dịch phải giữ cặp ngôn ngữ đã đổi',
+      tester.widget<TextField>(typed).controller!.text,
+      'Đặt báo thức 6 giờ',
+      reason: 'Quay lại tab Báo thức phải giữ câu đã gõ',
     );
   });
 }

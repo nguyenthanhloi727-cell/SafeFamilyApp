@@ -1,4 +1,4 @@
-/// 5 ngôn ngữ dùng chung cho Dịch và giọng nói Báo thức (DESIGN.md mục 6, C8).
+/// 5 ngôn ngữ của giọng nói Báo thức (DESIGN.md mục 6, C8).
 ///
 /// Dart thuần (không import Flutter) để lớp domain dùng được.
 enum AppLanguage {

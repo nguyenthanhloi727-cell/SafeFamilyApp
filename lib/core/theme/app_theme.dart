@@ -84,14 +84,6 @@ abstract final class AppTheme {
           borderRadius: BorderRadius.circular(AppRadius.xl),
         ),
       ),
-      // 4 tab chế độ Dịch ở 360 dp: chữ 14sp + đệm nhỏ để "Giọng nói" không bị cắt.
-      tabBarTheme: TabBarThemeData(
-        labelColor: scheme.primary,
-        unselectedLabelColor: scheme.onSurfaceVariant,
-        labelStyle: text.labelMedium?.copyWith(fontWeight: FontWeight.w600),
-        unselectedLabelStyle: text.labelMedium,
-        labelPadding: const EdgeInsets.symmetric(horizontal: AppSpace.xs),
-      ),
       snackBarTheme: const SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
       ),

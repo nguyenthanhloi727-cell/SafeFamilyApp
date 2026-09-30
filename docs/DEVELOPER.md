@@ -11,7 +11,7 @@
 ```
 lib/
   main.dart
-  app/                  # MaterialApp, cổng thiết lập lần đầu, khung 5 tab (BottomNavigationBar + IndexedStack)
+  app/                  # MaterialApp, cổng thiết lập lần đầu, khung 4 tab (BottomNavigationBar + IndexedStack)
   core/
     constants/          # AppInfo (tên app, applicationId), AppLanguage, feature_flags
     security/           # ParentGuard, băm PIN, khóa khi sai, sinh trắc (local_auth), nhật ký
@@ -22,7 +22,6 @@ lib/
     widgets/            # widget dùng chung
   features/
     home/               # Trang chủ, Quản lý thiết bị (giữ chỗ)
-    translate/          # Dịch (giữ chỗ)
     alarm/{domain,data,presentation}   # bộ hiểu giờ 5 ngôn ngữ (Dart thuần), speech_to_text, SET_ALARM
     team/{data,presentation}           # members.json, ảnh thành viên
     profile/{data,presentation}        # danh bạ gia đình, Cài đặt

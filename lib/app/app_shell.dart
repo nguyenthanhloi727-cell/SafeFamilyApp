@@ -6,7 +6,6 @@ import '../features/alarm/presentation/alarm_page.dart';
 import '../features/home/presentation/home_page.dart';
 import '../features/profile/presentation/profile_page.dart';
 import '../features/team/presentation/team_page.dart';
-import '../features/translate/presentation/translate_page.dart';
 
 class _AppTab {
   const _AppTab(this.label, this.icon, this.activeIcon, this.page);
@@ -17,7 +16,7 @@ class _AppTab {
   final Widget page;
 }
 
-/// Khung điều hướng chính: 5 tab bằng [BottomNavigationBar] (mục 1 của thầy).
+/// Khung điều hướng chính: 4 tab bằng [BottomNavigationBar].
 ///
 /// [IndexedStack] giữ nguyên trạng thái từng tab khi chuyển qua lại.
 class AppShell extends StatefulWidget {
@@ -30,7 +29,6 @@ class AppShell extends StatefulWidget {
 class _AppShellState extends State<AppShell> {
   static const _tabs = [
     _AppTab('Trang chủ', Icons.home_outlined, Icons.home, HomePage()),
-    _AppTab('Dịch', Icons.translate, Icons.translate, TranslatePage()),
     _AppTab('Báo thức', Icons.alarm_outlined, Icons.alarm, AlarmPage()),
     _AppTab('Nhóm', Icons.groups_outlined, Icons.groups, TeamPage()),
     _AppTab('Cá nhân', Icons.person_outline, Icons.person, ProfilePage()),
