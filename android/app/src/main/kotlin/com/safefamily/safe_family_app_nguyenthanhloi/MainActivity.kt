@@ -1,5 +1,6 @@
 package com.safefamily.safe_family_app_nguyenthanhloi
 
+import android.accessibilityservice.AccessibilityServiceInfo
 import android.app.AlarmManager
 import android.content.ComponentName
 import android.content.Context
@@ -11,6 +12,7 @@ import android.os.PowerManager
 import android.provider.Settings
 import android.telecom.TelecomManager
 import android.text.TextUtils
+import android.view.accessibility.AccessibilityManager
 import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -55,15 +57,25 @@ class MainActivity : FlutterFragmentActivity() {
             }
     }
 
-    /** Dịch vụ Trợ năng của app_blocker đang bật (cùng cách package tự kiểm tra). */
+    /**
+     * Dịch vụ Trợ năng của app_blocker đang CHẠY thật. Chỉ xem danh sách bật
+     * trong Cài đặt là chưa đủ: tiến trình bị tắt hẳn (vuốt khỏi đa nhiệm trên
+     * MIUI, cài lại app) thì Android đánh dấu dịch vụ "đã crash", vẫn nằm trong
+     * danh sách bật nhưng không chạy lại cho tới khi tắt/bật lại.
+     */
     private fun isBlockerServiceEnabled(): Boolean {
         val enabled = Settings.Secure.getString(
             contentResolver,
             Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES,
         ) ?: return false
-        val service = ComponentName(packageName, BLOCKER_SERVICE).flattenToString()
-        return TextUtils.SimpleStringSplitter(':').apply { setString(enabled) }
-            .any { it.equals(service, ignoreCase = true) }
+        val service = ComponentName(packageName, BLOCKER_SERVICE)
+        val listed = TextUtils.SimpleStringSplitter(':').apply { setString(enabled) }
+            .any { it.equals(service.flattenToString(), ignoreCase = true) }
+        val manager = getSystemService(Context.ACCESSIBILITY_SERVICE) as AccessibilityManager
+        val running = manager
+            .getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_ALL_MASK)
+            .any { it.resolveInfo.serviceInfo.let { s -> s.packageName == packageName && s.name == BLOCKER_SERVICE } }
+        return listed && running
     }
 
     private fun canScheduleExactAlarms(): Boolean =

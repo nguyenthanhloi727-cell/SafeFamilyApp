@@ -71,7 +71,9 @@ class AppLockSetupPage extends StatelessWidget {
               note:
                   'Công tắc bị mờ, báo "Cài đặt bị hạn chế" (Android 13 trở '
                   'lên, cài từ file APK): mở Thông tin ứng dụng → nút ⋮ → '
-                  '"Cho phép cài đặt bị hạn chế", rồi bật lại.',
+                  '"Cho phép cài đặt bị hạn chế", rồi bật lại.\n'
+                  'Trong Cài đặt đã bật mà ở đây vẫn "Chưa bật" (dịch vụ bị '
+                  'dừng, thường do vuốt tắt SafeFamily): tắt đi rồi bật lại.',
               granted: permissions?.accessibility,
               onOpen: () => open(AppLockSetting.accessibility),
             ),
