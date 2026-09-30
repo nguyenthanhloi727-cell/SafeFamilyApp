@@ -93,7 +93,8 @@ flutter run
 ## Giới hạn đã biết
 
 - **Không phân biệt được vân tay của ai** — chỉ phụ huynh nên đăng ký vân tay/khuôn mặt trên máy.
-- **Khuôn mặt tùy máy** — nhiều máy chỉ cho dùng khuôn mặt ở màn hình khóa, app không gọi được (app ghi rõ trong Cá nhân → Bảo mật).
+- **Chỉ nhận sinh trắc loại mạnh** (package `biometric_storage`): trên hầu hết máy Android chỉ **vân tay** dùng được. Khuôn mặt tùy máy — nhiều máy (ví dụ Xiaomi 11T Pro) chỉ cho dùng khuôn mặt ở màn hình khóa, app không gọi được (app ghi rõ trong Cá nhân → Bảo mật). Không dùng mật khẩu màn hình của máy thay vân tay (con có thể biết) — không quét được thì nhập PIN phụ huynh.
+- **Thêm / xóa vân tay trên máy** → mở khóa bằng vân tay tự tắt (Android hủy chìa khóa), app báo nhập PIN rồi bật lại trong Cá nhân → Bảo mật. Cập nhật từ bản v0.6.0 cũng phải bật lại một lần.
 - **Khóa ứng dụng là chặn mềm**: dựa vào quyền Trợ năng, nên con có thể vào Cài đặt tắt quyền hoặc gỡ SafeFamily. Tắt quyền thì phụ huynh thấy cảnh báo đỏ ở Trang chủ và dòng ghi trong nhật ký (khi mở lại SafeFamily). Chặn cứng cần chế độ **Device Owner** (đang phát triển).
 - **Màn chặn không có nút và không hiện tên app** — dùng màn chặn có sẵn của package `app_blocker`; mẹ mở khóa trong SafeFamily. App không ghi lại những lần con mở app bị chặn.
 - **Mở tạm** tính theo phút và không qua nửa đêm (mở lúc 23:50 thì chặn lại lúc 23:59). **Khởi động lại máy** trong lúc đang mở tạm → app đó mở tới khi SafeFamily được mở lại.
