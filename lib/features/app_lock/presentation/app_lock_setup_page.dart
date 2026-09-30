@@ -95,6 +95,22 @@ class AppLockSetupPage extends StatelessWidget {
               granted: permissions?.batteryUnrestricted,
               onOpen: () => open(AppLockSetting.battery),
             ),
+            // Không có cách chung để đọc trạng thái "Tự khởi động" (mỗi hãng
+            // một kiểu) → không hiện Đã bật/Chưa bật, luôn có nút mở.
+            _PermissionCard(
+              step: 4,
+              title: 'Cho phép tự khởi động (Xiaomi, Oppo, Vivo…)',
+              description:
+                  'Máy tắt SafeFamily (vuốt khỏi đa nhiệm, dọn bộ nhớ) thì '
+                  'dịch vụ chặn dừng theo. Có quyền tự khởi động, Android '
+                  'tự chạy lại dịch vụ; không có thì phải bật lại Trợ năng '
+                  'bằng tay. Trong Thông tin ứng dụng, bật "Tự khởi động".',
+              note:
+                  'Xiaomi: nên khóa SafeFamily trong đa nhiệm (nhấn giữ thẻ '
+                  'app → biểu tượng ổ khóa). Máy không có mục này thì bỏ qua.',
+              granted: null,
+              onOpen: () => open(AppLockSetting.appDetails),
+            ),
             const SizedBox(height: AppSpace.sm),
             Card(
               child: Padding(

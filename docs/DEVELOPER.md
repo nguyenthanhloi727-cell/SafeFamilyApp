@@ -249,7 +249,8 @@ Android 13 trở lên chặn quyền Trợ năng cho app cài từ file APK (tr�
 
 - Mở lại SafeFamily: Trang chủ có cảnh báo đỏ → quyền Trợ năng hoặc *Báo thức & lời nhắc* đã bị tắt → **Bật lại**.
 - Máy Xiaomi / Oppo / Vivo / Samsung tự tắt dịch vụ chạy nền: làm theo *Ghi chú theo hãng máy* ở màn Thiết lập khóa ứng dụng (tự khởi động, pin *Không giới hạn*), trên Xiaomi khóa SafeFamily trong đa nhiệm (kéo thẻ app xuống → biểu tượng ổ khóa).
-- Trợ năng vẫn bật mà không chặn: tắt rồi bật lại dịch vụ trong Cài đặt → Trợ năng.
+- **Trợ năng vẫn bật mà không chặn (hay gặp nhất, đã kiểm trên Xiaomi 11T Pro):** MIUI tắt hẳn SafeFamily khi vuốt khỏi đa nhiệm (log `am_kill … SwipeUpClean`). Dịch vụ Trợ năng chạy chung tiến trình nên chết theo; Android muốn chạy lại dịch vụ nhưng MIUI chặn vì SafeFamily chưa có quyền **Tự khởi động** (`adb shell appops get <applicationId> 10008` → `ignore`). Dịch vụ nằm ở danh sách *Crashed services* (`adb shell dumpsys accessibility`) cho tới khi tắt/bật lại. **Sửa:** bật *Tự khởi động* (bước 4 màn Thiết lập) và khóa SafeFamily trong đa nhiệm; lỡ rồi thì tắt rồi bật lại dịch vụ trong Cài đặt → Trợ năng. App tự nhận ra dịch vụ không chạy (báo *Chưa bật* + cảnh báo đỏ), nhưng không tự bật lại được (Android cấm).
+- Không có quyền Tự khởi động thì báo thức *tự chặn lại* của app_blocker nhiều khả năng cũng bị MIUI chặn khi SafeFamily đã bị tắt (chưa thử riêng).
 
 ### Khóa ứng dụng: hết giờ mở tạm mà app chưa bị chặn lại
 
