@@ -115,7 +115,7 @@ Repo lưu trên tài khoản GitHub của một thành viên để nộp bài; m
 
 ## Tài liệu cho lập trình viên
 
-[docs/DEVELOPER.md](docs/DEVELOPER.md): cấu trúc thư mục, package, quyền Android, `ParentGuard`, script đổi tên, test, git, build APK, lỗi thường gặp.
+[docs/DEVELOPER.md](docs/DEVELOPER.md): cấu trúc thư mục, package, quyền Android, `ParentGuard`, khóa ứng dụng, test, git, build APK, lỗi thường gặp.
 
 ## Giấy phép
 

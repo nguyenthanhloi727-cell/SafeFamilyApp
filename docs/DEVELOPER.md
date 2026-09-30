@@ -33,7 +33,6 @@ lib/
       presentation/                    #   AppLockController, màn Khóa ứng dụng, màn Thiết lập
 assets/fonts/           # Be Vietnam Pro + OFL.txt
 assets/team/            # members.json + ảnh cố định <id>.jpg (xem assets/team/README.md)
-tool/                   # công cụ nội bộ nhóm
 test/                   # unit + widget test; test/helpers = đồ giả dùng chung
 ```
 
@@ -76,7 +75,7 @@ Phiên bản: xem `pubspec.yaml`.
 **Không** xin `CALL_PHONE` (chỉ mở màn quay số) và không xin quyền Bluetooth.
 `<queries>`: `tel`, `https`, `mailto`, `android.speech.RecognitionService`, `SET_ALARM` (Android 11+).
 `MainActivity` là `FlutterFragmentActivity` (local_auth yêu cầu) và có 2 MethodChannel: `safefamily/biometric_hardware` (máy có vân tay/khuôn mặt) và `safefamily/app_lock` (trạng thái từng quyền khóa ứng dụng; package của app Điện thoại / Cài đặt / launcher). `LaunchTheme` dùng `Theme.AppCompat.DayNight.NoActionBar`.
-Manifest khai báo lại dịch vụ Trợ năng của app_blocker chỉ để đổi nhãn (`tools:replace="android:label"`, chữ trong `res/values/strings.xml`; cùng file ghi đè mô tả `accessibility_service_description`). Nhãn phải là `@string/…` vì `tool/rename.dart` sửa đúng một nhãn dạng chữ (nhãn app).
+Manifest khai báo lại dịch vụ Trợ năng của app_blocker chỉ để đổi nhãn (`tools:replace="android:label"`, chữ trong `res/values/strings.xml`; cùng file ghi đè mô tả `accessibility_service_description`).
 
 ## 5. Khóa phụ huynh — `ParentGuard`
 
@@ -125,11 +124,7 @@ flutter run --dart-define=SF_UNLOCK_MINUTES=1
 
 **Test:** `test/features/app_lock/` — danh sách không được chặn, hạn mở tạm với đồng hồ giả, đối soát khi mở lại app, cảnh báo thiếu quyền, màn danh sách / thiết lập / cảnh báo Trang chủ. Đồ giả: `test/helpers/app_lock_fakes.dart`.
 
-## 7. Mã ứng dụng theo thành viên
-
-Tên hiển thị trên điện thoại luôn là **SafeFamily**. Mã ứng dụng (`applicationId`, tên project) mặc định theo `nguyenthanhloi`; thành viên nhóm dùng công cụ nội bộ `tool/rename.dart` (hướng dẫn gửi riêng trong nhóm) và trả về tên mặc định trước khi commit.
-
-## 8. Test
+## 7. Test
 
 ```bash
 flutter analyze
@@ -141,7 +136,7 @@ flutter test
 
 Test app-level (`test/widget_test.dart`) không dùng `pumpAndSettle` sau khi vào app (tab Nhóm đọc assets thật). Đồ giả: `test/helpers/` (launcher, kho bảo mật, sinh trắc, app_blocker). `SafeFamilyApp(appLock: …)` nhận controller giả; không truyền thì dùng app_blocker thật, lỗi kênh native trong test được bỏ qua.
 
-## 9. Quy trình git & phát hành
+## 8. Quy trình git & phát hành
 
 1. Tra pub.dev → code → `flutter analyze` → `flutter test` → chạy trên máy thật → duyệt → commit + push.
 2. Thêm/bỏ package hoặc quyền Android → **cập nhật file này trong cùng commit**.
@@ -156,7 +151,7 @@ flutter build apk --release
    - Ký bằng khóa debug (đủ cho thử nghiệm). **Không** commit APK, keystore, `key.properties`, `local.properties` (đã chặn trong `.gitignore`).
    - Tạo Release: `gh release create v<phiên bản> <file.apk> --prerelease --title ... --notes ...`
 
-## 10. Lỗi thường gặp
+## 9. Lỗi thường gặp
 
 ### Build lỗi: `sdkmanager.bat ... finished with non-zero exit value -1073740791 (NTSTATUS 0xC0000409)`
 
@@ -224,7 +219,7 @@ App Đồng hồ của máy không hỗ trợ lệnh chuẩn `SET_ALARM` hoặc 
 
 ### Build lần đầu tự tải *Android SDK Platform 35* và *CMake 3.22.1*
 
-Bình thường — plugin `image_picker`/`path_provider` cần hai gói này, Gradle tự cài vào thư mục SDK. Nếu bước tự cài báo lỗi `sdkmanager ... 0xC0000409` (xem lỗi đầu mục 10), cài tay trong Android Studio: **SDK Platforms** → *Android 15.0 (API 35)*; **SDK Tools** → *Show Package Details* → **CMake** → *3.22.1*.
+Bình thường — plugin `image_picker`/`path_provider` cần hai gói này, Gradle tự cài vào thư mục SDK. Nếu bước tự cài báo lỗi `sdkmanager ... 0xC0000409` (xem lỗi đầu mục 9), cài tay trong Android Studio: **SDK Platforms** → *Android 15.0 (API 35)*; **SDK Tools** → *Show Package Details* → **CMake** → *3.22.1*.
 
 ### Thêm ảnh vào `assets/team/` hoặc sửa `members.json` mà app không đổi
 

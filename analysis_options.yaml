@@ -7,6 +7,5 @@ analyzer:
 
 linter:
   rules:
-    # Import trong lib/ phải là đường dẫn tương đối, để tool/rename.dart
-    # đổi tên package mà không phải sửa import.
+    # Import trong lib/ dùng đường dẫn tương đối (quy ước của nhóm).
     prefer_relative_imports: true

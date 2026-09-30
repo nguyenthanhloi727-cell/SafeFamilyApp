@@ -32,7 +32,7 @@ Dành cho thành viên nhóm và bất kỳ ai muốn tự build, chạy thử a
 1. **Mọi Android:** Cài đặt → Giới thiệu điện thoại → bấm 7 lần **Số hiệu bản dựng** → vào **Tùy chọn nhà phát triển** → bật **Gỡ lỗi USB**.
 2. **Xiaomi / Redmi / POCO:** bấm 7 lần **Phiên bản MIUI/HyperOS**; trong Tùy chọn nhà phát triển bật thêm **Cài đặt qua USB** (cần tài khoản Mi, SIM + dữ liệu di động).
 3. Cắm cáp **truyền dữ liệu**, chọn **Truyền tệp**, bấm **Cho phép** gỡ lỗi USB.
-4. Trên thanh công cụ Android Studio, ô **thiết bị** phải hiện tên điện thoại (ví dụ `2107113SG`). Không thấy → xem [lỗi thường gặp](docs/DEVELOPER.md#10-lỗi-thường-gặp).
+4. Trên thanh công cụ Android Studio, ô **thiết bị** phải hiện tên điện thoại (ví dụ `2107113SG`). Không thấy → xem [lỗi thường gặp](docs/DEVELOPER.md#9-lỗi-thường-gặp).
 
 ## 4. Chạy app
 
@@ -63,6 +63,6 @@ Làm theo mục **Kịch bản demo** trong [README](README.md#kịch-bản-demo
 
 ## 7. Đóng góp code
 
-- Làm theo quy trình trong [docs/DEVELOPER.md](docs/DEVELOPER.md#9-quy-trình-git--phát-hành): code → `flutter analyze` → `flutter test` → chạy trên máy thật → commit.
+- Làm theo quy trình trong [docs/DEVELOPER.md](docs/DEVELOPER.md#8-quy-trình-git--phát-hành): code → `flutter analyze` → `flutter test` → chạy trên máy thật → commit.
 - Thêm/bỏ package hoặc quyền Android thì cập nhật `docs/DEVELOPER.md` cùng commit.
 - Không commit APK, keystore, `local.properties`.
