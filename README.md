@@ -70,6 +70,12 @@ Cắm cáp, cho phép gỡ lỗi, rồi:
 flutter run
 ```
 
+Chỉ chạy **bản demo vân tay** (1 màn biometric_storage, quét xong trả về token hoặc mã lỗi tùy thao tác): trong Android Studio chọn cấu hình **Demo vân tay (main_demo.dart)**, hoặc:
+
+```bash
+flutter run -t lib/main_demo.dart
+```
+
 ## Dùng Khóa phụ huynh (vân tay)
 
 Tên ô ghi đúng như trên màn hình app (đã kiểm trên Xiaomi 11T Pro). **Tất cả nằm trong app SafeFamily**, không phải trong Cài đặt của điện thoại.

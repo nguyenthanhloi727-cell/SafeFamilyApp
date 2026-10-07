@@ -25,6 +25,7 @@ Dành cho thành viên nhóm và bất kỳ ai muốn tự build, chạy thử a
 1. Tải mã nguồn: **File → New → Project from Version Control** → dán `https://github.com/nguyenthanhloi727-cell/SafeFamilyApp.git` → **Clone**.
    (Hoặc tải ZIP trên GitHub, giải nén, rồi **File → Open** chọn thư mục có `pubspec.yaml`.)
 2. Nếu Android Studio hỏi **Flutter SDK path**: **Settings → Languages & Frameworks → Flutter** → chọn thư mục Flutter đã cài.
+   Nếu hiện thanh vàng **"Dart SDK is not configured"**: bấm **Open Dart settings** → tick **Enable Dart support** → **Dart SDK path** = `<thư mục Flutter>\bin\cache\dart-sdk` → **OK** (không cần bấm *Download Dart SDK*).
 3. Mở `pubspec.yaml` → bấm **Pub get** trên thanh thông báo (hoặc chạy `flutter pub get`).
 
 ## 3. Nối điện thoại
@@ -39,6 +40,7 @@ Dành cho thành viên nhóm và bất kỳ ai muốn tự build, chạy thử a
 | Muốn | Làm trong Android Studio |
 |---|---|
 | Chạy app | Chọn cấu hình **main.dart** + điện thoại → bấm **▶ Run** (`Shift+F10`) |
+| Chạy demo vân tay | Chọn cấu hình **Demo vân tay (main_demo.dart)** → **▶ Run**. Chỉ 1 màn biometric_storage: quét vân tay trả về token hoặc mã lỗi (hủy, khóa tạm…). Cài đè lên app SafeFamily trên điện thoại; chạy lại **main.dart** để quay về |
 | Gỡ lỗi (đặt breakpoint) | Bấm vào lề trái dòng code để đặt điểm dừng → **🐞 Debug** (`Shift+F9`) |
 | Sửa code thấy ngay | Lưu file (`Ctrl+S`) → **Hot Reload** (⚡) tự chạy; đổi `assets/` hoặc Android thì bấm **Stop** rồi **Run** lại |
 | Xem log | Tab **Run** (log Flutter) hoặc **Logcat** (log Android) ở đáy màn hình |
