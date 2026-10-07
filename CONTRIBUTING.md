@@ -40,7 +40,7 @@ Dành cho thành viên nhóm và bất kỳ ai muốn tự build, chạy thử a
 | Muốn | Làm trong Android Studio |
 |---|---|
 | Chạy app | Chọn cấu hình **main.dart** + điện thoại → bấm **▶ Run** (`Shift+F10`) |
-| Chạy demo vân tay | Chọn cấu hình **Demo vân tay (main_demo.dart)** → **▶ Run**. Chỉ 1 màn biometric_storage: quét vân tay trả về token hoặc mã lỗi (hủy, khóa tạm…). Cài đè lên app SafeFamily trên điện thoại; chạy lại **main.dart** để quay về |
+| Chạy demo vân tay | Chọn cấu hình **Demo vân tay (main_demo.dart)** → **▶ Run**. Chỉ 1 màn: vân tay biometric_storage + mã PIN dự phòng, trả về token hoặc mã lỗi (hủy, khóa tạm, sai PIN…). Cài đè lên app SafeFamily trên điện thoại; chạy lại **main.dart** để quay về |
 | Gỡ lỗi (đặt breakpoint) | Bấm vào lề trái dòng code để đặt điểm dừng → **🐞 Debug** (`Shift+F9`) |
 | Sửa code thấy ngay | Lưu file (`Ctrl+S`) → **Hot Reload** (⚡) tự chạy; đổi `assets/` hoặc Android thì bấm **Stop** rồi **Run** lại |
 | Xem log | Tab **Run** (log Flutter) hoặc **Logcat** (log Android) ở đáy màn hình |

@@ -70,7 +70,7 @@ Cắm cáp, cho phép gỡ lỗi, rồi:
 flutter run
 ```
 
-Chỉ chạy **bản demo vân tay** (1 màn biometric_storage, quét xong trả về token hoặc mã lỗi tùy thao tác): trong Android Studio chọn cấu hình **Demo vân tay (main_demo.dart)**, hoặc:
+Chỉ chạy **bản demo vân tay** (1 màn: vân tay biometric_storage + mã PIN dự phòng, trả về token hoặc mã lỗi tùy thao tác): trong Android Studio chọn cấu hình **Demo vân tay (main_demo.dart)**, hoặc:
 
 ```bash
 flutter run -t lib/main_demo.dart
