@@ -111,6 +111,18 @@ class AppLockSetupPage extends StatelessWidget {
               granted: null,
               onOpen: () => open(AppLockSetting.appDetails),
             ),
+            _PermissionCard(
+              step: 5,
+              title: 'Bảo vệ cài đặt (chống xóa, chống gỡ)',
+              description:
+                  'Dịch vụ Trợ năng thứ hai, để con không vào được Cài đặt xóa '
+                  'dữ liệu, tắt Trợ năng hay gỡ SafeFamily mà không nhập PIN. '
+                  'Trong Cài đặt → Trợ năng, tìm "SafeFamily - Bảo vệ cài '
+                  'đặt" → Bật. Dịch vụ này đọc chữ trên màn hình Cài đặt để '
+                  'nhận ra màn có tên SafeFamily; không lưu hay gửi đi đâu.',
+              granted: permissions?.settingsGuard,
+              onOpen: () => open(AppLockSetting.settingsGuard),
+            ),
             const SizedBox(height: AppSpace.sm),
             Card(
               child: Padding(

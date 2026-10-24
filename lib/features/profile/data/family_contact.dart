@@ -5,6 +5,7 @@ class FamilyContact {
     required this.label,
     required this.phone,
     required this.order,
+    this.emergency = false,
   });
 
   final String id;
@@ -18,14 +19,23 @@ class FamilyContact {
   /// Thứ tự hiển thị, nhỏ đứng trước.
   final int order;
 
+  /// Liên hệ khẩn cấp: nút SOS trên màn chặn gọi số này (tối đa một người).
+  final bool emergency;
+
   bool get hasPhone => phone.isNotEmpty;
 
-  FamilyContact copyWith({String? label, String? phone, int? order}) {
+  FamilyContact copyWith({
+    String? label,
+    String? phone,
+    int? order,
+    bool? emergency,
+  }) {
     return FamilyContact(
       id: id,
       label: label ?? this.label,
       phone: phone ?? this.phone,
       order: order ?? this.order,
+      emergency: emergency ?? this.emergency,
     );
   }
 
@@ -34,6 +44,7 @@ class FamilyContact {
     'label': label,
     'phone': phone,
     'order': order,
+    'emergency': emergency,
   };
 
   factory FamilyContact.fromJson(Map<String, Object?> json) {
@@ -42,6 +53,7 @@ class FamilyContact {
       label: json['label']! as String,
       phone: (json['phone'] as String?) ?? '',
       order: (json['order'] as int?) ?? 0,
+      emergency: (json['emergency'] as bool?) ?? false,
     );
   }
 
@@ -51,8 +63,9 @@ class FamilyContact {
       other.id == id &&
       other.label == label &&
       other.phone == phone &&
-      other.order == order;
+      other.order == order &&
+      other.emergency == emergency;
 
   @override
-  int get hashCode => Object.hash(id, label, phone, order);
+  int get hashCode => Object.hash(id, label, phone, order, emergency);
 }

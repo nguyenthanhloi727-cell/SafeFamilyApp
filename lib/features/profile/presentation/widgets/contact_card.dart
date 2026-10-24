@@ -5,7 +5,7 @@ import '../../../../core/theme/app_tokens.dart';
 import '../../../../core/widgets/initial_avatar.dart';
 import '../../data/family_contact.dart';
 
-enum _ContactAction { edit, delete }
+enum _ContactAction { edit, emergency, delete }
 
 /// Thẻ liên hệ: chạm để gọi (hoặc nhập số nếu chưa có), menu Sửa / Xóa.
 class ContactCard extends StatelessWidget {
@@ -15,12 +15,16 @@ class ContactCard extends StatelessWidget {
     required this.onTap,
     required this.onEdit,
     required this.onDelete,
+    required this.onToggleEmergency,
   });
 
   final FamilyContact contact;
   final VoidCallback onTap;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
+
+  /// Đặt / bỏ làm liên hệ khẩn cấp (SOS).
+  final VoidCallback onToggleEmergency;
 
   @override
   Widget build(BuildContext context) {
@@ -53,7 +57,12 @@ class ContactCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(contact.label, style: theme.textTheme.titleMedium),
+                      Text(
+                        contact.emergency
+                            ? '${contact.label} · SOS'
+                            : contact.label,
+                        style: theme.textTheme.titleMedium,
+                      ),
                       Text(
                         hasPhone ? contact.phone : 'Chạm để thêm số',
                         style: theme.textTheme.bodyMedium?.copyWith(
@@ -73,17 +82,30 @@ class ContactCard extends StatelessWidget {
                   tooltip: 'Tùy chọn ${contact.label}',
                   onSelected: (action) => switch (action) {
                     _ContactAction.edit => onEdit(),
+                    _ContactAction.emergency => onToggleEmergency(),
                     _ContactAction.delete => onDelete(),
                   },
-                  itemBuilder: (context) => const [
-                    PopupMenuItem(
+                  itemBuilder: (context) => [
+                    const PopupMenuItem(
                       value: _ContactAction.edit,
                       child: ListTile(
                         leading: Icon(Icons.edit_outlined),
                         title: Text('Sửa'),
                       ),
                     ),
-                    PopupMenuItem(
+                    if (hasPhone)
+                      PopupMenuItem(
+                        value: _ContactAction.emergency,
+                        child: ListTile(
+                          leading: const Icon(Icons.sos_rounded),
+                          title: Text(
+                            contact.emergency
+                                ? 'Bỏ liên hệ khẩn cấp'
+                                : 'Đặt làm liên hệ khẩn cấp',
+                          ),
+                        ),
+                      ),
+                    const PopupMenuItem(
                       value: _ContactAction.delete,
                       child: ListTile(
                         leading: Icon(Icons.delete_outline),

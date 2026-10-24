@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 
+import '../data/contacts_sync.dart';
 import '../data/family_contact.dart';
 import '../data/profile_repository.dart';
 
@@ -7,11 +10,17 @@ import '../data/profile_repository.dart';
 ///
 /// Các hàm ghi dữ liệu có thể ném lỗi lưu trữ — giao diện bắt và báo SnackBar.
 class ProfileController extends ChangeNotifier {
-  ProfileController(this._repository);
+  // ignore_for_file: prefer_initializing_formals
+  ProfileController(
+    this._repository, {
+    Future<void> Function(List<FamilyContact>) onContactsChanged =
+        syncContactsToNative,
+  }) : _onContactsChanged = onContactsChanged;
 
   static const defaultParentName = 'Phụ huynh';
 
   final ProfileRepository _repository;
+  final Future<void> Function(List<FamilyContact>) _onContactsChanged;
 
   bool _isLoading = true;
   Object? _loadError;
@@ -34,6 +43,7 @@ class ProfileController extends ChangeNotifier {
     try {
       _parentName = await _repository.loadParentName();
       _contacts = await _repository.loadContacts();
+      unawaited(_onContactsChanged(_contacts));
     } catch (error) {
       _loadError = error;
     } finally {
@@ -66,8 +76,20 @@ class ProfileController extends ChangeNotifier {
     await _reloadContacts();
   }
 
+  /// Đặt [id] làm liên hệ khẩn cấp (nút SOS); `null` để bỏ. Chỉ một người.
+  Future<void> setEmergency(String? id) async {
+    for (final c in _contacts) {
+      final want = c.id == id;
+      if (c.emergency != want) {
+        await _repository.updateContact(c.copyWith(emergency: want));
+      }
+    }
+    await _reloadContacts();
+  }
+
   Future<void> _reloadContacts() async {
     _contacts = await _repository.loadContacts();
+    unawaited(_onContactsChanged(_contacts));
     _notify();
   }
 

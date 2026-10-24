@@ -26,6 +26,7 @@ lib/
     team/{data,presentation}           # members.json, ảnh thành viên
     profile/{data,presentation}        # danh bạ gia đình, Cài đặt
     parental/presentation              # thiết lập lần đầu, đổi PIN, bảo mật, nhật ký
+    new_app/{data,presentation}        # Duyệt app mới cài (native: NewApps.kt, kênh safefamily/new_apps)
     app_lock/                          # Khóa ứng dụng khác (mục 6)
       app_lock_config.dart             #   chữ màn chặn, số phút mở tạm, package YouTube
       domain/                          #   app không được chặn, hạn mở tạm (Dart thuần)
@@ -67,6 +68,7 @@ Phiên bản: xem `pubspec.yaml`.
 | `USE_BIOMETRIC` | Khóa phụ huynh bằng vân tay / khuôn mặt |
 | `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` | Khóa ứng dụng: nút "Tắt tối ưu pin" hỏi thẳng (không cần tìm trong Cài đặt) |
 | `QUERY_ALL_PACKAGES` *(app_blocker tự thêm)* | Liệt kê app đã cài để chọn chặn; tìm app Điện thoại / Cài đặt / launcher |
+| `POST_NOTIFICATIONS` | Duyệt app mới cài: thông báo "Con vừa cài app X" (Android 13+ xin ở màn Duyệt app mới cài; không cấp thì app vẫn bị chặn) |
 | `RECEIVE_BOOT_COMPLETED` *(app_blocker tự thêm)* | Đặt lại lịch chặn sau khi khởi động máy |
 | `SCHEDULE_EXACT_ALARM` *(app_blocker tự thêm)* | Lịch tự chặn lại đúng giờ sau khi mở tạm; Android 12+ phải bật tay (*Báo thức & lời nhắc*) |
 | Dịch vụ Trợ năng `AppBlockerAccessibilityService` *(app_blocker)* | Phát hiện app bị chặn lên màn hình; người dùng bật tay trong Cài đặt → Trợ năng |
@@ -278,3 +280,13 @@ Không phải lỗi app — driver GPU Qualcomm dò định dạng ảnh lúc kh
 ### `flutter doctor` báo lỗi mục Visual Studio / Chrome
 
 Bỏ qua — app chỉ làm cho Android.
+
+## 10. Chống bypass (giai đoạn 0 — F1)
+
+- **Chặn màn Cài đặt**: `SettingsGuardService.kt` (dịch vụ Trợ năng thứ hai, bật trong Cài đặt → Trợ năng → "SafeFamily - Bảo vệ cài đặt"). Màn của Cài đặt / trình cài đặt / Play Store hiện chữ "SafeFamily" → về Home, mở lại SafeFamily và hỏi PIN (`app.dart` → `_checkChallenge`). Xác thực đúng thì `allowSettings` mở cửa 3 phút.
+- **Device Admin**: `SafeFamilyAdminReceiver.kt` + `res/xml/device_admin.xml`, xin ở bước cuối của màn thiết lập lần đầu hoặc Cá nhân → Bảo mật.
+- **Khóa PIN không rút ngắn được**: `LockRecord` + `remainingLock` (`lockout_policy.dart`) dùng `elapsedRealtime` và `boot_count` qua kênh `safefamily/guard`.
+- **Hạn mở tạm sau reboot**: `TempRelocks.kt` giữ bản sao hạn ở native; chặn lại khi máy khởi động (`GuardBootReceiver`), khi dịch vụ kết nối và mỗi lần đổi cửa sổ.
+- **Mã khôi phục PIN**: `recovery_code.dart`, chỉ lưu bản băm (`guard.recovery`); sai mã bị đếm chung với sai PIN.
+- `android:allowBackup="false"`; `FLAG_SECURE` bật bằng `SecureScreenScope` trên màn PIN, mã khôi phục, thiết lập và đổi PIN.
+- Chưa kiểm thử trên máy thật (Xiaomi 11T Pro, Samsung, Android 10–12): danh sách gói hệ thống ở `SettingsGuardService.GUARDED_PACKAGES` có thể cần bổ sung theo ROM.

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
@@ -66,7 +66,7 @@ void main() {
       hasher: fastHasher,
     );
     await guard.load();
-    tester.view.physicalSize = const Size(1080, 2400); // 360 × 800 dp
+    tester.view.physicalSize = const Size(1080, 3600); // 360 × 1200 dp
     tester.view.devicePixelRatio = 3;
     addTearDown(tester.view.reset);
     await tester.pumpWidget(SafeFamilyApp(guard: guard));
@@ -86,12 +86,26 @@ void main() {
     expect(find.text('Nhập lại mã PIN'), findsOneWidget);
     await enterPin(tester, testPin);
 
+    // Mã khôi phục hiện một lần; phải tích "đã ghi lại" mới đi tiếp được.
+    expect(find.text('Mã khôi phục PIN'), findsOneWidget);
+    expect(guard.isConfigured, isFalse);
+    await tester.tap(find.byKey(const Key('recovery-written')));
+    await tester.pump();
+    await tester.tap(find.text('Tiếp tục'));
+    await tester.pumpAndSettle();
+
     expect(find.text('Bật mở khóa bằng vân tay?'), findsOneWidget);
     await tester.tap(find.text('Bật'));
+    await tester.pumpAndSettle();
+
+    // Bước cuối: quản trị thiết bị (có thể để sau).
+    expect(find.text('Chống gỡ SafeFamily'), findsOneWidget);
+    await tester.tap(find.text('Để sau'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));
 
     expect(guard.isConfigured, isTrue);
+    expect(guard.hasRecoveryCode, isTrue);
     expect(guard.biometricEnabled, isTrue);
     expect(find.byType(BottomNavigationBar), findsOneWidget);
   });

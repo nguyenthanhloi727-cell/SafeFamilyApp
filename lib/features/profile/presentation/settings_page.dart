@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/constants/app_info.dart';
 import '../../../core/security/ui/parent_area_guard.dart';
+import '../../../core/settings/theme_settings.dart';
 import '../../../core/settings/voice_language_settings.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/widgets/language_picker.dart';
@@ -42,6 +43,37 @@ class SettingsPage extends StatelessWidget {
       appBar: AppBar(title: const Text('Cài đặt')),
       body: ListView(
         children: [
+          if (ThemeSettingsScope.maybeOf(context)
+              case final themeSettings?) ...[
+            section('Giao diện'),
+            ListenableBuilder(
+              listenable: themeSettings,
+              builder: (context, _) => Padding(
+                padding: const EdgeInsets.symmetric(horizontal: AppSpace.lg),
+                child: SegmentedButton<ThemeMode>(
+                  segments: const [
+                    ButtonSegment(
+                      value: ThemeMode.light,
+                      icon: Icon(Icons.light_mode_outlined),
+                      label: Text('Sáng'),
+                    ),
+                    ButtonSegment(
+                      value: ThemeMode.dark,
+                      icon: Icon(Icons.dark_mode_outlined),
+                      label: Text('Tối'),
+                    ),
+                    ButtonSegment(
+                      value: ThemeMode.system,
+                      icon: Icon(Icons.brightness_auto_outlined),
+                      label: Text('Theo máy'),
+                    ),
+                  ],
+                  selected: {themeSettings.mode},
+                  onSelectionChanged: (v) => themeSettings.setMode(v.first),
+                ),
+              ),
+            ),
+          ],
           section('Báo thức bằng giọng nói'),
           ListTile(
             leading: const Icon(Icons.record_voice_over_outlined),

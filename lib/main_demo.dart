@@ -12,7 +12,7 @@ import 'core/security/secure_store.dart';
 import 'core/security/ui/pin_prompt_page.dart';
 import 'core/theme/app_theme.dart';
 import 'core/theme/app_tokens.dart';
-import 'features/parental/presentation/pin_setup_view.dart';
+import 'core/security/ui/pin_setup_view.dart';
 
 /// Bản demo khóa phụ huynh: vân tay (biometric_storage) + mã PIN dự phòng,
 /// tách khỏi app chính. Chạy: `flutter run -t lib/main_demo.dart`
@@ -337,9 +337,7 @@ class _BiometricDemoPageState extends State<BiometricDemoPage> {
       return PinLocked(_pinLockedUntil!);
     }
     final left = pinAttemptsBeforeLock - _pinFailures;
-    _log(
-      DemoOutcome('Nhập mã PIN', 'PIN_WRONG', detail: 'Còn $left lần thử.'),
-    );
+    _log(DemoOutcome('Nhập mã PIN', 'PIN_WRONG', detail: 'Còn $left lần thử.'));
     return PinRejected(left);
   }
 

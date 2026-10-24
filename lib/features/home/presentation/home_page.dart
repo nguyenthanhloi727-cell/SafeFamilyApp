@@ -7,6 +7,9 @@ import '../../../core/widgets/status_banner.dart';
 import '../../app_lock/presentation/app_lock_controller.dart';
 import '../../app_lock/presentation/app_lock_page.dart';
 import '../../app_lock/presentation/app_lock_setup_page.dart';
+import '../../report/presentation/report_page.dart';
+import '../../report/presentation/usage_summary_card.dart';
+import '../../time_limit/presentation/pause_card.dart';
 import 'device_management_page.dart';
 
 /// S01 — Trang chủ: lối vào "Quản lý thiết bị của con" (có cổng xác thực),
@@ -84,6 +87,8 @@ class HomePage extends StatelessWidget {
                 _openParentArea(context, 'Khóa ứng dụng', const AppLockPage()),
           ),
           const SizedBox(height: AppSpace.md),
+          const PauseCard(),
+          const SizedBox(height: AppSpace.md),
           const FeatureCard(
             icon: Icons.child_care_rounded,
             title: 'Thẻ con',
@@ -91,11 +96,12 @@ class HomePage extends StatelessWidget {
             comingSoon: true,
           ),
           const SizedBox(height: AppSpace.md),
-          const FeatureCard(
-            icon: Icons.hourglass_bottom_rounded,
-            title: 'Thời gian dùng máy',
-            subtitle: 'Thống kê thời gian con dùng điện thoại mỗi ngày',
-            comingSoon: true,
+          UsageSummaryCard(
+            onTap: () => _openParentArea(
+              context,
+              'Báo cáo thời gian dùng',
+              const ReportPage(),
+            ),
           ),
         ],
       ),

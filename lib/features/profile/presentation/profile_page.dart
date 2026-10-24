@@ -124,6 +124,19 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
+  Future<void> _toggleEmergency(FamilyContact contact) async {
+    if (!await ParentGate.childAction(context, 'Đổi liên hệ khẩn cấp')) {
+      return;
+    }
+    if (!mounted) return;
+    await _save(
+      () => _controller.setEmergency(contact.emergency ? null : contact.id),
+      contact.emergency
+          ? 'Đã bỏ liên hệ khẩn cấp.'
+          : '${contact.label} là liên hệ khẩn cấp (nút SOS).',
+    );
+  }
+
   Future<void> _deleteContact(FamilyContact contact) async {
     if (!await ParentGate.childAction(
       context,
@@ -218,6 +231,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 onTap: () => _onContactTap(contact),
                 onEdit: () => _editContact(contact),
                 onDelete: () => _deleteContact(contact),
+                onToggleEmergency: () => _toggleEmergency(contact),
               ),
             ),
         const SizedBox(height: AppSpace.md),

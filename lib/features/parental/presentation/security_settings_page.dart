@@ -4,10 +4,13 @@ import '../../../core/security/parent_guard.dart';
 import '../../../core/security/ui/forgot_pin_dialog.dart';
 import '../../../core/security/ui/parent_area_guard.dart';
 import '../../../core/security/ui/parent_gate.dart';
+import '../../../core/security/ui/recovery_code_view.dart';
+import '../../../core/security/ui/secure_screen_scope.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/widgets/app_snack_bar.dart';
 import '../../../core/widgets/status_banner.dart';
 import 'change_pin_page.dart';
+import 'device_protection_section.dart';
 import 'first_run_setup_page.dart';
 import 'unlock_log_page.dart';
 
@@ -88,6 +91,28 @@ class SecuritySettingsPage extends StatelessWidget {
               },
             ),
             ListTile(
+              leading: const Icon(Icons.key_rounded),
+              title: const Text('Mã khôi phục PIN'),
+              subtitle: Text(
+                guard.hasRecoveryCode
+                    ? 'Tạo mã mới (mã cũ hết hiệu lực)'
+                    : 'Chưa có — tạo để quên PIN không phải xóa dữ liệu',
+              ),
+              trailing: const Icon(Icons.chevron_right_rounded),
+              onTap: () async {
+                final navigator = Navigator.of(context);
+                if (!await ParentGate.always(context, 'Tạo mã khôi phục PIN')) {
+                  return;
+                }
+                final code = await guard.renewRecoveryCode();
+                await navigator.push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => _RecoveryCodePage(code: code),
+                  ),
+                );
+              },
+            ),
+            ListTile(
               leading: const Icon(Icons.timer_outlined),
               title: const Text('Hỏi lại sau khi app ở nền'),
               subtitle: Text('${guard.timeoutMinutes} phút'),
@@ -107,6 +132,8 @@ class SecuritySettingsPage extends StatelessWidget {
               title: const Text('Quên mã PIN?'),
               onTap: () => showForgotPinDialog(context),
             ),
+            section('Chống tắt và chống gỡ'),
+            DeviceProtectionSection(guard: guard),
             section('Giới hạn cần biết'),
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: AppSpace.lg),
@@ -196,6 +223,34 @@ class _CapabilityCard extends StatelessWidget {
               ),
             ],
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Hiện mã khôi phục vừa tạo (chỉ một lần).
+class _RecoveryCodePage extends StatelessWidget {
+  const _RecoveryCodePage({required this.code});
+
+  final String code;
+
+  @override
+  Widget build(BuildContext context) {
+    return SecureScreenScope(
+      child: Scaffold(
+        appBar: AppBar(title: const Text('Mã khôi phục PIN')),
+        body: SafeArea(
+          child: ListView(
+            padding: const EdgeInsets.all(AppSpace.lg),
+            children: [
+              RecoveryCodeView(
+                code: code,
+                confirmLabel: 'Xong',
+                onConfirmed: () => Navigator.of(context).pop(),
+              ),
+            ],
+          ),
         ),
       ),
     );

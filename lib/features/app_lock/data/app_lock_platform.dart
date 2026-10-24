@@ -5,6 +5,7 @@ import 'package:flutter/material.dart' show TimeOfDay;
 import 'package:flutter/services.dart';
 
 import '../../../core/constants/app_info.dart';
+import '../../../core/security/device_guard.dart';
 import '../../../core/services/system_settings.dart';
 import '../app_lock_config.dart';
 
@@ -33,6 +34,7 @@ class AppLockPermissions {
     required this.accessibility,
     required this.exactAlarm,
     required this.batteryUnrestricted,
+    this.settingsGuard = true,
   });
 
   /// Dịch vụ Trợ năng của app_blocker đang bật (bắt buộc để chặn).
@@ -44,11 +46,20 @@ class AppLockPermissions {
   /// Đã tắt tối ưu pin cho SafeFamily (nên có).
   final bool batteryUnrestricted;
 
+  /// Dịch vụ Trợ năng "Bảo vệ cài đặt" đang chạy (chặn xóa/tắt/gỡ SafeFamily).
+  final bool settingsGuard;
+
   /// Đủ quyền bắt buộc.
   bool get ready => accessibility && exactAlarm;
 }
 
-enum AppLockSetting { accessibility, exactAlarm, battery, appDetails }
+enum AppLockSetting {
+  accessibility,
+  settingsGuard,
+  exactAlarm,
+  battery,
+  appDetails,
+}
 
 /// Lớp nói chuyện với Android (app_blocker + kênh riêng của SafeFamily).
 abstract interface class AppLockPlatform {
@@ -128,6 +139,12 @@ class AppBlockerPlatform implements AppLockPlatform {
   @override
   Future<void> scheduleRelock(String packageName, DateTime at) async {
     await cancelRelock(packageName);
+    // Bản sao phía native: sau khi máy khởi động lại, lịch trên mất tác dụng
+    // nên native tự đối chiếu hạn và chặn lại (xem TempRelocks.kt).
+    await _channel.invokeMethod<void>('rememberRelock', {
+      'package': packageName,
+      'atMillis': at.millisecondsSinceEpoch,
+    });
     await _blocker.addSchedule(
       blocker.BlockSchedule(
         id: '$relockPrefix$packageName',
@@ -141,8 +158,10 @@ class AppBlockerPlatform implements AppLockPlatform {
   }
 
   @override
-  Future<void> cancelRelock(String packageName) =>
-      _blocker.removeSchedule('$relockPrefix$packageName');
+  Future<void> cancelRelock(String packageName) async {
+    await _channel.invokeMethod<void>('forgetRelock', {'package': packageName});
+    await _blocker.removeSchedule('$relockPrefix$packageName');
+  }
 
   @override
   Future<Set<String>> scheduledRelocks() async => {
@@ -154,10 +173,12 @@ class AppBlockerPlatform implements AppLockPlatform {
   @override
   Future<AppLockPermissions> permissions() async {
     final map = await _channel.invokeMapMethod<String, bool>('permissions');
+    final guard = await const MethodChannelDeviceGuard().status();
     return AppLockPermissions(
       accessibility: map?['accessibility'] ?? false,
       exactAlarm: map?['exactAlarm'] ?? false,
       batteryUnrestricted: map?['battery'] ?? false,
+      settingsGuard: guard.settingsGuard,
     );
   }
 
@@ -169,8 +190,10 @@ class AppBlockerPlatform implements AppLockPlatform {
   @override
   Future<bool> openSetting(AppLockSetting setting) async {
     const package = 'package:${AppInfo.applicationId}';
+    // Phụ huynh đang tự thiết lập: cho vào màn Cài đặt mà không bị hỏi PIN lần nữa.
+    await const MethodChannelDeviceGuard().allowSettings(settingsAllowSeconds);
     return switch (setting) {
-      AppLockSetting.accessibility => _launch(
+      AppLockSetting.accessibility || AppLockSetting.settingsGuard => _launch(
         const AndroidIntent(action: 'android.settings.ACCESSIBILITY_SETTINGS'),
       ),
       AppLockSetting.exactAlarm => _launch(

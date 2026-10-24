@@ -4,4 +4,7 @@
          trong Cài đặt → Trợ năng (thay chữ tiếng Anh "App Blocker"). -->
     <string name="app_lock_service_label">SafeFamily - Khóa ứng dụng</string>
     <string name="accessibility_service_description">Cho SafeFamily biết khi con mở ứng dụng bị phụ huynh chặn để hiện màn chặn. Không đọc nội dung trên màn hình.</string>
+    <!-- Bảo vệ cài đặt: dịch vụ thứ hai, có đọc màn hình của Cài đặt. -->
+    <string name="settings_guard_label">SafeFamily - Bảo vệ cài đặt</string>
+    <string name="settings_guard_description">Khi màn Cài đặt của máy hiện tên SafeFamily (xóa dữ liệu, tắt Trợ năng, gỡ app), yêu cầu phụ huynh nhập mã PIN. Chỉ xem màn của Cài đặt và trình cài đặt, không ghi lại hay gửi nội dung đi đâu.</string>
 </resources>

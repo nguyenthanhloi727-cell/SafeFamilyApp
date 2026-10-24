@@ -6,6 +6,9 @@ import '../../../core/widgets/feature_card.dart';
 import '../../../core/widgets/status_banner.dart';
 import '../../app_lock/presentation/app_lock_page.dart';
 import '../../app_lock/presentation/app_lock_setup_page.dart';
+import '../../new_app/presentation/new_apps_page.dart';
+import '../../report/presentation/report_page.dart';
+import '../../time_limit/presentation/time_limit_page.dart';
 
 /// S20 — Quản lý thiết bị của con (sau cổng xác thực phụ huynh).
 class DeviceManagementPage extends StatelessWidget {
@@ -42,11 +45,25 @@ class DeviceManagementPage extends StatelessWidget {
               onTap: () => open(const AppLockSetupPage()),
             ),
             const SizedBox(height: AppSpace.md),
-            const FeatureCard(
+            FeatureCard(
               icon: Icons.hourglass_bottom_rounded,
               title: 'Giới hạn thời gian',
-              subtitle: 'Số phút dùng máy mỗi ngày',
-              comingSoon: true,
+              subtitle: 'Số phút dùng máy mỗi ngày, tổng và từng app',
+              onTap: () => open(const TimeLimitPage()),
+            ),
+            const SizedBox(height: AppSpace.md),
+            FeatureCard(
+              icon: Icons.bar_chart_rounded,
+              title: 'Báo cáo thời gian dùng',
+              subtitle: 'Hôm nay, 7 ngày gần nhất, app dùng nhiều nhất',
+              onTap: () => open(const ReportPage()),
+            ),
+            const SizedBox(height: AppSpace.md),
+            FeatureCard(
+              icon: Icons.new_releases_outlined,
+              title: 'Duyệt app mới cài',
+              subtitle: 'App con vừa cài bị chặn cho tới khi bạn cho phép',
+              onTap: () => open(const NewAppsPage()),
             ),
           ],
         ),

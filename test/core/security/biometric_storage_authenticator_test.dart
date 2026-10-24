@@ -99,15 +99,17 @@ void main() {
     expect(store.data, isNot(contains(hashKey)));
   });
 
-  test('sai 5 lần (Android mã 7 → unknown), máy vẫn có sinh trắc → lockedOut',
-      () async {
-    await auth.enroll('bật');
-    vault.nextError = AuthException(
-      AuthExceptionCode.unknown,
-      'Bạn đã thử quá nhiều lần. Hãy dùng phương thức khoá màn hình.',
-    );
-    expect(await auth.authenticate('mở'), BiometricResult.lockedOut);
-  });
+  test(
+    'sai 5 lần (Android mã 7 → unknown), máy vẫn có sinh trắc → lockedOut',
+    () async {
+      await auth.enroll('bật');
+      vault.nextError = AuthException(
+        AuthExceptionCode.unknown,
+        'Bạn đã thử quá nhiều lần. Hãy dùng phương thức khoá màn hình.',
+      );
+      expect(await auth.authenticate('mở'), BiometricResult.lockedOut);
+    },
+  );
 
   test('lỗi unknown và máy hết dùng được sinh trắc → notAvailable', () async {
     await auth.enroll('bật');
@@ -126,19 +128,23 @@ void main() {
     expect(await auth.authenticate('mở'), BiometricResult.failed);
   });
 
-  test('máy đổi vân tay (gói tự xóa kho → đọc ra null) → invalidated, xóa băm',
-      () async {
-    await auth.enroll('bật');
-    vault.content = null;
-    expect(await auth.authenticate('mở'), BiometricResult.invalidated);
-    expect(store.data, isNot(contains(hashKey)));
-  });
+  test(
+    'máy đổi vân tay (gói tự xóa kho → đọc ra null) → invalidated, xóa băm',
+    () async {
+      await auth.enroll('bật');
+      vault.content = null;
+      expect(await auth.authenticate('mở'), BiometricResult.invalidated);
+      expect(store.data, isNot(contains(hashKey)));
+    },
+  );
 
-  test('chưa bật theo cách mới (không có bản băm) → invalidated, không quét',
-      () async {
-    expect(await auth.authenticate('mở'), BiometricResult.invalidated);
-    expect(vault.reads, 0);
-  });
+  test(
+    'chưa bật theo cách mới (không có bản băm) → invalidated, không quét',
+    () async {
+      expect(await auth.authenticate('mở'), BiometricResult.invalidated);
+      expect(vault.reads, 0);
+    },
+  );
 
   test('tắt → xóa kho và bản băm', () async {
     await auth.enroll('bật');

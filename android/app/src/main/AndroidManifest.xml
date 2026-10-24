@@ -13,9 +13,18 @@
          Package app_blocker tự thêm QUERY_ALL_PACKAGES, RECEIVE_BOOT_COMPLETED,
          SCHEDULE_EXACT_ALARM và dịch vụ Trợ năng (xem docs/DEVELOPER.md). -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"/>
+    <!-- Chống bypass: chặn lại app hết hạn mở tạm ngay sau khi máy khởi động. -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+    <!-- Giới hạn thời gian: đo thời gian dùng từng app (cấp trong Cài đặt → Truy cập dữ liệu sử dụng). -->
+    <uses-permission
+        android:name="android.permission.PACKAGE_USAGE_STATS"
+        tools:ignore="ProtectedPermissions"/>
+    <!-- Duyệt app mới cài: thông báo "Con vừa cài app X" (Android 13+ phải được cấp). -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <application
         android:label="SafeFamily"
         android:name="${applicationName}"
+        android:allowBackup="false"
         android:icon="@mipmap/ic_launcher">
         <activity
             android:name=".MainActivity"
@@ -46,6 +55,64 @@
             android:name="com.khanhtq.app_blocker.blocking.AppBlockerAccessibilityService"
             android:label="@string/app_lock_service_label"
             tools:replace="android:label" />
+        <!-- Chống bypass: dịch vụ Trợ năng thứ hai, chặn màn Cài đặt xóa/tắt/gỡ SafeFamily. -->
+        <service
+            android:name=".SettingsGuardService"
+            android:exported="true"
+            android:label="@string/settings_guard_label"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService"/>
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/settings_guard_service"/>
+        </service>
+        <!-- Quản trị thiết bị: đang bật thì không gỡ được SafeFamily. -->
+        <receiver
+            android:name=".SafeFamilyAdminReceiver"
+            android:exported="true"
+            android:permission="android.permission.BIND_DEVICE_ADMIN">
+            <meta-data
+                android:name="android.app.device_admin"
+                android:resource="@xml/device_admin"/>
+            <intent-filter>
+                <action android:name="android.app.action.DEVICE_ADMIN_ENABLED"/>
+            </intent-filter>
+        </receiver>
+        <activity
+            android:name=".TimeLimitBlockActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:launchMode="singleTask"
+            android:taskAffinity=""
+            android:theme="@android:style/Theme.DeviceDefault.NoActionBar"/>
+        <!-- Giờ hệ thống bị đổi: ghi nhật ký, giới hạn ngày không reset. -->
+        <receiver
+            android:name=".TimeChangeReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.TIME_SET"/>
+                <action android:name="android.intent.action.DATE_CHANGED"/>
+            </intent-filter>
+        </receiver>
+        <!-- Duyệt app mới cài: app lạ bị chặn cho tới khi phụ huynh cho phép. -->
+        <receiver
+            android:name=".PackageChangeReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.PACKAGE_ADDED"/>
+                <action android:name="android.intent.action.PACKAGE_REMOVED"/>
+                <data android:scheme="package"/>
+            </intent-filter>
+        </receiver>
+        <receiver
+            android:name=".GuardBootReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED"/>
+            </intent-filter>
+        </receiver>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

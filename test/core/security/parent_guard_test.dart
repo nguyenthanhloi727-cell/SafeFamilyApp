@@ -253,23 +253,20 @@ void main() {
       expect(bio.disableCalls, 1);
     });
 
-    test(
-      'chìa khóa mất hiệu lực (đổi vân tay) → tắt sinh trắc, hỏi PIN, lần sau không quét nữa',
-      () async {
-        final bio = FakeBiometrics(results: [BiometricResult.invalidated]);
-        final guard = await guardWith(biometrics: bio, biometricEnabled: true);
-        final prompt = ScriptedPinPrompt([testPin]);
+    test('chìa khóa mất hiệu lực (đổi vân tay) → tắt sinh trắc, hỏi PIN, lần sau không quét nữa', () async {
+      final bio = FakeBiometrics(results: [BiometricResult.invalidated]);
+      final guard = await guardWith(biometrics: bio, biometricEnabled: true);
+      final prompt = ScriptedPinPrompt([testPin]);
 
-        expect(await guard.require('x', promptPin: prompt.call), isTrue);
-        expect(prompt.sessions.single.notice, contains('bật lại'));
-        expect(guard.biometricEnabled, isFalse);
-        expect(bio.disableCalls, 1);
-        expect(store.data[ParentGuard.biometricKey], 'false');
+      expect(await guard.require('x', promptPin: prompt.call), isTrue);
+      expect(prompt.sessions.single.notice, contains('bật lại'));
+      expect(guard.biometricEnabled, isFalse);
+      expect(bio.disableCalls, 1);
+      expect(store.data[ParentGuard.biometricKey], 'false');
 
-        await guard.require('y', promptPin: ScriptedPinPrompt([testPin]).call);
-        expect(bio.calls, 1);
-      },
-    );
+      await guard.require('y', promptPin: ScriptedPinPrompt([testPin]).call);
+      expect(bio.calls, 1);
+    });
   });
 
   group('Chế độ trẻ em', () {

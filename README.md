@@ -28,7 +28,7 @@
 ## Đang phát triển
 
 - **Quản lý từ xa**: máy bố mẹ kết nối và quản lý máy con (ví dụ đặt báo thức từ xa).
-- **Giới hạn thời gian dùng máy** (Quản lý thiết bị của con hiện ghi "Sắp có").
+- **Giới hạn thời gian dùng máy** theo ngày, tổng và từng app: đã có (`lib/features/time_limit/`, thực thi ở `TimeLimits.kt`).
 - **Chặn cứng** (con không tự tắt được) bằng chế độ Device Owner.
 
 ---
