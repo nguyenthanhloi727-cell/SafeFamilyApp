@@ -4,7 +4,9 @@ import 'package:shared_preferences_platform_interface/in_memory_shared_preferenc
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 
 import 'package:safe_family_app/app/app.dart';
+import 'package:safe_family_app/core/permissions/permission_registry.dart';
 import 'package:safe_family_app/core/security/parent_guard.dart';
+import 'package:safe_family_app/core/settings/setup_settings.dart';
 import 'package:safe_family_app/features/parental/presentation/first_run_setup_page.dart';
 import 'package:safe_family_app/features/alarm/presentation/alarm_page.dart';
 import 'package:safe_family_app/features/home/presentation/home_page.dart';
@@ -34,6 +36,16 @@ Future<void> _tapTab(WidgetTester tester, String label) async {
   await tester.pump(const Duration(milliseconds: 500));
 }
 
+/// Máy giả chưa cấp quyền nào (kênh thật không trả lời trong test).
+class _NoPermissions implements PermissionPlatform {
+  @override
+  Future<Map<String, bool>> status() async => {};
+  @override
+  Future<bool> openSettings(AppPermission permission) async => true;
+  @override
+  Future<bool> removeDeviceAdmin() async => true;
+}
+
 void main() {
   setUp(() {
     // Tab Cá nhân đọc dữ liệu đã lưu — dùng bộ nhớ giả, không đụng máy thật.
@@ -44,7 +56,10 @@ void main() {
   /// App đã thiết lập PIN (bỏ qua màn thiết lập lần đầu).
   Future<void> pumpApp(WidgetTester tester, {bool childMode = false}) async {
     final guard = await configuredGuard(childMode: childMode);
-    await tester.pumpWidget(SafeFamilyApp(guard: guard));
+    final setup = SetupSettings();
+    await setup.load();
+    await setup.markDone(); // Bỏ qua wizard cấp quyền.
+    await tester.pumpWidget(SafeFamilyApp(guard: guard, setup: setup));
     await tester.pump();
   }
 
@@ -69,7 +84,11 @@ void main() {
     tester.view.physicalSize = const Size(1080, 3600); // 360 × 1200 dp
     tester.view.devicePixelRatio = 3;
     addTearDown(tester.view.reset);
-    await tester.pumpWidget(SafeFamilyApp(guard: guard));
+    final permissions = PermissionRegistry(platform: _NoPermissions());
+    await permissions.refresh();
+    await tester.pumpWidget(
+      SafeFamilyApp(guard: guard, permissions: permissions),
+    );
     await tester.pumpAndSettle();
 
     expect(find.text('Chào mừng đến SafeFamily'), findsOneWidget);
@@ -107,7 +126,10 @@ void main() {
     expect(guard.isConfigured, isTrue);
     expect(guard.hasRecoveryCode, isTrue);
     expect(guard.biometricEnabled, isTrue);
-    expect(find.byType(BottomNavigationBar), findsOneWidget);
+    // Chưa có cờ setup_done → vào wizard cấp quyền trước khi tới app chính.
+    await tester.pump();
+    expect(find.text('Thiết lập quyền'), findsOneWidget);
+    expect(find.byType(BottomNavigationBar), findsNothing);
   });
 
   testWidgets('chế độ trẻ em: có dải báo ở đầu màn hình', (tester) async {

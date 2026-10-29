@@ -59,6 +59,9 @@ class AppLockController extends ChangeNotifier {
   /// Số app đang bị chặn (kể cả đang mở tạm).
   int get lockedCount => {..._blocked, ..._unlocks.packages}.length;
 
+  /// Các app đang bị chặn (kể cả đang mở tạm).
+  Set<String> get lockedPackages => {..._blocked, ..._unlocks.packages};
+
   /// Đang chặn app mà thiếu quyền → chặn không có tác dụng (cảnh báo đỏ).
   bool get disabled => _permissions != null && !ready && hasLocks;
 
@@ -76,6 +79,13 @@ class AppLockController extends ChangeNotifier {
 
   Future<bool> openSetting(AppLockSetting setting) =>
       _platform.openSetting(setting);
+
+  /// Tắt Trợ năng từ trong app rồi đọc lại quyền. `false` = máy không cho tắt.
+  Future<bool> disableAccessibility() async {
+    final off = await _platform.disableAccessibility();
+    await refresh();
+    return off;
+  }
 
   /// Gọi 1 lần khi app chạy.
   void start() {

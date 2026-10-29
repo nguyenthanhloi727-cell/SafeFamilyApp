@@ -7,6 +7,7 @@ import '../../../core/widgets/status_banner.dart';
 import '../../app_lock/presentation/app_lock_page.dart';
 import '../../app_lock/presentation/app_lock_setup_page.dart';
 import '../../new_app/presentation/new_apps_page.dart';
+import '../../parental/presentation/app_permissions_page.dart';
 import '../../report/presentation/report_page.dart';
 import '../../time_limit/presentation/time_limit_page.dart';
 
@@ -64,6 +65,13 @@ class DeviceManagementPage extends StatelessWidget {
               title: 'Duyệt app mới cài',
               subtitle: 'App con vừa cài bị chặn cho tới khi bạn cho phép',
               onTap: () => open(const NewAppsPage()),
+            ),
+            const SizedBox(height: AppSpace.md),
+            FeatureCard(
+              icon: Icons.admin_panel_settings_outlined,
+              title: 'Quyền ứng dụng',
+              subtitle: 'Xem và tắt từng quyền SafeFamily đang dùng',
+              onTap: () => open(const AppPermissionsPage()),
             ),
           ],
         ),

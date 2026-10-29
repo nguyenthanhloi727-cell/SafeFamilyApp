@@ -83,6 +83,10 @@ abstract interface class AppLockPlatform {
   Future<Set<String>> protectedPackages();
 
   Future<bool> openSetting(AppLockSetting setting);
+
+  /// Tắt dịch vụ Trợ năng chặn app ngay trong app (`disableSelf()`). `true` nếu
+  /// đã tắt thật; `false` nếu máy không cho (phải tắt tay trong Cài đặt).
+  Future<bool> disableAccessibility();
 }
 
 class AppBlockerPlatform implements AppLockPlatform {
@@ -217,6 +221,16 @@ class AppBlockerPlatform implements AppLockPlatform {
       AppLockSetting.appDetails =>
         const AndroidSystemSettings().openAppSettings(),
     };
+  }
+
+  @override
+  Future<bool> disableAccessibility() async {
+    try {
+      return await _channel.invokeMethod<bool>('disableAccessibility') ?? false;
+    } on PlatformException catch (error) {
+      debugPrint('Không tắt được Trợ năng: $error');
+      return false;
+    }
   }
 
   Future<bool> _launch(AndroidIntent intent) async {

@@ -74,6 +74,9 @@ class FakeAppLockPlatform implements AppLockPlatform {
     opened.add(setting);
     return true;
   }
+
+  @override
+  Future<bool> disableAccessibility() async => false;
 }
 
 /// Đồng hồ giả chỉnh tay được.

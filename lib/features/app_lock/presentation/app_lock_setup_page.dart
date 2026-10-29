@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/security/parent_guard.dart';
 import '../../../core/security/ui/parent_area_guard.dart';
+import '../../../core/security/ui/parent_gate.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/widgets/app_snack_bar.dart';
@@ -24,6 +26,21 @@ class AppLockSetupPage extends StatelessWidget {
       if (!opened && context.mounted) {
         showAppSnackBar(context, 'Máy không mở được trang Cài đặt này.');
       }
+    }
+
+    // Tắt Trợ năng ngay trong app: phải xác thực phụ huynh; máy không cho tắt
+    // thẳng thì mở Cài đặt như trước.
+    Future<void> disableAccessibility() async {
+      final guard = ParentGuardScope.maybeOf(context);
+      if (guard != null) {
+        final ok = await guard.require(
+          'Tắt Trợ năng của SafeFamily',
+          promptPin: ParentGate.promptFor(context),
+        );
+        if (!ok) return;
+      }
+      final off = await controller?.disableAccessibility() ?? false;
+      if (!off) await open(AppLockSetting.accessibility);
     }
 
     return ParentAreaGuard(
@@ -77,6 +94,7 @@ class AppLockSetupPage extends StatelessWidget {
               granted: permissions?.accessibility,
               offLabel: 'Tắt trợ năng',
               onOpen: () => open(AppLockSetting.accessibility),
+              onOff: disableAccessibility,
             ),
             _PermissionCard(
               step: 2,
@@ -186,6 +204,7 @@ class _PermissionCard extends StatelessWidget {
     required this.onOpen,
     this.note,
     this.offLabel,
+    this.onOff,
   });
 
   final int step;
@@ -196,6 +215,9 @@ class _PermissionCard extends StatelessWidget {
   /// Nhãn nút khi quyền đã bật (mở đúng trang Cài đặt để tắt). `null` = không
   /// hiện nút tắt.
   final String? offLabel;
+
+  /// Việc làm khi bấm nút tắt; mặc định giống [onOpen].
+  final VoidCallback? onOff;
 
   /// `null` = chưa kiểm tra xong.
   final bool? granted;
@@ -262,7 +284,10 @@ class _PermissionCard extends StatelessWidget {
               ),
             ] else if (offLabel != null) ...[
               const SizedBox(height: AppSpace.sm),
-              OutlinedButton(onPressed: onOpen, child: Text(offLabel!)),
+              OutlinedButton(
+                onPressed: onOff ?? onOpen,
+                child: Text(offLabel!),
+              ),
             ],
           ],
         ),

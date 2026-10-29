@@ -8,11 +8,14 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.os.PowerManager
 import android.provider.Settings
 import android.view.WindowManager
 import android.text.TextUtils
 import android.view.accessibility.AccessibilityManager
+import com.khanhtq.app_blocker.blocking.AppBlockerAccessibilityService
 import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -52,6 +55,7 @@ class MainActivity : FlutterFragmentActivity() {
                         ),
                     )
                     "protectedPackages" -> result.success(protectedPackages().toList())
+                    "disableAccessibility" -> disableBlockerService(result)
                     "rememberRelock" -> {
                         TempRelocks.remember(
                             this,
@@ -69,6 +73,7 @@ class MainActivity : FlutterFragmentActivity() {
             }
         timeLimitChannel(messenger)
         newAppsChannel(messenger)
+        permissionsChannel(messenger)
         // Chống bypass: đồng hồ không chỉnh được, bảo vệ màn Cài đặt, Device Admin.
         MethodChannel(messenger, "safefamily/guard")
             .setMethodCallHandler { call, result ->
@@ -190,6 +195,103 @@ class MainActivity : FlutterFragmentActivity() {
                 }
             }
     }
+
+    /**
+     * Quyền SafeFamily đang dùng: trạng thái + mở đúng trang Cài đặt. Dart
+     * (PermissionRegistry) giữ danh sách id; chỗ này dùng lại các hàm kiểm tra
+     * sẵn có nên không nhân đôi nguồn dữ liệu.
+     */
+    private fun permissionsChannel(messenger: io.flutter.plugin.common.BinaryMessenger) {
+        MethodChannel(messenger, "safefamily/permissions")
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "status" -> result.success(
+                        mapOf(
+                            "accessibility" to isBlockerServiceEnabled(),
+                            "settings_guard" to isServiceRunning(SETTINGS_GUARD_SERVICE),
+                            "usage_access" to TimeLimits.hasUsageAccess(this),
+                            "notifications" to areNotificationsEnabled(),
+                            "exact_alarm" to canScheduleExactAlarms(),
+                            "battery" to isIgnoringBatteryOptimizations(),
+                            "device_admin" to isDeviceAdminActive(),
+                            "microphone" to (
+                                checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) ==
+                                    PackageManager.PERMISSION_GRANTED
+                                ),
+                        ),
+                    )
+                    "openSettings" -> {
+                        val intent = permissionSettingsIntent(call.argument<String>("id"))
+                        if (intent == null) {
+                            result.success(false)
+                        } else {
+                            // Các trang này liệt kê "SafeFamily": cho vào cửa trước,
+                            // nếu không dịch vụ bảo vệ sẽ hỏi PIN lần nữa.
+                            GuardPrefs.allowSettings(this, SETTINGS_ALLOW_SECONDS)
+                            result.success(startSettings(intent))
+                        }
+                    }
+                    // Tắt thẳng, không cần mở Cài đặt. Dart phải xác thực phụ huynh trước.
+                    "removeDeviceAdmin" -> {
+                        runCatching {
+                            (getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager)
+                                .removeActiveAdmin(adminComponent())
+                        }
+                        result.success(!isDeviceAdminActive())
+                    }
+                    else -> result.notImplemented()
+                }
+            }
+    }
+
+    private fun permissionSettingsIntent(id: String?): Intent? {
+        val packageUri = android.net.Uri.parse("package:$packageName")
+        val appDetails = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, packageUri)
+        return when (id) {
+            "accessibility", "settings_guard" -> Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+            "usage_access" -> TimeLimits.usageAccessIntent(this)
+            "notifications" ->
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                        .putExtra(Settings.EXTRA_APP_PACKAGE, packageName)
+                } else {
+                    appDetails
+                }
+            "exact_alarm" ->
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, packageUri)
+                } else {
+                    appDetails
+                }
+            "battery" -> Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+            "device_admin" ->
+                if (isDeviceAdminActive()) {
+                    Intent(Settings.ACTION_SECURITY_SETTINGS)
+                } else {
+                    Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN)
+                        .putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, adminComponent())
+                        .putExtra(
+                            DevicePolicyManager.EXTRA_ADD_EXPLANATION,
+                            "Bật để con không gỡ được SafeFamily.",
+                        )
+                }
+            "microphone" -> appDetails
+            else -> null
+        }
+    }
+
+    /** `false` nếu máy không có màn hình đó (một số ROM bỏ trang riêng). */
+    private fun startSettings(intent: Intent): Boolean = try {
+        startActivity(intent)
+        true
+    } catch (e: android.content.ActivityNotFoundException) {
+        false
+    }
+
+    /** Khác [notificationsAllowed]: tính cả khi người dùng tắt thông báo của app trong Cài đặt. */
+    private fun areNotificationsEnabled(): Boolean =
+        (getSystemService(Context.NOTIFICATION_SERVICE) as android.app.NotificationManager)
+            .areNotificationsEnabled()
 
     private fun notificationsAllowed(): Boolean =
         Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
@@ -315,6 +417,25 @@ class MainActivity : FlutterFragmentActivity() {
         return listed && running
     }
 
+    /**
+     * Tắt dịch vụ Trợ năng chặn app bằng `disableSelf()` (API 24+), rồi đọc lại
+     * trạng thái. Trả `true` nếu dịch vụ thật sự đã tắt; `false` nếu máy không
+     * cho (dịch vụ không chạy, API thấp, ROM chặn) để Dart mở Cài đặt như cũ.
+     * TODO(verify): hãng khác Xiaomi có thể bỏ qua disableSelf().
+     */
+    private fun disableBlockerService(result: MethodChannel.Result) {
+        val service = AppBlockerAccessibilityService.instance
+        if (service == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.N) {
+            result.success(!isBlockerServiceEnabled())
+            return
+        }
+        runCatching { service.disableSelf() }
+        Handler(Looper.getMainLooper()).postDelayed(
+            { result.success(!isBlockerServiceEnabled()) },
+            DISABLE_RECHECK_MS,
+        )
+    }
+
     private fun canScheduleExactAlarms(): Boolean =
         Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
             (getSystemService(Context.ALARM_SERVICE) as AlarmManager).canScheduleExactAlarms()
@@ -330,6 +451,8 @@ class MainActivity : FlutterFragmentActivity() {
     private fun protectedPackages(): Set<String> = TimeLimits.exemptPackages(this)
 
     companion object {
+        private const val DISABLE_RECHECK_MS = 500L
+        private const val SETTINGS_ALLOW_SECONDS = 180L // = settingsAllowSeconds (Dart)
         private const val SETTINGS_GUARD_SERVICE = "com.safefamily.app.SettingsGuardService"
         private const val BLOCKER_SERVICE =
             "com.khanhtq.app_blocker.blocking.AppBlockerAccessibilityService"
