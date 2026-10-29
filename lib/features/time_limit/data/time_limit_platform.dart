@@ -65,6 +65,12 @@ abstract interface class TimeLimitPlatform {
   /// Tắt (hoặc bật lại) lịch giờ học đến hết hôm nay.
   Future<void> setStudyDisabledToday(bool disabled);
 
+  /// Giới hạn tổng đang tắt đến lúc nào; `null` = đang bật.
+  Future<DateTime?> totalLimitDisabledUntil();
+
+  /// Tắt (hoặc bật lại) giới hạn tổng thời gian dùng máy đến hết hôm nay.
+  Future<void> setTotalLimitDisabledToday(bool disabled);
+
   /// Tạm dừng máy còn bao nhiêu phút: 0 = không tạm dừng,
   /// [pauseUntilOff] = đến khi phụ huynh tắt.
   Future<int> pauseMinutesLeft();
@@ -198,6 +204,20 @@ class MethodChannelTimeLimit implements TimeLimitPlatform {
   @override
   Future<void> setStudyDisabledToday(bool disabled) =>
       _channel.invokeMethod<void>('setStudyDisabledToday', disabled);
+
+  @override
+  Future<DateTime?> totalLimitDisabledUntil() async {
+    try {
+      final ms = await _channel.invokeMethod<int>('limitDisabledUntil') ?? 0;
+      return ms > 0 ? DateTime.fromMillisecondsSinceEpoch(ms) : null;
+    } on PlatformException {
+      return null;
+    }
+  }
+
+  @override
+  Future<void> setTotalLimitDisabledToday(bool disabled) =>
+      _channel.invokeMethod<void>('setTotalLimitDisabledToday', disabled);
 
   @override
   Future<int> pauseMinutesLeft() async {

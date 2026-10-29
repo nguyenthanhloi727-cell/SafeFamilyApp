@@ -6,6 +6,7 @@ import '../../../core/widgets/feature_card.dart';
 import '../../../core/widgets/status_banner.dart';
 import '../../app_lock/presentation/app_lock_controller.dart';
 import '../../app_lock/presentation/app_lock_page.dart';
+import '../../app_lock/presentation/block_schedules.dart';
 import '../../app_lock/presentation/app_lock_setup_page.dart';
 import '../../report/presentation/report_page.dart';
 import '../../report/presentation/usage_summary_card.dart';
@@ -83,8 +84,11 @@ class HomePage extends StatelessWidget {
             subtitle: lockedCount == 0
                 ? 'Chưa chặn ứng dụng nào'
                 : 'Đang chặn $lockedCount ứng dụng — mở tạm cho con ở đây',
-            onTap: () =>
-                _openParentArea(context, 'Khóa ứng dụng', const AppLockPage()),
+            onTap: () => _openParentArea(
+              context,
+              'Xem ứng dụng bị chặn',
+              const AppLockPage(onlyLocked: true, footer: BlockSchedules()),
+            ),
           ),
           const SizedBox(height: AppSpace.md),
           const PauseCard(),

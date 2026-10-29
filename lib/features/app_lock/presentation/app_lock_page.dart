@@ -11,9 +11,18 @@ import 'app_lock_controller.dart';
 import 'app_lock_setup_page.dart';
 
 /// Khóa ứng dụng: danh sách app đã cài, tìm kiếm, công tắc Chặn, mở tạm.
-/// Mọi thao tác chặn / bỏ chặn / mở tạm đều qua [ParentGate.always].
+/// Đã xác thực lúc vào màn (phiên phụ huynh) nên chặn / bỏ chặn / mở tạm
+/// dùng [ParentGate.parentArea], không hỏi lại.
+///
+/// [onlyLocked] = true: chỉ liệt kê app đang bị chặn (thẻ "Ứng dụng bị chặn"
+/// ở trang chủ); chọn app để chặn thì dùng màn đầy đủ.
 class AppLockPage extends StatefulWidget {
-  const AppLockPage({super.key});
+  const AppLockPage({super.key, this.onlyLocked = false, this.footer});
+
+  final bool onlyLocked;
+
+  /// Phần đặt dưới danh sách ở chế độ [onlyLocked] (lịch chặn theo giờ).
+  final Widget? footer;
 
   @override
   State<AppLockPage> createState() => _AppLockPageState();
@@ -47,7 +56,7 @@ class _AppLockPageState extends State<AppLockPage> {
     bool locked,
   ) async {
     final action = locked ? 'Chặn ${app.name}' : 'Bỏ chặn ${app.name}';
-    if (!await ParentGate.always(context, action)) return;
+    if (!await ParentGate.parentArea(context, action)) return;
     final ok = await controller.setLocked(app.packageName, locked);
     if (!mounted) return;
     if (!ok) {
@@ -62,7 +71,7 @@ class _AppLockPageState extends State<AppLockPage> {
     InstalledApp app,
   ) async {
     final action = 'Mở tạm $tempUnlockMinutes phút: ${app.name}';
-    if (!await ParentGate.always(context, action)) return;
+    if (!await ParentGate.parentArea(context, action)) return;
     try {
       final until = await controller.unlockTemporarily(app.packageName);
       if (!mounted) return;
@@ -86,13 +95,17 @@ class _AppLockPageState extends State<AppLockPage> {
     AppLockController controller,
     InstalledApp app,
   ) async {
-    if (!await ParentGate.always(context, 'Chặn lại ${app.name}')) return;
+    if (!await ParentGate.parentArea(context, 'Chặn lại ${app.name}')) return;
     try {
       await controller.relockNow(app.packageName);
     } catch (_) {
       if (mounted) showAppSnackBar(context, 'Chưa chặn lại được. Thử lại.');
     }
   }
+
+  void _openAllApps() =>
+      Navigator.of(context)
+          .push(MaterialPageRoute<void>(builder: (_) => const AppLockPage()));
 
   void _openSetup() => Navigator.of(context)
       .push(MaterialPageRoute<void>(builder: (_) => const AppLockSetupPage()));
@@ -106,7 +119,7 @@ class _AppLockPageState extends State<AppLockPage> {
     final controller = AppLockScope.maybeOf(context);
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Khóa ứng dụng'),
+        title: Text(widget.onlyLocked ? 'Ứng dụng bị chặn' : 'Khóa ứng dụng'),
         actions: [
           IconButton(
             tooltip: 'Thiết lập khóa ứng dụng',
@@ -135,34 +148,55 @@ class _AppLockPageState extends State<AppLockPage> {
         ),
         const SizedBox(height: AppSpace.lg),
       ],
-      if (apps != null) ..._youtubeQuickBlock(controller, apps),
-      TextField(
-        controller: _search,
-        onChanged: (value) => setState(() => _query = value.trim()),
-        decoration: InputDecoration(
-          hintText: 'Tìm ứng dụng',
-          prefixIcon: const Icon(Icons.search_rounded),
-          suffixIcon: _query.isEmpty
-              ? null
-              : IconButton(
-                  tooltip: 'Xóa tìm kiếm',
-                  onPressed: () {
-                    _search.clear();
-                    setState(() => _query = '');
-                  },
-                  icon: const Icon(Icons.close_rounded),
-                ),
+      if (apps != null && !widget.onlyLocked)
+        ..._youtubeQuickBlock(controller, apps),
+      if (widget.onlyLocked) ...[
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                'Chặn thủ công',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+            ),
+            TextButton.icon(
+              onPressed: _openAllApps,
+              icon: const Icon(Icons.add_rounded),
+              label: const Text('Chặn thêm'),
+            ),
+          ],
         ),
-      ),
+      ] else
+        TextField(
+          controller: _search,
+          onChanged: (value) => setState(() => _query = value.trim()),
+          decoration: InputDecoration(
+            hintText: 'Tìm ứng dụng',
+            prefixIcon: const Icon(Icons.search_rounded),
+            suffixIcon: _query.isEmpty
+                ? null
+                : IconButton(
+                    tooltip: 'Xóa tìm kiếm',
+                    onPressed: () {
+                      _search.clear();
+                      setState(() => _query = '');
+                    },
+                    icon: const Icon(Icons.close_rounded),
+                  ),
+          ),
+        ),
       const SizedBox(height: AppSpace.sm),
-      Align(
-        alignment: Alignment.centerLeft,
-        child: FilterChip(
-          label: const Text('Hiện cả app có sẵn của máy'),
-          selected: _showSystemApps,
-          onSelected: (value) => setState(() => _showSystemApps = value),
+      if (!widget.onlyLocked) ...[
+        const SizedBox(height: AppSpace.sm),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: FilterChip(
+            label: const Text('Hiện cả app có sẵn của máy'),
+            selected: _showSystemApps,
+            onSelected: (value) => setState(() => _showSystemApps = value),
+          ),
         ),
-      ),
+      ],
       const SizedBox(height: AppSpace.sm),
     ];
 
@@ -193,7 +227,10 @@ class _AppLockPageState extends State<AppLockPage> {
     final visible = _filter(controller, apps);
     return ListView.builder(
       padding: const EdgeInsets.symmetric(vertical: AppSpace.lg),
-      itemCount: header.length + (visible.isEmpty ? 1 : visible.length),
+      itemCount:
+          header.length +
+          (visible.isEmpty ? 1 : visible.length) +
+          (widget.onlyLocked ? 1 : 0),
       itemBuilder: (context, index) {
         if (index < header.length) {
           return Padding(
@@ -201,11 +238,26 @@ class _AppLockPageState extends State<AppLockPage> {
             child: header[index],
           );
         }
+        final listIndex = index - header.length;
+        if (widget.onlyLocked &&
+            listIndex == (visible.isEmpty ? 1 : visible.length)) {
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpace.lg,
+              AppSpace.xl,
+              AppSpace.lg,
+              AppSpace.lg,
+            ),
+            child: widget.footer ?? const SizedBox.shrink(),
+          );
+        }
         if (visible.isEmpty) {
-          return const Padding(
-            padding: EdgeInsets.all(AppSpace.xl),
+          return Padding(
+            padding: const EdgeInsets.all(AppSpace.xl),
             child: Text(
-              'Không có ứng dụng nào khớp.',
+              widget.onlyLocked && _query.isEmpty
+                  ? 'Chưa chặn app nào. Bấm "Chặn thêm" để chọn app cần chặn.'
+                  : 'Không có ứng dụng nào khớp.',
               textAlign: TextAlign.center,
             ),
           );
@@ -230,9 +282,11 @@ class _AppLockPageState extends State<AppLockPage> {
     final query = _query.toLowerCase();
     final result = [
       for (final app in apps)
-        if ((_showSystemApps ||
-                !app.isSystemApp ||
-                controller.isLocked(app.packageName)) &&
+        if ((widget.onlyLocked
+                ? controller.isLocked(app.packageName)
+                : _showSystemApps ||
+                      !app.isSystemApp ||
+                      controller.isLocked(app.packageName)) &&
             (query.isEmpty ||
                 app.name.toLowerCase().contains(query) ||
                 app.packageName.toLowerCase().contains(query)))

@@ -11,6 +11,7 @@ class _FakeNewApps implements NewAppPlatform {
     const PendingApp(packageName: 'com.example.game', label: 'Game vui'),
   ];
   final approved = <String>[];
+  final rejectedApps = <PendingApp>[];
 
   @override
   Future<bool> isEnabled() async => enabled;
@@ -25,6 +26,17 @@ class _FakeNewApps implements NewAppPlatform {
   Future<void> approve(String packageName) async {
     approved.add(packageName);
     apps.removeWhere((a) => a.packageName == packageName);
+    rejectedApps.removeWhere((a) => a.packageName == packageName);
+  }
+
+  @override
+  Future<List<PendingApp>> rejected() async => List.of(rejectedApps);
+
+  @override
+  Future<void> reject(String packageName) async {
+    final app = apps.firstWhere((a) => a.packageName == packageName);
+    apps.remove(app);
+    rejectedApps.add(app);
   }
 
   @override
@@ -56,6 +68,27 @@ void main() {
 
     expect(platform.approved, ['com.example.game']);
     expect(find.text('Không có app nào chờ duyệt'), findsOneWidget);
+  });
+
+  testWidgets('Từ chối: app rời danh sách chờ, vào mục Đã từ chối', (
+    tester,
+  ) async {
+    final platform = _FakeNewApps();
+    await tester.pumpWidget(_host(platform));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Từ chối'));
+    await tester.pumpAndSettle();
+
+    expect(platform.approved, isEmpty);
+    expect(find.text('Không có app nào chờ duyệt'), findsOneWidget);
+    expect(find.text('Đã từ chối (1)'), findsOneWidget);
+    expect(find.text('Game vui'), findsOneWidget);
+
+    await tester.tap(find.text('Cho phép'));
+    await tester.pumpAndSettle();
+    expect(platform.approved, ['com.example.game']);
+    expect(find.text('Đã từ chối (1)'), findsNothing);
   });
 
   testWidgets('tắt tính năng thì không liệt kê app', (tester) async {

@@ -20,6 +20,12 @@ abstract interface class NewAppPlatform {
 
   Future<void> approve(String packageName);
 
+  /// App đã bị từ chối: vẫn bị chặn, có thể cho phép lại.
+  Future<List<PendingApp>> rejected();
+
+  /// Từ chối: app rời danh sách chờ nhưng vẫn bị chặn.
+  Future<void> reject(String packageName);
+
   /// `true` nếu phụ huynh vừa bấm thông báo / nút "Nhờ bố mẹ duyệt".
   Future<bool> consumeReviewRequest();
 
@@ -48,10 +54,19 @@ class MethodChannelNewApp implements NewAppPlatform {
       _channel.invokeMethod<void>('setEnabled', enabled);
 
   @override
-  Future<List<PendingApp>> pending() async {
+  Future<List<PendingApp>> pending() => _list('pending');
+
+  @override
+  Future<List<PendingApp>> rejected() => _list('rejected');
+
+  @override
+  Future<void> reject(String packageName) =>
+      _channel.invokeMethod<void>('reject', packageName);
+
+  Future<List<PendingApp>> _list(String method) async {
     try {
       final raw = await _channel.invokeListMethod<Map<Object?, Object?>>(
-        'pending',
+        method,
       );
       return [
         for (final item in raw ?? const <Map<Object?, Object?>>[])

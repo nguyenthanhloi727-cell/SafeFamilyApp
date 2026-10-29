@@ -23,6 +23,7 @@ object NewApps {
     private const val KEY_BASELINED = "baselined"
     private const val KEY_KNOWN = "known"
     private const val KEY_PENDING = "pending"
+    private const val KEY_REJECTED = "rejected"
     private const val KEY_REVIEW = "review_pending"
     private const val CHANNEL = "new_apps"
     private const val SCAN_MIN_GAP_MS = 5_000L
@@ -97,7 +98,13 @@ object NewApps {
         val added = installed.filter { it !in known && it !in pending }
         pending += added
         if (pending != oldPending) putStrings(context, KEY_PENDING, pending)
-        putStrings(context, KEY_KNOWN, known.filterTo(mutableSetOf()) { it in installed || it in pending })
+        val rejected = strings(context, KEY_REJECTED).filterTo(mutableSetOf()) { it in installed }
+        putStrings(context, KEY_REJECTED, rejected)
+        putStrings(
+            context,
+            KEY_KNOWN,
+            known.filterTo(mutableSetOf()) { it in installed || it in pending || it in rejected },
+        )
         added.forEach { announce(context, it) }
         return added
     }
@@ -106,15 +113,27 @@ object NewApps {
     @Synchronized
     fun onRemoved(context: Context, packageName: String) {
         putStrings(context, KEY_PENDING, strings(context, KEY_PENDING) - packageName)
+        putStrings(context, KEY_REJECTED, strings(context, KEY_REJECTED) - packageName)
         putStrings(context, KEY_KNOWN, strings(context, KEY_KNOWN) - packageName)
         cancelAnnouncement(context, packageName)
     }
 
     fun pending(context: Context): List<String> = strings(context, KEY_PENDING).sorted()
 
+    fun rejected(context: Context): List<String> = strings(context, KEY_REJECTED).sorted()
+
+    /** Từ chối: app vẫn bị chặn, rời danh sách chờ; cho phép lại bằng [approve]. */
+    @Synchronized
+    fun reject(context: Context, packageName: String) {
+        putStrings(context, KEY_PENDING, strings(context, KEY_PENDING) - packageName)
+        putStrings(context, KEY_REJECTED, strings(context, KEY_REJECTED) + packageName)
+        cancelAnnouncement(context, packageName)
+    }
+
     @Synchronized
     fun approve(context: Context, packageName: String) {
         putStrings(context, KEY_PENDING, strings(context, KEY_PENDING) - packageName)
+        putStrings(context, KEY_REJECTED, strings(context, KEY_REJECTED) - packageName)
         putStrings(context, KEY_KNOWN, strings(context, KEY_KNOWN) + packageName)
         cancelAnnouncement(context, packageName)
     }
@@ -129,8 +148,18 @@ object NewApps {
     fun verdict(context: Context, packageName: String): TimeLimits.Verdict? {
         if (!enabled(context) || packageName == context.packageName) return null
         if (packageName in TimeLimits.exemptPackages(context)) return null
-        if (packageName !in strings(context, KEY_KNOWN) && packageName !in strings(context, KEY_PENDING)) {
+        if (packageName !in strings(context, KEY_KNOWN) && packageName !in strings(context, KEY_PENDING) &&
+            packageName !in strings(context, KEY_REJECTED)
+        ) {
             scan(context)
+        }
+        if (packageName in strings(context, KEY_REJECTED)) {
+            return TimeLimits.Verdict(
+                packageName,
+                "Bố mẹ đã từ chối ứng dụng này",
+                canRequestMore = false,
+                needsReview = true,
+            )
         }
         if (packageName !in strings(context, KEY_PENDING)) return null
         return TimeLimits.Verdict(

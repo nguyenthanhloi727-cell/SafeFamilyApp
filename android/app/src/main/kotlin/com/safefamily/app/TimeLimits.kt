@@ -39,6 +39,7 @@ object TimeLimits {
     private const val KEY_LAST_TICK = "own_last_tick"
     private const val KEY_LAST_FG = "own_last_fg"
     private const val KEY_BONUS = "bonus"
+    private const val KEY_LIMIT_DISABLED_UNTIL = "limit_disabled_until"
     private const val KEY_STUDY = "study_state"
     private const val KEY_PAUSE = "pause_until"
     private const val PAUSE_FOREVER = Long.MAX_VALUE
@@ -329,7 +330,8 @@ object TimeLimits {
      */
     private fun studyConfig(context: Context): JSONObject? =
         runCatching { JSONObject(config(context)).optJSONObject("study") }.getOrNull()
-            ?.takeIf { it.optBoolean("enabled") }
+
+    private fun studyScheduleEnabled(study: JSONObject): Boolean = study.optBoolean("enabled")
 
     private fun studyState(context: Context): JSONObject =
         runCatching { JSONObject(prefs(context).getString(KEY_STUDY, "{}") ?: "{}") }
@@ -372,7 +374,10 @@ object TimeLimits {
     /** Giờ học đang hiệu lực: phiên bắt đầu ngay, hoặc trong lịch mà chưa "tắt hôm nay". */
     fun studyActive(context: Context): Boolean {
         val study = studyConfig(context) ?: return false
+        // Phiên đang chạy sống độc lập với công tắc lịch: tắt tính năng mà chọn
+        // "để chạy hết" thì phiên vẫn chặn tới hết giờ.
         if (studySessionMinutesLeft(context) > 0) return true
+        if (!studyScheduleEnabled(study)) return false
         if (studyDisabledToday(context)) return false
         val days = study.optJSONArray("days") ?: return false
         return inWeekWindow(days, trustedNow(context))
@@ -435,8 +440,28 @@ object TimeLimits {
         return if (left > 0) ((left + 59_999L) / 60_000L).toInt() else 0
     }
 
+    /** Gọi điện và nhắn tin mặc định: luôn dùng được khi tạm dừng và không bị phủ xám. */
+    fun phoneAndSmsPackages(context: Context): Set<String> {
+        val found = mutableSetOf<String>()
+        runCatching {
+            (context.getSystemService(Context.TELECOM_SERVICE) as TelecomManager).defaultDialerPackage
+        }.getOrNull()?.let(found::add)
+        runCatching { android.provider.Telephony.Sms.getDefaultSmsPackage(context) }.getOrNull()?.let(found::add)
+        @Suppress("DEPRECATION")
+        context.packageManager.queryIntentActivities(Intent(Intent.ACTION_DIAL, Uri.parse("tel:")), 0)
+            .mapTo(found) { it.activityInfo.packageName }
+        return found
+    }
+
+    /** Bàn phím đang bật: cửa sổ của nó không phải app con đang dùng. */
+    fun isInputMethod(context: Context, packageName: String): Boolean = runCatching {
+        (context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
+            .enabledInputMethodList.any { it.packageName == packageName }
+    }.getOrDefault(false)
+
     fun pauseVerdict(context: Context, packageName: String): Verdict? {
         if (packageName in exemptPackages(context)) return null
+        if (packageName in phoneAndSmsPackages(context)) return null
         if (pauseMinutesLeft(context) == 0) return null
         return Verdict(packageName, "Phụ huynh đã tạm dừng máy", canRequestMore = false)
     }
@@ -467,6 +492,37 @@ object TimeLimits {
         return total
     }
 
+    // ---- Tắt giới hạn tổng cả ngày ----------------------------------------
+
+    /**
+     * Mốc (ms, giờ đáng tin) hết hiệu lực của "Tắt giới hạn cả ngày hôm nay";
+     * 0 = không tắt. Mọi chỗ kiểm tra tắt/bật giới hạn tổng chỉ qua
+     * [totalLimitDisabled] để sau này đổi thành tắt vĩnh viễn chỉ sửa một hàm.
+     */
+    fun limitDisabledUntil(context: Context): Long {
+        val until = prefs(context).getLong(KEY_LIMIT_DISABLED_UNTIL, 0L)
+        return if (until > trustedNow(context)) until else 0L
+    }
+
+    fun totalLimitDisabled(context: Context): Boolean = limitDisabledUntil(context) != 0L
+
+    /** Tắt tổng thời gian dùng máy đến hết hôm nay (23:59:59), hoặc bật lại sớm. */
+    @Synchronized
+    fun setTotalLimitDisabledToday(context: Context, disabled: Boolean) {
+        val editor = prefs(context).edit()
+        if (disabled) {
+            val endOfDay = Calendar.getInstance().apply {
+                timeInMillis = dayStart(trustedNow(context))
+                add(Calendar.DAY_OF_YEAR, 1)
+                add(Calendar.SECOND, -1)
+            }.timeInMillis
+            editor.putLong(KEY_LIMIT_DISABLED_UNTIL, endOfDay)
+        } else {
+            editor.remove(KEY_LIMIT_DISABLED_UNTIL)
+        }
+        editor.apply()
+    }
+
     /**
      * Thời gian còn lại (ms) của [packageName] trước khi bị chặn: nhỏ nhất giữa
      * hạn mức app và hạn mức tổng, đã cộng giờ thêm. `null` = không có hạn mức.
@@ -483,7 +539,7 @@ object TimeLimits {
             remaining = appLimit * 60_000L + bonus - (usage.perApp[packageName] ?: 0L)
         }
         val totalLimit = cfg.optJSONArray("total")?.optInt(day, -1) ?: -1
-        if (totalLimit >= 0) {
+        if (totalLimit >= 0 && !totalLimitDisabled(context)) {
             val left = totalLimit * 60_000L + bonus - usage.total
             remaining = if (remaining == null) left else minOf(remaining, left)
         }
@@ -502,7 +558,7 @@ object TimeLimits {
             return Verdict(packageName, "Hết giờ dùng ứng dụng này hôm nay")
         }
         val totalLimit = cfg.optJSONArray("total")?.optInt(day, -1) ?: -1
-        if (totalLimit >= 0 && usage.total >= totalLimit * 60_000L + bonus) {
+        if (totalLimit >= 0 && !totalLimitDisabled(context) && usage.total >= totalLimit * 60_000L + bonus) {
             return Verdict(packageName, "Hết giờ dùng máy hôm nay")
         }
         return null

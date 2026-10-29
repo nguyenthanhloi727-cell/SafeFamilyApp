@@ -75,6 +75,7 @@ class AppLockSetupPage extends StatelessWidget {
                   'Trong Cài đặt đã bật mà ở đây vẫn "Chưa bật" (dịch vụ bị '
                   'dừng, thường do vuốt tắt SafeFamily): tắt đi rồi bật lại.',
               granted: permissions?.accessibility,
+              offLabel: 'Tắt trợ năng',
               onOpen: () => open(AppLockSetting.accessibility),
             ),
             _PermissionCard(
@@ -184,12 +185,17 @@ class _PermissionCard extends StatelessWidget {
     required this.granted,
     required this.onOpen,
     this.note,
+    this.offLabel,
   });
 
   final int step;
   final String title;
   final String description;
   final String? note;
+
+  /// Nhãn nút khi quyền đã bật (mở đúng trang Cài đặt để tắt). `null` = không
+  /// hiện nút tắt.
+  final String? offLabel;
 
   /// `null` = chưa kiểm tra xong.
   final bool? granted;
@@ -254,6 +260,9 @@ class _PermissionCard extends StatelessWidget {
                 onPressed: onOpen,
                 child: const Text('Mở Cài đặt'),
               ),
+            ] else if (offLabel != null) ...[
+              const SizedBox(height: AppSpace.sm),
+              OutlinedButton(onPressed: onOpen, child: Text(offLabel!)),
             ],
           ],
         ),

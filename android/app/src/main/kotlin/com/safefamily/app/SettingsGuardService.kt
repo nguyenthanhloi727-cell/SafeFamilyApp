@@ -7,6 +7,7 @@ import android.graphics.PixelFormat
 import android.os.Handler
 import android.os.Looper
 import android.view.Gravity
+import android.view.View
 import android.view.WindowManager
 import android.widget.TextView
 import android.view.accessibility.AccessibilityEvent
@@ -43,6 +44,10 @@ class SettingsGuardService : AccessibilityService() {
     private var warnedKey: String? = null
     private var warningView: TextView? = null
 
+    /** Lớp phủ xám khi máy đang tạm dừng; ẩn khi SafeFamily ở trước để phụ huynh thao tác rõ. */
+    private var pauseTint: View? = null
+    private var foregroundPackage: String? = null
+
     override fun onServiceConnected() {
         super.onServiceConnected()
         sweepRelocks()
@@ -55,11 +60,16 @@ class SettingsGuardService : AccessibilityService() {
     override fun onDestroy() {
         handler.removeCallbacksAndMessages(null)
         hideWarning()
+        hidePauseTint()
         super.onDestroy()
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         val pkg = event?.packageName?.toString() ?: return
+        if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED && isRealScreen(event, pkg)) {
+            foregroundPackage = pkg
+            syncPauseTint()
+        }
         if (pkg == packageName) return
 
         // Mỗi lần cửa sổ đổi: chặn lại app đã quá hạn mở tạm (kể cả sau reboot).
@@ -92,6 +102,7 @@ class SettingsGuardService : AccessibilityService() {
      * (app vừa hiện lên) hoặc app đang ở trước đã hết giờ.
      */
     private fun enforceTimeLimits(candidate: String?) {
+        syncPauseTint()
         // Quét định kỳ để không sót app cài lúc dịch vụ chưa chạy (có giãn cách bên trong).
         runCatching { NewApps.scan(this) }
         val usage = runCatching { TimeLimits.usageToday(this) }.getOrNull()
@@ -167,6 +178,52 @@ class SettingsGuardService : AccessibilityService() {
         }
     }
 
+    /**
+     * Sự kiện đổi cửa sổ có phải một màn hình/app thật không. Bỏ qua thanh hệ
+     * thống, bàn phím và view nổi (kể cả lớp phủ của chính mình) để không đoán
+     * sai app ở trước làm lớp phủ lúc hiện lúc ẩn.
+     */
+    private fun isRealScreen(event: AccessibilityEvent, pkg: String): Boolean {
+        if (pkg == "com.android.systemui" || pkg == "android") return false
+        val cls = event.className?.toString().orEmpty()
+        if (cls.startsWith("android.view.") || cls.startsWith("android.widget.")) return false
+        return !TimeLimits.isInputMethod(this, pkg)
+    }
+
+    private fun syncPauseTint() {
+        val fg = foregroundPackage
+        val keepClear = fg == packageName ||
+            (fg != null && fg in TimeLimits.phoneAndSmsPackages(this))
+        val want = !keepClear &&
+            runCatching { TimeLimits.pauseMinutesLeft(this) > 0 }.getOrDefault(false)
+        if (want) showPauseTint() else hidePauseTint()
+    }
+
+    private fun showPauseTint() {
+        if (pauseTint != null) return
+        val view = View(this).apply { setBackgroundColor(PAUSE_TINT) }
+        val params = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+            PixelFormat.TRANSLUCENT,
+        )
+        runCatching {
+            (getSystemService(WINDOW_SERVICE) as WindowManager).addView(view, params)
+            pauseTint = view
+        }
+    }
+
+    private fun hidePauseTint() {
+        val view = pauseTint ?: return
+        pauseTint = null
+        runCatching { (getSystemService(WINDOW_SERVICE) as WindowManager).removeView(view) }
+    }
+
     private fun hideWarning() {
         val view = warningView ?: return
         warningView = null
@@ -210,6 +267,8 @@ class SettingsGuardService : AccessibilityService() {
         private const val WARN_MS = 60_000L
         private const val WARNING_SHOWN_MS = 8_000L
         private const val WARNING_BACKGROUND = 0xE6E65100.toInt()
+        /** Xám đậm ~65% (ARGB); tăng 0xA6 để đậm hơn, giảm để nhạt hơn. */
+        private const val PAUSE_TINT = 0xA6505050.toInt()
         private const val BLOCK_COOLDOWN_MS = 2_000L
 
         /** Màn Cài đặt / cài đặt app / gỡ app của AOSP và các hãng phổ biến. */

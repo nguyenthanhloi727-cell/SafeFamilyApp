@@ -20,6 +20,7 @@ class _NewAppsPageState extends State<NewAppsPage> with WidgetsBindingObserver {
   bool? _enabled;
   bool _notifications = true;
   List<PendingApp> _pending = const [];
+  List<PendingApp> _rejected = const [];
 
   @override
   void initState() {
@@ -42,11 +43,13 @@ class _NewAppsPageState extends State<NewAppsPage> with WidgetsBindingObserver {
   Future<void> _load() async {
     final enabled = await widget.platform.isEnabled();
     final pending = await widget.platform.pending();
+    final rejected = await widget.platform.rejected();
     final notifications = await widget.platform.notificationsAllowed();
     if (!mounted) return;
     setState(() {
       _enabled = enabled;
       _pending = pending;
+      _rejected = rejected;
       _notifications = notifications;
     });
   }
@@ -70,9 +73,18 @@ class _NewAppsPageState extends State<NewAppsPage> with WidgetsBindingObserver {
     await widget.platform.approve(app.packageName);
     await _load();
     if (!mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text('Đã cho phép ${app.label}.')));
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text('Đã cho phép ${app.label}.')));
+  }
+
+  Future<void> _reject(PendingApp app) async {
+    if (!await _authenticate('Từ chối app ${app.label}')) return;
+    await widget.platform.reject(app.packageName);
+    await _load();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Đã từ chối ${app.label}, app vẫn bị chặn.')),
+    );
   }
 
   @override
@@ -130,11 +142,83 @@ class _NewAppsPageState extends State<NewAppsPage> with WidgetsBindingObserver {
                   const SizedBox(height: AppSpace.sm),
                   for (final app in _pending)
                     Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(AppSpace.md),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                const Icon(Icons.new_releases_outlined),
+                                const SizedBox(width: AppSpace.md),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        app.label,
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .titleMedium,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      Text(
+                                        app.packageName,
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodySmall
+                                            ?.copyWith(
+                                              color: Theme.of(context)
+                                                  .colorScheme
+                                                  .onSurfaceVariant,
+                                            ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: AppSpace.md),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: OutlinedButton(
+                                    onPressed: () => _reject(app),
+                                    child: const Text('Từ chối'),
+                                  ),
+                                ),
+                                const SizedBox(width: AppSpace.sm),
+                                Expanded(
+                                  child: FilledButton(
+                                    onPressed: () => _approve(app),
+                                    child: const Text('Cho phép'),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                ],
+                if (enabled && _rejected.isNotEmpty) ...[
+                  const SizedBox(height: AppSpace.lg),
+                  Text(
+                    'Đã từ chối (${_rejected.length})',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: AppSpace.sm),
+                  for (final app in _rejected)
+                    Card(
                       child: ListTile(
-                        leading: const Icon(Icons.new_releases_outlined),
+                        leading: const Icon(Icons.block),
                         title: Text(app.label),
                         subtitle: Text(app.packageName),
-                        trailing: FilledButton(
+                        trailing: TextButton(
                           onPressed: () => _approve(app),
                           child: const Text('Cho phép'),
                         ),

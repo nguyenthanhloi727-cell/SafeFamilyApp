@@ -169,6 +169,15 @@ class MainActivity : FlutterFragmentActivity() {
                         NewApps.approve(this, call.arguments as String)
                         result.success(null)
                     }
+                    "rejected" -> result.success(
+                        NewApps.rejected(this).map {
+                            mapOf("package" to it, "label" to NewApps.label(this, it))
+                        },
+                    )
+                    "reject" -> {
+                        NewApps.reject(this, call.arguments as String)
+                        result.success(null)
+                    }
                     "consumeReview" -> result.success(NewApps.consumeReviewRequest(this))
                     "notificationsAllowed" -> result.success(notificationsAllowed())
                     "requestNotifications" -> {
@@ -255,6 +264,11 @@ class MainActivity : FlutterFragmentActivity() {
                     }
                     "stopPause" -> {
                         TimeLimits.stopPause(this)
+                        result.success(null)
+                    }
+                    "limitDisabledUntil" -> result.success(TimeLimits.limitDisabledUntil(this))
+                    "setTotalLimitDisabledToday" -> {
+                        TimeLimits.setTotalLimitDisabledToday(this, call.arguments as Boolean)
                         result.success(null)
                     }
                     "setStudyDisabledToday" -> {

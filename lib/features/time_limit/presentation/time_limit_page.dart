@@ -39,6 +39,7 @@ class _TimeLimitPageState extends State<TimeLimitPage>
   UsageToday? _usage;
   int _bonus = 0;
   StudyStatus _study = const StudyStatus();
+  DateTime? _limitOffUntil;
   List<InstalledApp>? _apps;
 
   @override
@@ -78,13 +79,51 @@ class _TimeLimitPageState extends State<TimeLimitPage>
     final usage = access ? await widget.platform.usageToday() : null;
     final bonus = await widget.platform.bonusMinutes();
     final study = await widget.platform.studyStatus();
+    final limitOff = await widget.platform.totalLimitDisabledUntil();
     if (!mounted) return;
     setState(() {
       _usageAccess = access;
       _usage = usage;
       _bonus = bonus;
       _study = study;
+      _limitOffUntil = limitOff;
     });
+  }
+
+  /// Tắt giới hạn tổng đến hết hôm nay: hỏi xác nhận rồi xác thực phụ huynh.
+  /// Bật lại sớm thì siết chặt hơn nên không cần xác thực.
+  Future<void> _toggleTotalLimitToday() async {
+    final disabling = _limitOffUntil == null;
+    if (disabling) {
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Tắt giới hạn cả ngày hôm nay?'),
+          content: const Text(
+            'Hôm nay con không bị chặn vì hết tổng thời gian dùng máy. Giới '
+            'hạn riêng từng app vẫn giữ. Sang ngày mới giới hạn tự bật lại.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Hủy'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Tắt hôm nay'),
+            ),
+          ],
+        ),
+      );
+      if (ok != true || !mounted) return;
+    }
+    await _guarded(
+      disabling
+          ? 'Tắt giới hạn cả ngày hôm nay'
+          : 'Bật lại giới hạn thời gian hôm nay',
+      () => widget.platform.setTotalLimitDisabledToday(disabling),
+      authenticate: disabling,
+    );
   }
 
   Future<void> _addTime() async {
@@ -191,9 +230,15 @@ class _TimeLimitPageState extends State<TimeLimitPage>
   }
 
   /// Xác thực phụ huynh (vân tay hoặc PIN) rồi chạy [run]; ghi nhật ký mở khóa.
-  Future<void> _guarded(String action, Future<void> Function() run) async {
+  /// [authenticate] = false cho thao tác siết chặt thêm (bắt đầu / bật lại giờ
+  /// học): không cần hỏi, chỉ việc làm cho con bị hạn chế nhiều hơn.
+  Future<void> _guarded(
+    String action,
+    Future<void> Function() run, {
+    bool authenticate = true,
+  }) async {
     final guard = ParentGuardScope.maybeOf(context);
-    if (guard != null) {
+    if (guard != null && authenticate) {
       final ok = await guard.require(
         action,
         promptPin: ParentGate.promptFor(context),
@@ -222,7 +267,53 @@ class _TimeLimitPageState extends State<TimeLimitPage>
     await _guarded(
       'Bắt đầu giờ học $minutes phút',
       () => widget.platform.startStudy(minutes),
+      authenticate: false,
     );
+  }
+
+  /// Bật giờ học thì lưu luôn. Tắt thì phải qua khóa phụ huynh; nếu đang có
+  /// phiên chạy thì hỏi dừng luôn hay để chạy hết (phiên chỉ dừng qua
+  /// `stopStudy`, tắt lịch không đụng tới phiên đang chạy).
+  Future<void> _setStudyEnabled(TimeLimitConfig config, bool enabled) async {
+    if (enabled) {
+      await _update(config.copyWith(studyEnabled: true));
+      return;
+    }
+    await _refreshUsage();
+    if (!mounted) return;
+    var stopSession = false;
+    if (_study.sessionMinutesLeft > 0) {
+      final choice = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Đang có phiên học'),
+          content: Text(
+            'Còn ${formatMinutes(_study.sessionMinutesLeft)}. Dừng phiên luôn '
+            'hay để chạy hết?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Hủy'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Để chạy hết'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Dừng phiên'),
+            ),
+          ],
+        ),
+      );
+      if (choice == null || !mounted) return;
+      stopSession = choice;
+    }
+    await _guarded('Tắt giờ học', () async {
+      if (stopSession) await widget.platform.stopStudy();
+      await _update(config.copyWith(studyEnabled: false));
+    });
   }
 
   String _studyStatusText() {
@@ -318,6 +409,25 @@ class _TimeLimitPageState extends State<TimeLimitPage>
                         style: theme.textTheme.bodyMedium,
                       ),
                     ),
+                  if (_limitOffUntil != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: AppSpace.xs),
+                      child: Text(
+                        'Đang tắt tới hết hôm nay.',
+                        style: theme.textTheme.bodyMedium,
+                      ),
+                    ),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: OutlinedButton(
+                      onPressed: _toggleTotalLimitToday,
+                      child: Text(
+                        _limitOffUntil == null
+                            ? 'Tắt giới hạn cả ngày hôm nay'
+                            : 'Bật lại giới hạn',
+                      ),
+                    ),
+                  ),
                   const SizedBox(height: AppSpace.sm),
                   WeekLimitEditor(
                     limits: config.total,
@@ -398,7 +508,7 @@ class _TimeLimitPageState extends State<TimeLimitPage>
                       'được ưu tiên hơn giờ học.',
                     ),
                     value: config.studyEnabled,
-                    onChanged: (v) => _update(config.copyWith(studyEnabled: v)),
+                    onChanged: (v) => _setStudyEnabled(config, v),
                   ),
                   if (config.studyEnabled) ...[
                     Text(_studyStatusText(), style: theme.textTheme.bodyMedium),
@@ -426,6 +536,7 @@ class _TimeLimitPageState extends State<TimeLimitPage>
                             () => widget.platform.setStudyDisabledToday(
                               !_study.disabledToday,
                             ),
+                            authenticate: !_study.disabledToday,
                           ),
                           child: Text(
                             _study.disabledToday ? 'Bật lại' : 'Tắt hôm nay',

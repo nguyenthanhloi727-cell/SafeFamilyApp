@@ -58,6 +58,15 @@ class _FakePlatform implements TimeLimitPlatform {
   Future<void> setStudyDisabledToday(bool disabled) async =>
       disabledToday = disabled;
 
+  DateTime? limitOffUntil;
+
+  @override
+  Future<DateTime?> totalLimitDisabledUntil() async => limitOffUntil;
+
+  @override
+  Future<void> setTotalLimitDisabledToday(bool disabled) async =>
+      limitOffUntil = disabled ? DateTime(2030, 1, 1, 23, 59, 59) : null;
+
   int pauseLeft = 0;
 
   @override
@@ -268,5 +277,29 @@ void main() {
     await tester.tap(find.text('Tắt hôm nay'));
     await tester.pumpAndSettle();
     expect(platform.disabledToday, isTrue);
+  });
+
+  testWidgets('tắt giới hạn tổng cả ngày rồi bật lại sớm', (tester) async {
+    final platform = _FakePlatform();
+    await tester.binding.setSurfaceSize(const Size(800, 3000));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light,
+        home: TimeLimitPage(platform: platform, loadApps: () async => const []),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Tắt giới hạn cả ngày hôm nay'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Tắt hôm nay').last);
+    await tester.pumpAndSettle();
+    expect(platform.limitOffUntil, isNotNull);
+    expect(find.text('Đang tắt tới hết hôm nay.'), findsOneWidget);
+
+    await tester.tap(find.text('Bật lại giới hạn'));
+    await tester.pumpAndSettle();
+    expect(platform.limitOffUntil, isNull);
   });
 }
