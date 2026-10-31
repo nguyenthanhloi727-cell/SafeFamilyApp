@@ -9,9 +9,11 @@ import '../../../core/security/ui/secure_screen_scope.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/widgets/app_snack_bar.dart';
 import '../../../core/widgets/status_banner.dart';
+import '../../connection/presentation/connection_page.dart';
 import 'change_pin_page.dart';
 import 'device_protection_section.dart';
 import 'first_run_setup_page.dart';
+import 'uninstall_tile.dart';
 import 'unlock_log_page.dart';
 
 /// S15 — Bảo mật & khóa phụ huynh. Mọi thay đổi đều phải xác thực.
@@ -132,8 +134,20 @@ class SecuritySettingsPage extends StatelessWidget {
               title: const Text('Quên mã PIN?'),
               onTap: () => showForgotPinDialog(context),
             ),
+            section('Kết nối gia đình'),
+            ListTile(
+              key: const Key('connection-tile'),
+              leading: const Icon(Icons.family_restroom_rounded),
+              title: const Text('Kết nối gia đình'),
+              subtitle: const Text('Máy mẹ / máy con, mã ghép đôi.'),
+              trailing: const Icon(Icons.chevron_right_rounded),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(builder: (_) => const ConnectionPage()),
+              ),
+            ),
             section('Chống tắt và chống gỡ'),
             DeviceProtectionSection(guard: guard),
+            UninstallTile(guard: guard),
             section('Giới hạn cần biết'),
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: AppSpace.lg),

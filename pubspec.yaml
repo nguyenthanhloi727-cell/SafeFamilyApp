@@ -16,14 +16,17 @@ dependencies:
   flutter:
     sdk: flutter
   # Có sẵn trong Flutter SDK: chữ của Material (chọn giờ, OK/Hủy…) bằng tiếng Việt.
+  flutter_local_notifications: ^22.3.3
   flutter_localizations:
     sdk: flutter
   flutter_secure_storage: ^11.2.0
+  http: ^1.6.0
   image_picker: ^1.2.3
   path_provider: ^2.1.6
   shared_preferences: ^2.5.5
   speech_to_text: ^7.5.0
   url_launcher: ^6.3.2
+  workmanager: ^0.10.10
 
 dev_dependencies:
   flutter_test:

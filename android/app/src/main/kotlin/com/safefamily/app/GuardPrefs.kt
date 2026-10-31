@@ -17,6 +17,9 @@ object GuardPrefs {
     private const val KEY_PROTECTION = "protection_enabled"
     private const val KEY_ALLOW_UNTIL = "settings_allow_until_elapsed"
     private const val KEY_ALLOW_BOOT = "settings_allow_boot"
+    private const val KEY_UNINSTALL_UNTIL = "uninstall_allowed_until"
+    private const val KEY_UNINSTALL_BOOT = "uninstall_allowed_boot"
+    private const val KEY_ADMIN_RESTORE = "uninstall_admin_restore"
     private const val KEY_CHALLENGE = "challenge_pending"
     private const val KEY_EXTRA_TIME = "extra_time_pending"
     private const val KEY_CONTACTS = "family_contacts"
@@ -53,6 +56,41 @@ object GuardPrefs {
         // Máy khởi động lại: mốc elapsed cũ không còn nghĩa → hết hạn.
         if (p.getInt(KEY_ALLOW_BOOT, -1) != bootCount(context)) return false
         return elapsedNow() < until
+    }
+
+    /**
+     * Cửa gỡ app: chỉ [UninstallGate.begin] được gọi hàm này (sau khi Dart đã
+     * qua PIN + sinh trắc). Lưu bền, hết hạn theo đồng hồ elapsed như [allowSettings].
+     */
+    fun beginUninstallWindow(context: Context, seconds: Long, adminWasRemoved: Boolean) {
+        prefs(context).edit()
+            .putLong(KEY_UNINSTALL_UNTIL, elapsedNow() + seconds * 1000)
+            .putInt(KEY_UNINSTALL_BOOT, bootCount(context))
+            .putBoolean(KEY_ADMIN_RESTORE, adminWasRemoved)
+            .apply()
+    }
+
+    fun uninstallAllowed(context: Context): Boolean {
+        val p = prefs(context)
+        val until = p.getLong(KEY_UNINSTALL_UNTIL, 0L)
+        if (until == 0L) return false
+        if (p.getInt(KEY_UNINSTALL_BOOT, -1) != bootCount(context)) return false
+        return elapsedNow() < until
+    }
+
+    /** Đóng cửa gỡ app. Trả về `true` nếu Quản trị thiết bị đã bị gỡ và cần bật lại. */
+    fun endUninstallWindow(context: Context): Boolean {
+        val p = prefs(context)
+        val restore = p.getBoolean(KEY_ADMIN_RESTORE, false)
+        p.edit().remove(KEY_UNINSTALL_UNTIL).remove(KEY_UNINSTALL_BOOT).apply()
+        return restore
+    }
+
+    fun adminRestorePending(context: Context): Boolean =
+        prefs(context).getBoolean(KEY_ADMIN_RESTORE, false)
+
+    fun clearAdminRestore(context: Context) {
+        prefs(context).edit().putBoolean(KEY_ADMIN_RESTORE, false).apply()
     }
 
     fun setChallengePending(context: Context, pending: Boolean) {

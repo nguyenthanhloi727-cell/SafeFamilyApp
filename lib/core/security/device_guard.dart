@@ -56,6 +56,10 @@ abstract interface class DeviceGuardPlatform {
   Future<bool> consumeExtraTimeRequest();
 
   Future<void> requestDeviceAdmin();
+
+  /// Mở cửa gỡ app 2 phút, gỡ Quản trị thiết bị và mở màn gỡ của hệ thống.
+  /// CHỈ gọi sau khi đã qua PIN + sinh trắc (xem `UninstallTile`).
+  Future<bool> beginUninstall();
 }
 
 /// Bản dùng khi không có Android (test, máy tính): không làm gì.
@@ -82,6 +86,9 @@ class NoDeviceGuard implements DeviceGuardPlatform {
 
   @override
   Future<void> requestDeviceAdmin() async {}
+
+  @override
+  Future<bool> beginUninstall() async => false;
 }
 
 class MethodChannelDeviceGuard implements DeviceGuardPlatform {
@@ -153,6 +160,17 @@ class MethodChannelDeviceGuard implements DeviceGuardPlatform {
 
   @override
   Future<void> requestDeviceAdmin() => _call('requestDeviceAdmin');
+
+  @override
+  Future<bool> beginUninstall() async {
+    try {
+      return await channel.invokeMethod<bool>('beginUninstall') ?? false;
+    } on PlatformException {
+      return false;
+    } on MissingPluginException {
+      return false;
+    }
+  }
 
   Future<void> _call(String method, [Object? arguments]) async {
     try {

@@ -72,8 +72,10 @@ class MainActivity : FlutterFragmentActivity() {
                 }
             }
         timeLimitChannel(messenger)
+        studyChannel(messenger)
         newAppsChannel(messenger)
         permissionsChannel(messenger)
+        familyChannel(messenger)
         // Chống bypass: đồng hồ không chỉnh được, bảo vệ màn Cài đặt, Device Admin.
         MethodChannel(messenger, "safefamily/guard")
             .setMethodCallHandler { call, result ->
@@ -123,6 +125,12 @@ class MainActivity : FlutterFragmentActivity() {
                         )
                         result.success(null)
                     }
+                    // Dart chỉ gọi sau PIN + sinh trắc (UninstallTile). Đây là nơi duy nhất mở cửa gỡ app.
+                    "beginUninstall" -> {
+                        val started = UninstallGate.begin(this)
+                        uninstallLaunched = started
+                        result.success(started)
+                    }
                     "setSecure" -> {
                         if (call.arguments as Boolean) {
                             window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
@@ -134,6 +142,20 @@ class MainActivity : FlutterFragmentActivity() {
                     else -> result.notImplemented()
                 }
             }
+    }
+
+    /** Đã mở màn gỡ của hệ thống; quay lại app (hủy) thì khóa chống gỡ lại. */
+    private var uninstallLaunched = false
+
+    override fun onResume() {
+        super.onResume()
+        // Quay lại sau khi hủy gỡ, hoặc cửa gỡ đã hết hạn mà Quản trị thiết bị chưa được bật lại.
+        if (uninstallLaunched ||
+            (GuardPrefs.adminRestorePending(this) && !GuardPrefs.uninstallAllowed(this))
+        ) {
+            uninstallLaunched = false
+            UninstallGate.finish(this)
+        }
     }
 
     override fun onCreate(savedInstanceState: android.os.Bundle?) {
@@ -244,6 +266,88 @@ class MainActivity : FlutterFragmentActivity() {
             }
     }
 
+    /**
+     * Kết nối gia đình (máy con): Dart chỉ ghi địa chỉ + token thiết bị; việc hỏi API,
+     * vị trí, hàng rào do [FamilySync]/[FamilyService] làm trong Kotlin để chạy cả
+     * khi Flutter không chạy.
+     */
+    private fun familyChannel(messenger: io.flutter.plugin.common.BinaryMessenger) {
+        MethodChannel(messenger, "safefamily/family")
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "configure" -> {
+                        FamilySync.configure(
+                            this,
+                            call.argument<String>("baseUrl") ?: "",
+                            call.argument<String>("token") ?: "",
+                        )
+                        FamilySync.ensureService(this)
+                        result.success(null)
+                    }
+                    "clear" -> {
+                        FamilySync.clear(this)
+                        result.success(null)
+                    }
+                    // Đồng bộ ngay (mở app, bấm "Cập nhật"): chạy luồng nền, báo kết quả.
+                    "syncNow" -> Thread {
+                        val ok = FamilySync.syncOnce(this)
+                        runOnUiThread { result.success(ok) }
+                    }.start()
+                    "locationStatus" -> result.success(
+                        mapOf(
+                            "foreground" to FamilySync.hasLocationPermission(this),
+                            "background" to FamilySync.hasBackgroundLocation(this),
+                        ),
+                    )
+                    "requestLocation" -> {
+                        requestPermissions(
+                            arrayOf(
+                                android.Manifest.permission.ACCESS_FINE_LOCATION,
+                                android.Manifest.permission.ACCESS_COARSE_LOCATION,
+                            ),
+                            LOCATION_REQUEST,
+                        )
+                        result.success(null)
+                    }
+                    // Android 11+: vị trí nền phải cấp ở Cài đặt ("Luôn cho phép"); 10: hỏi thẳng.
+                    "requestBackgroundLocation" -> {
+                        if (Build.VERSION.SDK_INT == Build.VERSION_CODES.Q) {
+                            requestPermissions(
+                                arrayOf(android.Manifest.permission.ACCESS_BACKGROUND_LOCATION),
+                                LOCATION_REQUEST,
+                            )
+                            result.success(true)
+                        } else {
+                            GuardPrefs.allowSettings(this, SETTINGS_ALLOW_SECONDS)
+                            result.success(
+                                startSettings(
+                                    Intent(
+                                        Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                        android.net.Uri.parse("package:$packageName"),
+                                    ),
+                                ),
+                            )
+                        }
+                    }
+                    else -> result.notImplemented()
+                }
+            }
+    }
+
+    // Vừa cấp quyền vị trí: bật dịch vụ lại để chuyển sang kiểu "location" và lấy vị trí.
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray,
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == LOCATION_REQUEST) {
+            FamilySync.stopService(this)
+            FamilySync.onBoot(this) // buộc đăng ký lại hàng rào khi đã có quyền
+            FamilySync.ensureService(this)
+        }
+    }
+
     private fun permissionSettingsIntent(id: String?): Intent? {
         val packageUri = android.net.Uri.parse("package:$packageName")
         val appDetails = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, packageUri)
@@ -349,6 +453,7 @@ class MainActivity : FlutterFragmentActivity() {
                     )
                     "startStudy" -> try {
                         TimeLimits.startStudySession(this, (call.arguments as Number).toInt())
+                        StudyBlock.syncStartNotification(this)
                         result.success(null)
                     } catch (e: IllegalArgumentException) {
                         result.error("bad_minutes", e.message, null)
@@ -377,6 +482,22 @@ class MainActivity : FlutterFragmentActivity() {
                         TimeLimits.setStudyDisabledToday(this, call.arguments as Boolean)
                         result.success(null)
                     }
+                    else -> result.notImplemented()
+                }
+            }
+    }
+
+    /**
+     * Màn chặn giờ học: con báo xong thì phụ huynh duyệt/từ chối ở đây. Dart
+     * (StudyApprovalPlatform) chỉ gọi `approve` sau khi đã xác thực phụ huynh.
+     */
+    private fun studyChannel(messenger: io.flutter.plugin.common.BinaryMessenger) {
+        MethodChannel(messenger, "safefamily/study")
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "state" -> result.success(StudyBlock.state(this))
+                    "approve" -> result.success(StudyBlock.approve(this))
+                    "reject" -> result.success(StudyBlock.reject(this))
                     else -> result.notImplemented()
                 }
             }
@@ -451,6 +572,7 @@ class MainActivity : FlutterFragmentActivity() {
     private fun protectedPackages(): Set<String> = TimeLimits.exemptPackages(this)
 
     companion object {
+        private const val LOCATION_REQUEST = 0x10C
         private const val DISABLE_RECHECK_MS = 500L
         private const val SETTINGS_ALLOW_SECONDS = 180L // = settingsAllowSeconds (Dart)
         private const val SETTINGS_GUARD_SERVICE = "com.safefamily.app.SettingsGuardService"

@@ -9,6 +9,8 @@ import android.os.Looper
 import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
+import android.widget.Button
+import android.widget.LinearLayout
 import android.widget.TextView
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
@@ -48,6 +50,10 @@ class SettingsGuardService : AccessibilityService() {
     private var pauseTint: View? = null
     private var foregroundPackage: String? = null
 
+    /** Lớp phủ chặn giờ học và trạng thái ([StudyBlock]) nó đang vẽ. */
+    private var studyOverlay: View? = null
+    private var studyOverlayState: String? = null
+
     override fun onServiceConnected() {
         super.onServiceConnected()
         sweepRelocks()
@@ -61,6 +67,7 @@ class SettingsGuardService : AccessibilityService() {
         handler.removeCallbacksAndMessages(null)
         hideWarning()
         hidePauseTint()
+        hideStudyOverlay()
         super.onDestroy()
     }
 
@@ -69,6 +76,8 @@ class SettingsGuardService : AccessibilityService() {
         if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED && isRealScreen(event, pkg)) {
             foregroundPackage = pkg
             syncPauseTint()
+            // Phụ huynh đang ở SafeFamily (duyệt giờ học): không phủ lên.
+            if (pkg == packageName) hideStudyOverlay()
         }
         if (pkg == packageName) return
 
@@ -80,7 +89,7 @@ class SettingsGuardService : AccessibilityService() {
 
         if (pkg !in GUARDED_PACKAGES) return
         if (!GuardPrefs.protectionEnabled(this)) return
-        if (GuardPrefs.settingsAllowed(this)) return
+        if (GuardPrefs.settingsAllowed(this) || GuardPrefs.uninstallAllowed(this)) return
 
         val now = GuardPrefs.elapsedNow()
         if (now - lastScan < SCAN_INTERVAL_MS) return
@@ -108,8 +117,11 @@ class SettingsGuardService : AccessibilityService() {
         val usage = runCatching { TimeLimits.usageToday(this) }.getOrNull()
         TimeLimits.tick(this, usage)
         if (usage != null) runCatching { UsageReport.snapshot(this) }
+        runCatching { StudyBlock.syncStartNotification(this) }
+        // Hết giờ học (hoặc phụ huynh vừa duyệt) thì gỡ lớp phủ dù không biết app nào ở trước.
+        if (studyOverlay != null && !TimeLimits.studyActive(this)) hideStudyOverlay()
         val target = candidate ?: usage?.foreground
-        nextTickMs = TICK_MS
+        nextTickMs = if (studyOverlay != null) FAST_TICK_MS else TICK_MS
         if (target == null) return
         if (usage != null) warnIfAlmostOut(usage, target)
         // Tạm dừng máy, app mới chờ duyệt, giờ ngủ, giờ học, rồi hạn mức; các loại đầu không cần quyền đo thời gian dùng.
@@ -118,7 +130,12 @@ class SettingsGuardService : AccessibilityService() {
             ?: TimeLimits.bedtimeVerdict(this, target)
             ?: TimeLimits.studyVerdict(this, target)
             ?: usage?.let { TimeLimits.verdict(this, it, target) }
-            ?: return
+        if (verdict == null || !verdict.isStudy) hideStudyOverlay()
+        if (verdict == null) return
+        if (verdict.isStudy) {
+            showStudyOverlay()
+            return
+        }
         val now = GuardPrefs.elapsedNow()
         if (now - lastBlockAt < BLOCK_COOLDOWN_MS) return
         lastBlockAt = now
@@ -224,6 +241,98 @@ class SettingsGuardService : AccessibilityService() {
         runCatching { (getSystemService(WINDOW_SERVICE) as WindowManager).removeView(view) }
     }
 
+    /**
+     * Lớp phủ chặn giờ học (TYPE_ACCESSIBILITY_OVERLAY, không cần xin quyền
+     * vẽ đè). Vẽ theo [StudyBlock.state]; đổi trạng thái thì dựng lại.
+     */
+    private fun showStudyOverlay() {
+        val state = StudyBlock.state(this)
+        if (studyOverlay != null && studyOverlayState == state) return
+        val isNew = studyOverlay == null
+        hideStudyOverlay()
+        val waiting = state == StudyBlock.CHILD_CLAIMS_DONE
+        val density = resources.displayMetrics.density
+        val pad = (24 * density).toInt()
+
+        fun label(text: String, size: Float, bottom: Int) = TextView(this).apply {
+            this.text = text
+            textSize = size
+            setTextColor(Color.WHITE)
+            gravity = Gravity.CENTER
+            setPadding(0, 0, 0, bottom)
+        }
+        val view = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            setPadding(pad, pad, pad, pad)
+            setBackgroundColor(STUDY_BACKGROUND)
+            // Nuốt mọi chạm để không bấm xuyên xuống app phía sau.
+            isClickable = true
+            addView(
+                label(
+                    if (waiting) "Đang chờ phụ huynh duyệt" else "Đang giờ học, hãy học rồi tiếp tục sử dụng",
+                    24f,
+                    pad / 2,
+                ),
+            )
+            if (state == StudyBlock.REJECTED) {
+                addView(label("Bố mẹ chưa duyệt, con học tiếp nhé.", 16f, pad / 2))
+            }
+            if (waiting) {
+                addView(
+                    Button(this@SettingsGuardService).apply {
+                        text = "Phụ huynh duyệt"
+                        setOnClickListener {
+                            startActivity(
+                                Intent(this@SettingsGuardService, MainActivity::class.java).addFlags(
+                                    Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP,
+                                ),
+                            )
+                        }
+                    },
+                )
+            } else {
+                addView(
+                    Button(this@SettingsGuardService).apply {
+                        text = "Đã học xong"
+                        setOnClickListener {
+                            StudyBlock.claimDone(this@SettingsGuardService)
+                            showStudyOverlay()
+                        }
+                    },
+                )
+            }
+            addView(
+                Button(this@SettingsGuardService).apply {
+                    text = "Về màn hình chính"
+                    setOnClickListener { performGlobalAction(GLOBAL_ACTION_HOME) }
+                },
+            )
+        }
+        val params = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+            PixelFormat.OPAQUE,
+        )
+        runCatching {
+            (getSystemService(WINDOW_SERVICE) as WindowManager).addView(view, params)
+            studyOverlay = view
+            studyOverlayState = state
+            if (isNew) runCatching { UsageReport.recordBlock(this) }
+        }
+    }
+
+    private fun hideStudyOverlay() {
+        val view = studyOverlay ?: return
+        studyOverlay = null
+        studyOverlayState = null
+        runCatching { (getSystemService(WINDOW_SERVICE) as WindowManager).removeView(view) }
+    }
+
     private fun hideWarning() {
         val view = warningView ?: return
         warningView = null
@@ -270,6 +379,7 @@ class SettingsGuardService : AccessibilityService() {
         /** Xám đậm ~65% (ARGB); tăng 0xA6 để đậm hơn, giảm để nhạt hơn. */
         private const val PAUSE_TINT = 0xA6505050.toInt()
         private const val BLOCK_COOLDOWN_MS = 2_000L
+        private const val STUDY_BACKGROUND = 0xFF00796B.toInt()
 
         /** Màn Cài đặt / cài đặt app / gỡ app của AOSP và các hãng phổ biến. */
         val GUARDED_PACKAGES = setOf(

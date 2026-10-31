@@ -37,8 +37,10 @@ class _Permissions implements PermissionPlatform {
 
 void main() {
   test('formatCountdown giờ:phút:giây', () {
-    expect(formatCountdown(const Duration(hours: 1, minutes: 5, seconds: 9)),
-        '01:05:09');
+    expect(
+      formatCountdown(const Duration(hours: 1, minutes: 5, seconds: 9)),
+      '01:05:09',
+    );
     expect(remainingUntil(DateTime(2026), DateTime(2027)), Duration.zero);
   });
 

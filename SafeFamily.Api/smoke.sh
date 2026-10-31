@@ -1,0 +1,19 @@
+B=${1:-http://localhost:5025}; E="t$RANDOM@x.com"; J='Content-Type: application/json'
+for i in $(seq 1 30); do curl -s -o /dev/null $B/swagger/v1/swagger.json && break; sleep 1; done
+py() { python -c "import sys,json;print(json.load(sys.stdin)$1)"; }
+A=$(curl -s -X POST $B/api/auth/register -H "$J" -d "{\"email\":\"$E\",\"password\":\"password123\"}" | py "['accessToken']")
+CODE=$(curl -s -X POST $B/api/pairing/code -H "$J" -H "Authorization: Bearer $A" -d '{"deviceName":"Con"}' | py "['code']")
+CL=$(curl -s -X POST $B/api/pairing/claim -H "$J" -d "{\"code\":\"$CODE\"}")
+DT=$(echo $CL | py "['deviceToken']"); DID=$(echo $CL | py "['deviceId']")
+NOW=$(date -u +%FT%TZ)
+echo "device $DID"
+curl -s -o /dev/null -w "loc post %{http_code}\n" -X POST $B/api/devices/me/locations -H "$J" -H "Authorization: Bearer $DT" -d "{\"points\":[{\"lat\":10.77,\"lng\":106.7,\"accuracy\":12,\"time\":\"$NOW\"}]}"
+curl -s -w "\nloc get %{http_code}\n" $B/api/devices/$DID/location -H "Authorization: Bearer $A"
+curl -s -w "\nput gf %{http_code}\n" -X PUT $B/api/devices/$DID/geofences -H "$J" -H "Authorization: Bearer $A" -d '{"geofences":[{"id":0,"name":"Truong","lat":10.77,"lng":106.7,"radiusM":150}],"expectedVersion":0}'
+curl -s -o /dev/null -w "put gf stale (expect 409) %{http_code}\n" -X PUT $B/api/devices/$DID/geofences -H "$J" -H "Authorization: Bearer $A" -d '{"geofences":[],"expectedVersion":0}'
+GID=$(curl -s $B/api/devices/me/geofences -H "Authorization: Bearer $DT" | py "['geofences'][0]['id']")
+curl -s -o /dev/null -w "ev post %{http_code}\n" -X POST $B/api/devices/me/geofence-events -H "$J" -H "Authorization: Bearer $DT" -d "{\"events\":[{\"geofenceId\":$GID,\"type\":\"exit\",\"time\":\"$NOW\"}]}"
+curl -s -w "\nev get %{http_code}\n" $B/api/devices/$DID/geofence-events -H "Authorization: Bearer $A"
+curl -s -o /dev/null -w "ev bad type (expect 400) %{http_code}\n" -X POST $B/api/devices/me/geofence-events -H "$J" -H "Authorization: Bearer $DT" -d "{\"events\":[{\"geofenceId\":$GID,\"type\":\"x\",\"time\":\"$NOW\"}]}"
+curl -s -o /dev/null -w "device token on parent route (expect 403) %{http_code}\n" $B/api/devices/$DID/location -H "Authorization: Bearer $DT"
+curl -s -o /dev/null -w "no token (expect 401) %{http_code}\n" $B/api/devices/me/geofences

@@ -20,6 +20,16 @@
         tools:ignore="ProtectedPermissions"/>
     <!-- Duyệt app mới cài: thông báo "Con vừa cài app X" (Android 13+ phải được cấp). -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <!-- Gỡ SafeFamily qua mục "Gỡ cài đặt" trong app (Intent.ACTION_DELETE, Android 9+). -->
+    <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES"/>
+    <!-- Kết nối gia đình (máy con): chia sẻ vị trí + hàng rào địa lý. Vị trí nền xin theo 2 bước;
+         dịch vụ nền hiện thông báo thường trực để trẻ biết đang chia sẻ. -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE"/>
     <application
         android:label="SafeFamily"
         android:name="${applicationName}"
@@ -105,6 +115,19 @@
                 <data android:scheme="package"/>
             </intent-filter>
         </receiver>
+        <!-- Máy con đã ghép đôi: hỏi API mỗi 5 phút (lệnh, luật, hàng rào) và gửi vị trí. -->
+        <service
+            android:name=".FamilyService"
+            android:exported="false"
+            android:foregroundServiceType="location|specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Đồng bộ luật và lệnh từ máy phụ huynh khi chưa cấp quyền vị trí"/>
+        </service>
+        <!-- Hệ thống báo vào/ra hàng rào địa lý. -->
+        <receiver
+            android:name=".GeofenceReceiver"
+            android:exported="false"/>
         <receiver
             android:name=".GuardBootReceiver"
             android:exported="true">

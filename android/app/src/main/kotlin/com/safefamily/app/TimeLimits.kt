@@ -74,6 +74,8 @@ object TimeLimits {
         val message: String,
         val canRequestMore: Boolean = true,
         val needsReview: Boolean = false,
+        /** Chặn do giờ học: hiện lớp phủ có "Đã học xong" thay vì đá ra màn hình chính. */
+        val isStudy: Boolean = false,
     )
 
     private fun prefs(context: Context) =
@@ -408,7 +410,7 @@ object TimeLimits {
             if (allowed?.optString(i) == packageName) return null
         }
         if (packageName in studyDefaults(context)) return null
-        return Verdict(packageName, "Đang trong giờ học", canRequestMore = false)
+        return Verdict(packageName, "Đang trong giờ học", canRequestMore = false, isStudy = true)
     }
 
     // ---- Tạm dừng máy ----------------------------------------------------

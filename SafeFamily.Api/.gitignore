@@ -1,0 +1,7 @@
+bin/
+obj/
+.vs/
+*.user
+# Bí mật: chuỗi kết nối, khóa JWT
+appsettings.Local.json
+appsettings.Production.json

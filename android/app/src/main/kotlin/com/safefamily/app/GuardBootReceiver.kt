@@ -10,5 +10,8 @@ class GuardBootReceiver : BroadcastReceiver() {
         if (intent.action != Intent.ACTION_BOOT_COMPLETED) return
         TempRelocks.sweep(context)
         runCatching { NewApps.scan(context, force = true) }
+        // Máy con đã ghép đôi: bật lại đồng bộ + vị trí; hàng rào do hệ thống xóa khi khởi động nên đăng ký lại.
+        FamilySync.ensureService(context)
+        FamilySync.onBoot(context)
     }
 }

@@ -4,6 +4,7 @@ import 'package:shared_preferences_platform_interface/in_memory_shared_preferenc
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 
 import 'package:safe_family_app/app/app.dart';
+import 'package:safe_family_app/core/network/connection_session.dart';
 import 'package:safe_family_app/core/permissions/permission_registry.dart';
 import 'package:safe_family_app/core/security/parent_guard.dart';
 import 'package:safe_family_app/core/settings/setup_settings.dart';
@@ -46,6 +47,14 @@ class _NoPermissions implements PermissionPlatform {
   Future<bool> removeDeviceAdmin() async => true;
 }
 
+/// Máy đã chọn "Dùng một máy" (bỏ qua màn chọn vai trò).
+Future<ConnectionSession> localConnection() async {
+  final connection = ConnectionSession(store: InMemorySecureStore());
+  await connection.setMode(ConnectionMode.local);
+  await connection.load();
+  return connection;
+}
+
 void main() {
   setUp(() {
     // Tab Cá nhân đọc dữ liệu đã lưu — dùng bộ nhớ giả, không đụng máy thật.
@@ -59,7 +68,10 @@ void main() {
     final setup = SetupSettings();
     await setup.load();
     await setup.markDone(); // Bỏ qua wizard cấp quyền.
-    await tester.pumpWidget(SafeFamilyApp(guard: guard, setup: setup));
+    final connection = await localConnection();
+    await tester.pumpWidget(
+      SafeFamilyApp(guard: guard, setup: setup, connection: connection),
+    );
     await tester.pump();
   }
 
@@ -87,7 +99,11 @@ void main() {
     final permissions = PermissionRegistry(platform: _NoPermissions());
     await permissions.refresh();
     await tester.pumpWidget(
-      SafeFamilyApp(guard: guard, permissions: permissions),
+      SafeFamilyApp(
+        guard: guard,
+        permissions: permissions,
+        connection: await localConnection(),
+      ),
     );
     await tester.pumpAndSettle();
 

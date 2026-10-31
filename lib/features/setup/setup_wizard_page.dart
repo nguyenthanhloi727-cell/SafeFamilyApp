@@ -13,7 +13,8 @@ const permissionReasons = <AppPermission, String>{
       'Để con không tự tắt các quyền của SafeFamily trong Cài đặt máy.',
   AppPermission.usageAccess:
       'Để biết con dùng máy bao lâu, áp giới hạn thời gian và làm báo cáo.',
-  AppPermission.notifications: 'Để báo khi con cài app mới hoặc xin thêm giờ.',
+  AppPermission.notifications:
+      'Để báo khi đến giờ học, con cài app mới hoặc xin thêm giờ.',
   AppPermission.exactAlarm: 'Để báo thức kêu đúng giờ.',
   AppPermission.battery:
       'Để máy không tự tắt SafeFamily khi chạy nền, tránh mất chặn.',

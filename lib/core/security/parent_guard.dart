@@ -390,6 +390,55 @@ class ParentGuard extends ChangeNotifier {
     return ok;
   }
 
+  /// Chỉ hỏi PIN (không sinh trắc), dùng chung đếm sai/khóa với [require].
+  /// Lớp 1 của thao tác gỡ SafeFamily.
+  Future<bool> requirePinOnly(
+    String action, {
+    required PinPrompt promptPin,
+  }) async {
+    await _refreshLock();
+    var attempted = false;
+    final ok = await promptPin(
+      PinPromptSession(
+        action: action,
+        lockedUntil: () => lockedUntil,
+        refreshLock: _refreshLock,
+        check: (pin) {
+          attempted = true;
+          return checkPin(pin, action: action);
+        },
+      ),
+    );
+    if (!ok && !attempted) {
+      await _record(action, UnlockMethod.pin, UnlockResult.canceled);
+    }
+    return ok;
+  }
+
+  /// Chỉ sinh trắc, không có đường lui sang PIN. `false` nếu sinh trắc chưa bật,
+  /// không dùng được, bị hủy hoặc sai. Lớp 2 của thao tác gỡ SafeFamily.
+  Future<bool> requireBiometricOnly(String action) async {
+    await refreshCapability();
+    if (!usesBiometric) return false;
+    final result = await _biometrics.authenticate(
+      'Xác thực phụ huynh để: $action',
+    );
+    final ok = result == BiometricResult.success;
+    await _record(
+      action,
+      _capability.logMethod,
+      ok
+          ? UnlockResult.success
+          : result == BiometricResult.canceled
+          ? UnlockResult.canceled
+          : UnlockResult.failure,
+    );
+    if (result == BiometricResult.invalidated) {
+      await _saveBiometricEnabled(false);
+    }
+    return ok;
+  }
+
   /// Vào khu vực phụ huynh (cài đặt, quản lý, nhật ký…).
   Future<bool> requireParentArea(
     String action, {
