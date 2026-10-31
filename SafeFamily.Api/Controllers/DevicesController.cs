@@ -98,6 +98,23 @@ public class DevicesController(AppDb db) : ApiBase
             .Select(c => new CommandDto(c.Id, c.Type, c.PayloadJson, c.CreatedAt, c.DoneAt)).ToListAsync();
     }
 
+    /// <summary>
+    /// Trạng thái máy con do chính nó báo (API-09). Chưa báo lần nào thì các trường là mặc định và
+    /// ReportedAt = null. App mở tạm đã quá hạn bị lọc bỏ để mẹ không thấy nút "chặn lại" thừa.
+    /// </summary>
+    [HttpGet("{id:int}/status")]
+    public async Task<ActionResult<DeviceStatusDto>> Status(int id)
+    {
+        var device = await Own(id);
+        if (device is null) return NotFound();
+        var s = await db.DeviceStatuses.FirstOrDefaultAsync(x => x.DeviceId == id);
+        if (s is null) return new DeviceStatusDto(device.LastSeenAt, null, null, 0, false, false, [], null, []);
+        var now = DateTime.UtcNow;
+        return new DeviceStatusDto(device.LastSeenAt, s.ReportedAt, s.BatteryPercent, s.PolicyVersion, s.IsPaused,
+            s.StudyActive, StatusRules.ParsePermissions(s.PermissionsMissingJson), s.AppVersion,
+            StatusRules.ParseTempUnlocked(s.TempUnlockedJson).Where(t => t.Until.ToUniversalTime() > now).ToList());
+    }
+
     /// <summary>Vị trí mới nhất của máy con (204 nếu chưa có).</summary>
     [HttpGet("{id:int}/location")]
     public async Task<ActionResult<LocationDto>> LastLocation(int id)
@@ -211,6 +228,32 @@ public class DeviceSelfController(AppDb db) : ApiBase
         var cmd = await db.Commands.FirstOrDefaultAsync(c => c.Id == id && c.DeviceId == SubjectId);
         if (cmd is null) return NotFound();
         cmd.DoneAt ??= DateTime.UtcNow;
+        await db.SaveChangesAsync();
+        return NoContent();
+    }
+
+    /// <summary>
+    /// Máy con báo trạng thái mỗi lượt đồng bộ (API-09): pin, tạm dừng, giờ học, quyền còn thiếu, phiên bản,
+    /// app đang mở tạm. Ghi đè dòng cũ. Không nhận trường nào khác.
+    /// </summary>
+    [HttpPut("status")]
+    public async Task<IActionResult> PutStatus(PutStatusRequest req)
+    {
+        if (!await Touch()) return Unauthorized();
+        var now = DateTime.UtcNow;
+        var error = StatusRules.Validate(req, now);
+        if (error is not null) return BadRequest(new { error });
+        var s = await db.DeviceStatuses.FirstOrDefaultAsync(x => x.DeviceId == SubjectId);
+        if (s is null) db.DeviceStatuses.Add(s = new DeviceStatus { DeviceId = SubjectId });
+        s.BatteryPercent = req.BatteryPercent;
+        s.PolicyVersion = req.PolicyVersion;
+        s.IsPaused = req.IsPaused;
+        s.StudyActive = req.StudyActive;
+        s.PermissionsMissingJson = StatusRules.ToJson((req.PermissionsMissing ?? []).Distinct());
+        s.AppVersion = string.IsNullOrEmpty(req.AppVersion) ? null : req.AppVersion;
+        s.TempUnlockedJson = StatusRules.ToJson((req.TempUnlocked ?? [])
+            .DistinctBy(t => t.Package).Select(t => new TempUnlockItem(t.Package, t.Until.ToUniversalTime())));
+        s.ReportedAt = now;
         await db.SaveChangesAsync();
         return NoContent();
     }

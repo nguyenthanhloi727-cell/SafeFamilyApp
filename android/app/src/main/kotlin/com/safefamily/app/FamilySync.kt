@@ -144,6 +144,7 @@ object FamilySync {
             TempRelocks.sweep(context) // chặn lại app mở tạm đã quá hạn
             pullPolicy(context)
             pullGeofences(context)
+            pushStatus(context) // lỗi mạng/ máy chủ chỉ bỏ qua lượt này, không làm hỏng các bước còn lại
             flush(context, KEY_LOCATIONS, "locations", "points")
             flush(context, KEY_EVENTS, "geofence-events", "events")
             true
@@ -306,6 +307,46 @@ object FamilySync {
         if (toBlock.isNotEmpty()) manager.startBlocking(toBlock)
         GuardPrefs.setRemoteBlocked(context, wanted)
     }
+
+    /**
+     * Báo mẹ trạng thái máy (API-09, `PUT /api/devices/me/status`). Chỉ các trường: pin, phiên bản luật đã áp,
+     * tạm dừng, giờ học, quyền còn thiếu, phiên bản app, app đang mở tạm (tên gói + hạn). KHÔNG gửi app đang
+     * dùng hay nội dung. Mọi lỗi (mạng, 4xx/5xx, đọc trạng thái) đều bỏ qua, lượt sau gửi lại.
+     */
+    private fun pushStatus(context: Context) {
+        runCatching {
+            val temp = JSONArray()
+            for ((pkg, until) in TempRelocks.pendingUntil(context)) {
+                if (until > System.currentTimeMillis()) temp.put(JSONObject().put("package", pkg).put("until", iso(until)))
+            }
+            val body = JSONObject()
+                .put("policyVersion", prefs(context).getInt(KEY_POLICY_VERSION, 0))
+                .put("isPaused", TimeLimits.pauseMinutesLeft(context) > 0)
+                .put("studyActive", TimeLimits.studyActive(context))
+                .put("permissionsMissing", JSONArray(PermissionStatus.missing(context)))
+                .put("tempUnlocked", temp)
+            batteryPercent(context)?.let { body.put("batteryPercent", it) }
+            appVersion(context)?.let { body.put("appVersion", it) }
+            request(context, "PUT", "/api/devices/me/status", body)
+        }
+    }
+
+    /** 0–100, hoặc `null` nếu máy không cho đọc. */
+    private fun batteryPercent(context: Context): Int? {
+        val bm = context.getSystemService(Context.BATTERY_SERVICE) as? android.os.BatteryManager
+        val direct = bm?.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CAPACITY)
+        if (direct != null && direct in 1..100) return direct
+        // Một số máy trả 0 / Int.MIN_VALUE: đọc từ intent pin (sticky, không cần quyền).
+        val intent = context.registerReceiver(null, android.content.IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+        val level = intent?.getIntExtra(android.os.BatteryManager.EXTRA_LEVEL, -1) ?: -1
+        val scale = intent?.getIntExtra(android.os.BatteryManager.EXTRA_SCALE, -1) ?: -1
+        return if (level >= 0 && scale > 0) (level * 100 / scale).coerceIn(0, 100) else null
+    }
+
+    /** `versionName` đã lọc theo đúng ký tự server nhận (≤32), sai dạng thì không gửi. */
+    private fun appVersion(context: Context): String? = runCatching {
+        context.packageManager.getPackageInfo(context.packageName, 0).versionName
+    }.getOrNull()?.takeIf { it.length in 1..32 && Regex("^[0-9A-Za-z.+_-]+$").matches(it) }
 
     private fun pullGeofences(context: Context) {
         val r = request(context, "GET", "/api/devices/me/geofences", null)

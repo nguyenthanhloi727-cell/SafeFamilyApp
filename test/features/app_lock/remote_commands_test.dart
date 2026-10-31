@@ -34,9 +34,24 @@ Future<ConnectionSession> _session({
   return session;
 }
 
-Widget _wrap(ConnectionSession session, List<http.Request> sent, Widget page) {
+/// [status] = nội dung `GET /api/devices/5/status` (null: route này trả 404 như máy chủ cũ).
+Widget _wrap(
+  ConnectionSession session,
+  List<http.Request> sent,
+  Widget page, {
+  Map<String, Object?>? status,
+}) {
   final client = MockClient((r) async {
     sent.add(r);
+    if (r.method == 'GET' && r.url.path.endsWith('/status')) {
+      return status == null
+          ? http.Response('{}', 404)
+          : http.Response(
+              jsonEncode(status),
+              200,
+              headers: {'content-type': 'application/json'},
+            );
+    }
     return http.Response(
       jsonEncode({
         'id': 1,
@@ -166,6 +181,144 @@ void main() {
     await tester.pumpAndSettle();
     body = jsonDecode(sent.last.body) as Map<String, dynamic>;
     expect(body['type'], 'unpause');
-    expect(sent, hasLength(2));
+    expect(sent.where((r) => r.method == 'POST'), hasLength(2));
+  });
+
+  testWidgets('pause_card: máy con đang tạm dừng → thẻ đổi sang "Tiếp tục", chạm là gửi unpause', (
+    tester,
+  ) async {
+    final sent = <http.Request>[];
+    await tester.pumpWidget(
+      _wrap(
+        await _session(),
+        sent,
+        const Scaffold(body: PauseCard()),
+        status: _status(isPaused: true),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Tiếp tục dùng máy con'), findsOneWidget);
+    expect(find.textContaining('đang tạm dừng'), findsOneWidget);
+
+    await tester.tap(find.text('Tiếp tục dùng máy con'));
+    await tester.pumpAndSettle();
+    // Không hiện hộp chọn thời lượng: biết chắc máy con đang tạm dừng.
+    expect(find.text('15 phút'), findsNothing);
+    final posts = sent.where((r) => r.method == 'POST').toList();
+    expect(posts, hasLength(1));
+    expect((jsonDecode(posts.single.body) as Map)['type'], 'unpause');
+    // Đã gửi mà máy con chưa báo lại: không giả vờ là đã tiếp tục.
+    expect(find.textContaining('chờ máy con'), findsOneWidget);
+  });
+
+  testWidgets('pause_card: máy con không tạm dừng → chỉ hỏi thời lượng, không có mục tiếp tục', (
+    tester,
+  ) async {
+    final sent = <http.Request>[];
+    await tester.pumpWidget(
+      _wrap(
+        await _session(),
+        sent,
+        const Scaffold(body: PauseCard()),
+        status: _status(isPaused: false),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Tạm dừng máy con'));
+    await tester.pumpAndSettle();
+    expect(find.text('30 phút'), findsOneWidget);
+    expect(find.text('Tiếp tục dùng máy (hết tạm dừng)'), findsNothing);
+  });
+
+  testWidgets('app_lock_page: app đang mở tạm trên máy con có nút "Chặn lại ngay" gửi app_relock', (
+    tester,
+  ) async {
+    final platform = FakeAppLockPlatform();
+    final controller = AppLockController(
+      platform: platform,
+      store: AppLockStore(prefs: SharedPreferencesAsync()),
+    );
+    addTearDown(controller.dispose);
+    await controller.refresh();
+    final sent = <http.Request>[];
+    await tester.pumpWidget(
+      AppLockScope(
+        controller: controller,
+        child: _wrap(
+          await _session(),
+          sent,
+          const AppLockPage(),
+          status: _status(
+            tempUnlocked: [
+              {
+                'package': 'com.google.android.youtube',
+                'until': DateTime.now()
+                    .toUtc()
+                    .add(const Duration(minutes: 10))
+                    .toIso8601String(),
+              },
+            ],
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Chặn nhanh YouTube'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Đang mở tạm tới'), findsOneWidget);
+    await tester.tap(find.byTooltip('Chặn lại ngay'));
+    await tester.pumpAndSettle();
+
+    final posts = sent.where((r) => r.method == 'POST').toList();
+    expect(posts, hasLength(1));
+    final body = jsonDecode(posts.single.body) as Map<String, dynamic>;
+    expect(body['type'], 'app_relock');
+    expect(jsonDecode(body['payloadJson'] as String), {
+      'package': 'com.google.android.youtube',
+    });
+    expect(find.textContaining('chờ máy con (đang mở tạm'), findsOneWidget);
+  });
+
+  testWidgets('app_lock_page: máy con không có app mở tạm → không có nút "Chặn lại ngay"', (
+    tester,
+  ) async {
+    final platform = FakeAppLockPlatform();
+    final controller = AppLockController(
+      platform: platform,
+      store: AppLockStore(prefs: SharedPreferencesAsync()),
+    );
+    addTearDown(controller.dispose);
+    await controller.refresh();
+    await tester.pumpWidget(
+      AppLockScope(
+        controller: controller,
+        child: _wrap(
+          await _session(),
+          <http.Request>[],
+          const AppLockPage(),
+          status: _status(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Chặn nhanh YouTube'));
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('Chặn lại ngay'), findsNothing);
   });
 }
+
+Map<String, Object?> _status({
+  bool isPaused = false,
+  List<Map<String, Object?>> tempUnlocked = const [],
+}) => {
+  'lastSeenAt': DateTime.now().toUtc().toIso8601String(),
+  'reportedAt': DateTime.now().toUtc().toIso8601String(),
+  'batteryPercent': 40,
+  'policyVersion': 3,
+  'isPaused': isPaused,
+  'studyActive': false,
+  'permissionsMissing': <String>[],
+  'appVersion': '1.0.0',
+  'tempUnlocked': tempUnlocked,
+};

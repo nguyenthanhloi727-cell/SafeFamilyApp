@@ -59,6 +59,27 @@ object TempRelocks {
         return buildSet { while (keys.hasNext()) add(keys.next()) }
     }
 
+    /**
+     * App đang mở tạm kèm giờ chặn lại còn lại (giờ treo tường, ước lượng), để báo mẹ.
+     * Tính theo cùng quy tắc với [sweep]: cùng lần khởi động thì tin đồng hồ elapsed.
+     */
+    @Synchronized
+    fun pendingUntil(context: Context): Map<String, Long> {
+        val entries = load(context)
+        val boot = GuardPrefs.bootCount(context)
+        val elapsed = GuardPrefs.elapsedNow()
+        val wall = System.currentTimeMillis()
+        val out = mutableMapOf<String, Long>()
+        val keys = entries.keys()
+        while (keys.hasNext()) {
+            val pkg = keys.next()
+            val entry = entries.optJSONObject(pkg) ?: continue
+            val sameBoot = boot != -1 && entry.optInt("boot", -1) == boot
+            out[pkg] = if (sameBoot) wall + (entry.optLong("elapsed") - elapsed) else entry.optLong("wall")
+        }
+        return out
+    }
+
     /** Chặn lại các app đã quá hạn. Trả về `true` nếu có app vừa bị chặn lại. */
     @Synchronized
     fun sweep(context: Context): Boolean {

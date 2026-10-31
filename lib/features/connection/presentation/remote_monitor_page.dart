@@ -6,11 +6,13 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/network/api_client.dart';
 import '../../../core/network/api_scope.dart';
+import '../../../core/network/child_status_text.dart';
 import '../../../core/network/connection_session.dart';
 import '../../../core/network/policy_sync.dart';
 import '../../../core/security/ui/parent_gate.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/widgets/app_snack_bar.dart';
+import 'sent_commands_page.dart';
 
 /// Máy mẹ xem và điều khiển một máy con: vị trí, hàng rào địa lý, lệnh nhanh
 /// (khóa/mở khóa, giờ học...) và gửi luật (giới hạn thời gian + khóa ứng dụng).
@@ -32,6 +34,7 @@ class RemoteMonitorPage extends StatefulWidget {
 }
 
 class _RemoteMonitorPageState extends State<RemoteMonitorPage> {
+  DeviceStatusInfo? _status;
   LocationInfo? _location;
   GeofenceSet? _fences;
   List<GeofenceEventInfo> _events = const [];
@@ -56,6 +59,8 @@ class _RemoteMonitorPageState extends State<RemoteMonitorPage> {
 
   Future<void> _reload() async {
     final api = ApiScope.of(context);
+    // Trạng thái tải riêng: lỗi ở đây không được làm mất vị trí / hàng rào.
+    unawaited(_loadStatus(api));
     try {
       final results = await Future.wait<Object?>([
         api.getLastLocation(_id),
@@ -77,6 +82,15 @@ class _RemoteMonitorPageState extends State<RemoteMonitorPage> {
           _loaded = true;
         });
       }
+    }
+  }
+
+  Future<void> _loadStatus(ApiClient api) async {
+    try {
+      final status = await api.getDeviceStatus(_id);
+      if (mounted) setState(() => _status = status);
+    } on ApiException {
+      // Giữ trạng thái cũ; màn vẫn dùng được.
     }
   }
 
@@ -172,6 +186,9 @@ class _RemoteMonitorPageState extends State<RemoteMonitorPage> {
         children: [
           if (_error != null)
             Text(_error!, style: TextStyle(color: theme.colorScheme.error)),
+          Text('Trạng thái máy con', style: theme.textTheme.titleMedium),
+          _statusTile(theme),
+          const SizedBox(height: AppSpace.lg),
           Text('Vị trí', style: theme.textTheme.titleMedium),
           _locationTile(),
           const SizedBox(height: AppSpace.lg),
@@ -231,6 +248,17 @@ class _RemoteMonitorPageState extends State<RemoteMonitorPage> {
           ),
           const SizedBox(height: AppSpace.lg),
           OutlinedButton.icon(
+            key: const Key('sent-commands'),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => SentCommandsPage(device: widget.device),
+              ),
+            ),
+            icon: const Icon(Icons.history_rounded),
+            label: const Text('Lệnh đã gửi'),
+          ),
+          const SizedBox(height: AppSpace.sm),
+          OutlinedButton.icon(
             key: const Key('push-policy'),
             onPressed: _pushPolicy,
             icon: const Icon(Icons.cloud_upload_rounded),
@@ -248,6 +276,55 @@ class _RemoteMonitorPageState extends State<RemoteMonitorPage> {
         label: Text(label),
         onPressed: () => _command(label, type, minutes: minutes),
       );
+
+  /// Trạng thái máy con: lần cuối thấy, tạm dừng, giờ học, pin, quyền còn thiếu.
+  /// Máy con chưa báo lần nào (mới ghép / bản app cũ) thì nói rõ là chưa có, không đoán.
+  Widget _statusTile(ThemeData theme) {
+    final s = _status;
+    if (s == null) {
+      return _loaded
+          ? const Text('Chưa tải được trạng thái.')
+          : const SizedBox.shrink();
+    }
+    final seen = s.lastSeenAt;
+    final details = <String>[
+      if (s.hasReported) ...[
+        s.isPaused ? 'Đang tạm dừng' : 'Không tạm dừng',
+        if (s.studyActive) 'Đang trong giờ học',
+        if (s.batteryPercent != null) 'Pin ${s.batteryPercent}%',
+      ] else
+        'Máy con chưa báo trạng thái (cần bản app mới nhất)',
+    ];
+    return Column(
+      key: const Key('child-status'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          leading: Icon(
+            s.isPaused ? Icons.pause_circle_rounded : Icons.phone_android_rounded,
+          ),
+          title: Text(
+            seen == null
+                ? 'Chưa thấy máy con kết nối'
+                : 'Lần cuối: ${agoText(seen)}',
+          ),
+          subtitle: Text(details.join(' · ')),
+        ),
+        if (s.permissionsMissing.isNotEmpty)
+          ListTile(
+            key: const Key('child-missing-permissions'),
+            contentPadding: EdgeInsets.zero,
+            leading: Icon(
+              Icons.warning_amber_rounded,
+              color: theme.colorScheme.error,
+            ),
+            title: const Text('Máy con còn thiếu quyền'),
+            subtitle: Text(s.permissionsMissing.map(permissionLabel).join(', ')),
+          ),
+      ],
+    );
+  }
 
   Widget _locationTile() {
     final l = _location;
@@ -274,13 +351,7 @@ class _RemoteMonitorPageState extends State<RemoteMonitorPage> {
     );
   }
 
-  static String _ago(DateTime t) {
-    final d = DateTime.now().difference(t);
-    if (d.inMinutes < 1) return 'vừa xong';
-    if (d.inHours < 1) return '${d.inMinutes} phút trước';
-    if (d.inDays < 1) return '${d.inHours} giờ trước';
-    return '${d.inDays} ngày trước';
-  }
+  static String _ago(DateTime t) => agoText(t);
 }
 
 class _FenceDialog extends StatefulWidget {

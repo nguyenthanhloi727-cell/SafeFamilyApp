@@ -60,6 +60,80 @@ class RemoteCommand {
   final String payloadJson;
 }
 
+/// App máy con đang mở tạm và giờ chặn lại (giờ máy con báo, ước lượng).
+class TempUnlockInfo {
+  const TempUnlockInfo(this.package, this.until);
+  final String package;
+  final DateTime until;
+}
+
+/// Trạng thái máy con do chính nó báo (`GET /api/devices/{id}/status`).
+/// [reportedAt] `null` = máy con chưa báo lần nào (các trường khác chỉ là mặc định).
+class DeviceStatusInfo {
+  const DeviceStatusInfo({
+    this.lastSeenAt,
+    this.reportedAt,
+    this.batteryPercent,
+    this.policyVersion = 0,
+    this.isPaused = false,
+    this.studyActive = false,
+    this.permissionsMissing = const [],
+    this.appVersion,
+    this.tempUnlocked = const [],
+  });
+
+  final DateTime? lastSeenAt;
+  final DateTime? reportedAt;
+  final int? batteryPercent;
+  final int policyVersion;
+  final bool isPaused;
+  final bool studyActive;
+  final List<String> permissionsMissing;
+  final String? appVersion;
+  final List<TempUnlockInfo> tempUnlocked;
+
+  bool get hasReported => reportedAt != null;
+}
+
+/// Trạng thái một lệnh mẹ đã gửi.
+enum CommandState {
+  /// Máy con chưa xác nhận, còn trong hạn 24 giờ.
+  pending,
+
+  /// Máy con đã thực hiện và xác nhận.
+  done,
+
+  /// Quá 24 giờ mà máy con chưa nhận: server không giao nữa.
+  expired,
+}
+
+/// Một lệnh trong `GET /api/devices/{id}/commands`.
+class CommandInfo {
+  const CommandInfo({
+    required this.id,
+    required this.type,
+    required this.payloadJson,
+    required this.createdAt,
+    this.doneAt,
+  });
+
+  /// Khớp `CommandRules.MaxAge` ở server.
+  static const maxAge = Duration(hours: 24);
+
+  final int id;
+  final String type;
+  final String payloadJson;
+  final DateTime createdAt;
+  final DateTime? doneAt;
+
+  CommandState stateAt(DateTime now) {
+    if (doneAt != null) return CommandState.done;
+    return now.difference(createdAt) > maxAge
+        ? CommandState.expired
+        : CommandState.pending;
+  }
+}
+
 class LocationInfo {
   const LocationInfo(this.lat, this.lng, this.accuracy, this.time);
   final double lat;
@@ -246,6 +320,57 @@ class ApiClient {
         'type': type,
         'payloadJson': payloadJson,
       }, auth: _Auth.parent);
+
+  /// Trạng thái máy con (pin, tạm dừng, quyền thiếu...). Chưa báo lần nào → `hasReported == false`.
+  Future<DeviceStatusInfo> getDeviceStatus(int deviceId) async {
+    final m = await _send(
+      'GET',
+      '/api/devices/$deviceId/status',
+      null,
+      auth: _Auth.parent,
+    );
+    if (m is! Map<String, dynamic>) return const DeviceStatusInfo();
+    return DeviceStatusInfo(
+      lastSeenAt: parseServerTime(m['lastSeenAt']),
+      reportedAt: parseServerTime(m['reportedAt']),
+      batteryPercent: (m['batteryPercent'] as num?)?.toInt(),
+      policyVersion: (m['policyVersion'] as num?)?.toInt() ?? 0,
+      isPaused: m['isPaused'] == true,
+      studyActive: m['studyActive'] == true,
+      permissionsMissing: [
+        for (final p in (m['permissionsMissing'] as List<dynamic>? ?? const []))
+          if (p is String) p,
+      ],
+      appVersion: m['appVersion'] as String?,
+      tempUnlocked: [
+        for (final t in (m['tempUnlocked'] as List<dynamic>? ?? const []))
+          if (t is Map<String, dynamic> &&
+              t['package'] is String &&
+              parseServerTime(t['until']) != null)
+            TempUnlockInfo(t['package'] as String, parseServerTime(t['until'])!),
+      ],
+    );
+  }
+
+  /// 50 lệnh gần nhất, mới nhất trước.
+  Future<List<CommandInfo>> getCommands(int deviceId) async {
+    final list = await _send(
+      'GET',
+      '/api/devices/$deviceId/commands',
+      null,
+      auth: _Auth.parent,
+    ) as List<dynamic>;
+    return [
+      for (final e in list.cast<Map<String, dynamic>>())
+        CommandInfo(
+          id: (e['id'] as num).toInt(),
+          type: e['type'] as String,
+          payloadJson: e['payloadJson'] as String? ?? '{}',
+          createdAt: parseServerTime(e['createdAt'])!,
+          doneAt: parseServerTime(e['doneAt']),
+        ),
+    ];
+  }
 
   // ---- Vị trí và hàng rào địa lý (mẹ) ----
 

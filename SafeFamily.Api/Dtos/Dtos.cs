@@ -40,3 +40,13 @@ public record GeofencesDto(int Version, List<GeofenceItem> Geofences);
 public record GeofenceEventItem(int GeofenceId, [Required, RegularExpression("enter|exit")] string Type, DateTime Time);
 public record PostGeofenceEventsRequest([Required] List<GeofenceEventItem> Events);
 public record GeofenceEventDto(long Id, int GeofenceId, string GeofenceName, string Type, DateTime Time);
+
+// ---- Trạng thái máy con (API-09). Chỉ các trường này, không nội dung/app đang dùng. ----
+public record TempUnlockItem([Required, MaxLength(200)] string Package, DateTime Until);
+public record PutStatusRequest([Range(0, 100)] int? BatteryPercent, [Range(0, int.MaxValue)] int PolicyVersion,
+                               bool IsPaused, bool StudyActive,
+                               List<string>? PermissionsMissing, [MaxLength(32)] string? AppVersion,
+                               List<TempUnlockItem>? TempUnlocked);
+public record DeviceStatusDto(DateTime? LastSeenAt, DateTime? ReportedAt, int? BatteryPercent, int PolicyVersion,
+                              bool IsPaused, bool StudyActive, List<string> PermissionsMissing, string? AppVersion,
+                              List<TempUnlockItem> TempUnlocked);

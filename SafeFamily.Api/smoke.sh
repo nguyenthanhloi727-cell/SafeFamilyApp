@@ -49,3 +49,39 @@ cmd pause '{"minutes":99999}' "pause minutes too big" 400
 python -c "import json;print(json.dumps({'type':'pause','payloadJson':json.dumps({'minutes':5,'x':'a'*5000})}))" | curl -s -o /dev/null -w "payload too big (expect 400) %{http_code}\n" -X POST $B/api/devices/$DID/commands -H "$J" -H "Authorization: Bearer $A" -d @-
 echo "child pending commands (expect 6 valid ones, ids ascending):"
 curl -s $B/api/devices/me/commands -H "Authorization: Bearer $DT" | python -c "import sys,json;print([c['type'] for c in json.load(sys.stdin)])"
+# --- Trạng thái máy con (API-09) ---
+st() { python -c "import json,sys;print(json.dumps(json.loads(sys.argv[1])))" "$1" | curl -s -o /dev/null -w "$2 (expect $3) %{http_code}\n" -X PUT $B/api/devices/me/status -H "$J" -H "Authorization: Bearer $DT" -d @-; }
+echo "status before any report (expect reportedAt null, defaults):"
+curl -s $B/api/devices/$DID/status -H "Authorization: Bearer $A"; echo
+SOON=$(python -c "import datetime as d;print((d.datetime.utcnow()+d.timedelta(minutes=30)).strftime('%Y-%m-%dT%H:%M:%SZ'))")
+PAST=$(python -c "import datetime as d;print((d.datetime.utcnow()-d.timedelta(minutes=30)).strftime('%Y-%m-%dT%H:%M:%SZ'))")
+FAR=$(python -c "import datetime as d;print((d.datetime.utcnow()+d.timedelta(days=2)).strftime('%Y-%m-%dT%H:%M:%SZ'))")
+st "{\"batteryPercent\":40,\"policyVersion\":1,\"isPaused\":true,\"studyActive\":false,\"permissionsMissing\":[\"accessibility\",\"device_admin\"],\"appVersion\":\"1.0.0+1\",\"tempUnlocked\":[{\"package\":\"com.google.android.youtube\",\"until\":\"$SOON\"},{\"package\":\"com.zing.zalo\",\"until\":\"$PAST\"}]}" "status put ok" 204
+echo "mother reads status (expect isPaused true, battery 40, 2 perms, only youtube unlocked - expired zalo filtered):"
+curl -s $B/api/devices/$DID/status -H "Authorization: Bearer $A"; echo
+st '{"policyVersion":1,"isPaused":false,"studyActive":false}' "status put minimal (no battery) ok" 204
+curl -s $B/api/devices/$DID/status -H "Authorization: Bearer $A" | python -c "import sys,json;d=json.load(sys.stdin);print('overwrite:',d['isPaused'],d['batteryPercent'],d['permissionsMissing'],d['tempUnlocked'])"
+st '{"batteryPercent":101,"policyVersion":1,"isPaused":false,"studyActive":false}' "battery 101" 400
+st '{"batteryPercent":-1,"policyVersion":1,"isPaused":false,"studyActive":false}' "battery -1" 400
+st '{"batteryPercent":"abc","policyVersion":1,"isPaused":false,"studyActive":false}' "battery string" 400
+st '{"policyVersion":-1,"isPaused":false,"studyActive":false}' "policyVersion -1" 400
+st '{"policyVersion":1,"isPaused":"yes","studyActive":false}' "isPaused string" 400
+st "{\"policyVersion\":1,\"isPaused\":false,\"studyActive\":false,\"appVersion\":\"$(python -c "print('1'*33)")\"}" "appVersion 33 chars" 400
+st '{"policyVersion":1,"isPaused":false,"studyActive":false,"appVersion":"1.0 <script>"}' "appVersion bad chars" 400
+st '{"policyVersion":1,"isPaused":false,"studyActive":false,"permissionsMissing":["Accessibility"]}' "permission uppercase" 400
+st "{\"policyVersion\":1,\"isPaused\":false,\"studyActive\":false,\"permissionsMissing\":[\"$(python -c "print('a'*41)")\"]}" "permission 41 chars" 400
+st "{\"policyVersion\":1,\"isPaused\":false,\"studyActive\":false,\"permissionsMissing\":$(python -c "import json;print(json.dumps(['p%d'%i for i in range(21)]))")}" "21 permissions" 400
+st '{"policyVersion":1,"isPaused":false,"studyActive":false,"tempUnlocked":[{"package":"khong co cham","until":"'$SOON'"}]}' "temp bad package" 400
+st '{"policyVersion":1,"isPaused":false,"studyActive":false,"tempUnlocked":[{"package":"com.a.b","until":"'$FAR'"}]}' "temp until 2 days ahead" 400
+st "{\"policyVersion\":1,\"isPaused\":false,\"studyActive\":false,\"tempUnlocked\":$(python -c "import json;print(json.dumps([{'package':'com.a.p%d'%i,'until':'$SOON'} for i in range(51)]))")}" "51 temp unlocked" 400
+st '{"policyVersion":1,"isPaused":false,"studyActive":false,"tempUnlocked":[{"package":"com.a.b"}]}' "temp missing until" 400
+curl -s -o /dev/null -w "status put no token (expect 401) %{http_code}\n" -X PUT $B/api/devices/me/status -H "$J" -d '{"policyVersion":1,"isPaused":false,"studyActive":false}'
+curl -s -o /dev/null -w "status put with parent token (expect 403) %{http_code}\n" -X PUT $B/api/devices/me/status -H "$J" -H "Authorization: Bearer $A" -d '{"policyVersion":1,"isPaused":false,"studyActive":false}'
+curl -s -o /dev/null -w "status get with device token (expect 403) %{http_code}\n" $B/api/devices/$DID/status -H "Authorization: Bearer $DT"
+curl -s -o /dev/null -w "status get other device id (expect 404) %{http_code}\n" $B/api/devices/999999/status -H "Authorization: Bearer $A"
+# Mẹ khác gia đình không đọc được trạng thái máy con của gia đình này
+E2="o$RANDOM@x.com"; A2=$(curl -s -X POST $B/api/auth/register -H "$J" -d "{\"email\":\"$E2\",\"password\":\"password123\"}" | py "['accessToken']")
+curl -s -o /dev/null -w "status get from another family (expect 404) %{http_code}\n" $B/api/devices/$DID/status -H "Authorization: Bearer $A2"
+curl -s -o /dev/null -w "commands get from another family (expect 404) %{http_code}\n" $B/api/devices/$DID/commands -H "Authorization: Bearer $A2"
+echo "commands list (mother) has createdAt/doneAt:"
+curl -s $B/api/devices/$DID/commands -H "Authorization: Bearer $A" | python -c "import sys,json;d=json.load(sys.stdin);print(len(d),sorted(d[0].keys()))"

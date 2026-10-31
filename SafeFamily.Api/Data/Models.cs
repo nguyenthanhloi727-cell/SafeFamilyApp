@@ -116,3 +116,24 @@ public class GeofenceEvent
     public string Type { get; set; } = "";
     public DateTime Time { get; set; }
 }
+
+/// <summary>
+/// Trạng thái máy con báo mỗi lượt đồng bộ (API-09). Mỗi máy một dòng, ghi đè. Chỉ có các trường
+/// dưới đây: không có nội dung hay app đang dùng. LastSeenAt nằm ở <see cref="Device"/>.
+/// </summary>
+public class DeviceStatus
+{
+    public int Id { get; set; }
+    public int DeviceId { get; set; }
+    public int? BatteryPercent { get; set; }
+    /// <summary>Phiên bản luật máy con đã áp dụng (khác Policy.Version = mẹ đã đẩy mà con chưa nhận).</summary>
+    public int PolicyVersion { get; set; }
+    public bool IsPaused { get; set; }
+    public bool StudyActive { get; set; }
+    /// <summary>Mảng JSON các id quyền còn thiếu, ví dụ ["accessibility","device_admin"].</summary>
+    public string PermissionsMissingJson { get; set; } = "[]";
+    public string? AppVersion { get; set; }
+    /// <summary>Mảng JSON {package, until} các app đang mở tạm; giữ để mẹ bấm "chặn lại ngay".</summary>
+    public string TempUnlockedJson { get; set; } = "[]";
+    public DateTime ReportedAt { get; set; } = DateTime.UtcNow;
+}

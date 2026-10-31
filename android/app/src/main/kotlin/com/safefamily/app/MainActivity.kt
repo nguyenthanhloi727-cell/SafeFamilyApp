@@ -1,7 +1,5 @@
 package com.safefamily.app
 
-import android.accessibilityservice.AccessibilityServiceInfo
-import android.app.AlarmManager
 import android.app.admin.DevicePolicyManager
 import android.content.ComponentName
 import android.content.Context
@@ -10,11 +8,8 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
-import android.os.PowerManager
 import android.provider.Settings
 import android.view.WindowManager
-import android.text.TextUtils
-import android.view.accessibility.AccessibilityManager
 import com.khanhtq.app_blocker.blocking.AppBlockerAccessibilityService
 import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -227,21 +222,7 @@ class MainActivity : FlutterFragmentActivity() {
         MethodChannel(messenger, "safefamily/permissions")
             .setMethodCallHandler { call, result ->
                 when (call.method) {
-                    "status" -> result.success(
-                        mapOf(
-                            "accessibility" to isBlockerServiceEnabled(),
-                            "settings_guard" to isServiceRunning(SETTINGS_GUARD_SERVICE),
-                            "usage_access" to TimeLimits.hasUsageAccess(this),
-                            "notifications" to areNotificationsEnabled(),
-                            "exact_alarm" to canScheduleExactAlarms(),
-                            "battery" to isIgnoringBatteryOptimizations(),
-                            "device_admin" to isDeviceAdminActive(),
-                            "microphone" to (
-                                checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) ==
-                                    PackageManager.PERMISSION_GRANTED
-                                ),
-                        ),
-                    )
+                    "status" -> result.success(PermissionStatus.snapshot(this))
                     "openSettings" -> {
                         val intent = permissionSettingsIntent(call.argument<String>("id"))
                         if (intent == null) {
@@ -393,9 +374,7 @@ class MainActivity : FlutterFragmentActivity() {
     }
 
     /** Khác [notificationsAllowed]: tính cả khi người dùng tắt thông báo của app trong Cài đặt. */
-    private fun areNotificationsEnabled(): Boolean =
-        (getSystemService(Context.NOTIFICATION_SERVICE) as android.app.NotificationManager)
-            .areNotificationsEnabled()
+    private fun areNotificationsEnabled(): Boolean = PermissionStatus.areNotificationsEnabled(this)
 
     private fun notificationsAllowed(): Boolean =
         Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
@@ -505,38 +484,12 @@ class MainActivity : FlutterFragmentActivity() {
 
     private fun adminComponent() = ComponentName(this, SafeFamilyAdminReceiver::class.java)
 
-    private fun isDeviceAdminActive(): Boolean =
-        (getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager)
-            .isAdminActive(adminComponent())
+    private fun isDeviceAdminActive(): Boolean = PermissionStatus.isDeviceAdminActive(this)
 
-    /** Dịch vụ Trợ năng [className] của SafeFamily đang chạy thật (xem [isBlockerServiceEnabled]). */
-    private fun isServiceRunning(className: String): Boolean {
-        val manager = getSystemService(Context.ACCESSIBILITY_SERVICE) as AccessibilityManager
-        return manager
-            .getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_ALL_MASK)
-            .any { it.resolveInfo.serviceInfo.let { s -> s.packageName == packageName && s.name == className } }
-    }
+    private fun isServiceRunning(className: String): Boolean = PermissionStatus.isServiceRunning(this, className)
 
-    /**
-     * Dịch vụ Trợ năng của app_blocker đang CHẠY thật. Chỉ xem danh sách bật
-     * trong Cài đặt là chưa đủ: tiến trình bị tắt hẳn (vuốt khỏi đa nhiệm trên
-     * MIUI, cài lại app) thì Android đánh dấu dịch vụ "đã crash", vẫn nằm trong
-     * danh sách bật nhưng không chạy lại cho tới khi tắt/bật lại.
-     */
-    private fun isBlockerServiceEnabled(): Boolean {
-        val enabled = Settings.Secure.getString(
-            contentResolver,
-            Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES,
-        ) ?: return false
-        val service = ComponentName(packageName, BLOCKER_SERVICE)
-        val listed = TextUtils.SimpleStringSplitter(':').apply { setString(enabled) }
-            .any { it.equals(service.flattenToString(), ignoreCase = true) }
-        val manager = getSystemService(Context.ACCESSIBILITY_SERVICE) as AccessibilityManager
-        val running = manager
-            .getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_ALL_MASK)
-            .any { it.resolveInfo.serviceInfo.let { s -> s.packageName == packageName && s.name == BLOCKER_SERVICE } }
-        return listed && running
-    }
+    /** Xem [PermissionStatus.isBlockerServiceEnabled]. */
+    private fun isBlockerServiceEnabled(): Boolean = PermissionStatus.isBlockerServiceEnabled(this)
 
     /**
      * Tắt dịch vụ Trợ năng chặn app bằng `disableSelf()` (API 24+), rồi đọc lại
@@ -557,13 +510,9 @@ class MainActivity : FlutterFragmentActivity() {
         )
     }
 
-    private fun canScheduleExactAlarms(): Boolean =
-        Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
-            (getSystemService(Context.ALARM_SERVICE) as AlarmManager).canScheduleExactAlarms()
+    private fun canScheduleExactAlarms(): Boolean = PermissionStatus.canScheduleExactAlarms(this)
 
-    private fun isIgnoringBatteryOptimizations(): Boolean =
-        (getSystemService(Context.POWER_SERVICE) as PowerManager)
-            .isIgnoringBatteryOptimizations(packageName)
+    private fun isIgnoringBatteryOptimizations(): Boolean = PermissionStatus.isIgnoringBatteryOptimizations(this)
 
     /**
      * App Điện thoại, Cài đặt, trình khởi động (launcher) của máy này — hỏi
@@ -575,8 +524,6 @@ class MainActivity : FlutterFragmentActivity() {
         private const val LOCATION_REQUEST = 0x10C
         private const val DISABLE_RECHECK_MS = 500L
         private const val SETTINGS_ALLOW_SECONDS = 180L // = settingsAllowSeconds (Dart)
-        private const val SETTINGS_GUARD_SERVICE = "com.safefamily.app.SettingsGuardService"
-        private const val BLOCKER_SERVICE =
-            "com.khanhtq.app_blocker.blocking.AppBlockerAccessibilityService"
+        private const val SETTINGS_GUARD_SERVICE = PermissionStatus.SETTINGS_GUARD_SERVICE
     }
 }

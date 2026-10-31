@@ -17,11 +17,19 @@ http.Response _json(Object? body, [int status = 200]) => http.Response(
   headers: {'content-type': 'application/json'},
 );
 
+/// Giờ UTC không kèm "Z", đúng dạng server trả.
+String _utcAgo(Duration d) => DateTime.now()
+    .toUtc()
+    .subtract(d)
+    .toIso8601String()
+    .replaceFirst('Z', '');
+
 class _Server {
   int fenceVersion = 1;
   List<Map<String, dynamic>> fences = [
     {'id': 1, 'name': 'Trường', 'lat': 10.77, 'lng': 106.7, 'radiusM': 150.0},
   ];
+  bool failStatus = false;
   final requests = <String>[];
   final bodies = <String, Object?>{};
 
@@ -66,6 +74,43 @@ class _Server {
             {...f, 'id': i + 1},
         ];
         return _json({'version': fenceVersion, 'geofences': fences});
+      case 'GET /api/devices/5/status':
+        if (failStatus) return _json({'error': 'lỗi'}, 500);
+        return _json({
+          'lastSeenAt': _utcAgo(const Duration(minutes: 2)),
+          'reportedAt': _utcAgo(const Duration(minutes: 2)),
+          'batteryPercent': 40,
+          'policyVersion': 3,
+          'isPaused': true,
+          'studyActive': false,
+          'permissionsMissing': ['accessibility', 'device_admin'],
+          'appVersion': '1.0.0',
+          'tempUnlocked': [],
+        });
+      case 'GET /api/devices/5/commands':
+        return _json([
+          {
+            'id': 3,
+            'type': 'pause',
+            'payloadJson': '{"minutes":30}',
+            'createdAt': _utcAgo(const Duration(minutes: 1)),
+            'doneAt': null,
+          },
+          {
+            'id': 2,
+            'type': 'app_unlock_temp',
+            'payloadJson': '{"package":"com.zing.zalo","minutes":15}',
+            'createdAt': _utcAgo(const Duration(hours: 2)),
+            'doneAt': _utcAgo(const Duration(hours: 1)),
+          },
+          {
+            'id': 1,
+            'type': 'unpause',
+            'payloadJson': '{}',
+            'createdAt': _utcAgo(const Duration(hours: 30)),
+            'doneAt': null,
+          },
+        ]);
       case 'POST /api/devices/5/commands':
         return _json({
           'id': 1,
@@ -87,10 +132,11 @@ Future<(_Server, Widget)> _page() async {
   final api = ApiClient(session: session, client: MockClient(server.handle));
   return (
     server,
-    MaterialApp(
-      home: ApiScope(
-        client: api,
-        child: RemoteMonitorPage(
+    // ApiScope nằm trên MaterialApp như app thật, để màn đẩy bằng Navigator cũng thấy.
+    ApiScope(
+      client: api,
+      child: MaterialApp(
+        home: RemoteMonitorPage(
           device: DeviceInfo(5, 'Bé Bin', null),
           refreshEvery: const Duration(hours: 1),
         ),
@@ -119,6 +165,45 @@ void main() {
     expect(find.textContaining('3 phút trước'), findsOneWidget);
     expect(find.text('Trường'), findsOneWidget);
     expect(find.text('Con đã rời Trường'), findsOneWidget);
+  });
+
+  testWidgets('hiện trạng thái máy con: tạm dừng, pin, lần cuối, quyền thiếu', (t) async {
+    final (_, app) = await _page();
+    await t.pumpWidget(app);
+    await t.pumpAndSettle();
+
+    expect(find.byKey(const Key('child-status')), findsOneWidget);
+    expect(find.text('Lần cuối: 2 phút trước'), findsOneWidget);
+    expect(find.textContaining('Đang tạm dừng'), findsOneWidget);
+    expect(find.textContaining('Pin 40%'), findsOneWidget);
+    expect(find.byKey(const Key('child-missing-permissions')), findsOneWidget);
+    expect(find.textContaining('Trợ năng (chặn ứng dụng)'), findsOneWidget);
+  });
+
+  testWidgets('Lệnh đã gửi: đang chờ / đã thực thi / quá hạn 24 giờ', (t) async {
+    final (_, app) = await _page();
+    await t.pumpWidget(app);
+    await t.pumpAndSettle();
+
+    await t.scrollUntilVisible(find.byKey(const Key('sent-commands')), 200);
+    await t.tap(find.byKey(const Key('sent-commands')));
+    await t.pumpAndSettle();
+
+    expect(find.text('Tạm dừng máy 30 phút'), findsOneWidget);
+    expect(find.textContaining('Đang chờ máy con'), findsOneWidget);
+    expect(find.text('Mở tạm com.zing.zalo 15 phút'), findsOneWidget);
+    expect(find.textContaining('Đã thực thi 1 giờ trước'), findsOneWidget);
+    expect(find.text('Tiếp tục dùng máy'), findsOneWidget);
+    expect(find.textContaining('Quá hạn 24 giờ, không giao nữa'), findsOneWidget);
+  });
+
+  testWidgets('lỗi tải trạng thái không làm mất vị trí và hàng rào', (t) async {
+    final (server, app) = await _page();
+    server.failStatus = true;
+    await t.pumpWidget(app);
+    await t.pumpAndSettle();
+    expect(find.byKey(const Key('last-location')), findsOneWidget);
+    expect(find.text('Chưa tải được trạng thái.'), findsOneWidget);
   });
 
   testWidgets('thêm hàng rào gửi PUT kèm phiên bản hiện tại', (t) async {
@@ -163,7 +248,7 @@ void main() {
     await t.pumpWidget(app);
     await t.pumpAndSettle();
 
-    await t.ensureVisible(find.byKey(const Key('cmd-lock')));
+    await t.scrollUntilVisible(find.byKey(const Key('cmd-lock')), 200);
     await t.tap(find.byKey(const Key('cmd-lock')));
     await t.pumpAndSettle();
 

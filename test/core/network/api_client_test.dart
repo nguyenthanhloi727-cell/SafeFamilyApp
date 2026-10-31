@@ -155,4 +155,81 @@ void main() {
       ),
     );
   });
+
+  test('getDeviceStatus đọc đủ trường, bỏ qua phần tử sai kiểu', () async {
+    final session = await _session();
+    await session.saveParentTokens(access: 'a', refresh: 'r');
+    final api = ApiClient(
+      session: session,
+      client: MockClient((req) async {
+        expect(req.url.path, '/api/devices/7/status');
+        return _json({
+          'lastSeenAt': '2026-10-31T07:00:00',
+          'reportedAt': '2026-10-31T07:01:00',
+          'batteryPercent': 40,
+          'policyVersion': 3,
+          'isPaused': true,
+          'studyActive': true,
+          'permissionsMissing': ['accessibility', 5],
+          'appVersion': '1.2.3',
+          'tempUnlocked': [
+            {'package': 'com.zing.zalo', 'until': '2026-10-31T08:00:00'},
+            {'package': 'khong.co.gio'},
+          ],
+        });
+      }),
+    );
+    final s = await api.getDeviceStatus(7);
+    expect(s.hasReported, isTrue);
+    expect(s.batteryPercent, 40);
+    expect(s.isPaused, isTrue);
+    expect(s.studyActive, isTrue);
+    expect(s.policyVersion, 3);
+    expect(s.permissionsMissing, ['accessibility']);
+    expect(s.appVersion, '1.2.3');
+    expect(s.tempUnlocked.map((t) => t.package), ['com.zing.zalo']);
+    expect(s.tempUnlocked.single.until, DateTime.utc(2026, 10, 31, 8));
+  });
+
+  test('getDeviceStatus: máy con chưa báo thì hasReported = false', () async {
+    final session = await _session();
+    await session.saveParentTokens(access: 'a', refresh: 'r');
+    final api = ApiClient(
+      session: session,
+      client: MockClient(
+        (req) async => _json({
+          'lastSeenAt': null,
+          'reportedAt': null,
+          'policyVersion': 0,
+          'isPaused': false,
+          'studyActive': false,
+          'permissionsMissing': [],
+          'tempUnlocked': [],
+        }),
+      ),
+    );
+    final s = await api.getDeviceStatus(7);
+    expect(s.hasReported, isFalse);
+    expect(s.lastSeenAt, isNull);
+    expect(s.batteryPercent, isNull);
+  });
+
+  test('CommandInfo.stateAt: chờ / xong / quá hạn 24 giờ', () {
+    final now = DateTime.utc(2026, 10, 31, 12);
+    CommandInfo c(Duration age, {bool done = false}) => CommandInfo(
+      id: 1,
+      type: 'pause',
+      payloadJson: '{}',
+      createdAt: now.subtract(age),
+      doneAt: done ? now : null,
+    );
+    expect(c(const Duration(hours: 1)).stateAt(now), CommandState.pending);
+    expect(c(const Duration(hours: 24)).stateAt(now), CommandState.pending);
+    expect(
+      c(const Duration(hours: 24, minutes: 1)).stateAt(now),
+      CommandState.expired,
+    );
+    // Đã thực thi thì giữ trạng thái xong dù tạo từ lâu.
+    expect(c(const Duration(days: 3), done: true).stateAt(now), CommandState.done);
+  });
 }

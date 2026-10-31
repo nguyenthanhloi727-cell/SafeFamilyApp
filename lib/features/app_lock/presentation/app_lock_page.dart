@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/network/api_client.dart';
+import '../../../core/network/api_scope.dart';
 import '../../../core/network/policy_sync.dart';
 import '../../../core/network/remote_commands.dart';
 import '../../../core/security/ui/parent_area_guard.dart';
@@ -36,6 +38,13 @@ class _AppLockPageState extends State<AppLockPage> {
   bool _showSystemApps = false;
   bool _requestedApps = false;
 
+  /// Chế độ mẹ + đã chọn máy con: app đang mở tạm TRÊN MÁY CON (máy con tự báo) và hạn chặn lại.
+  Map<String, DateTime> _remoteUnlocked = const {};
+
+  /// App đã gửi lệnh "chặn lại ngay" mà máy con chưa báo là đã chặn.
+  final Set<String> _relockSent = {};
+  bool _requestedRemote = false;
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -43,6 +52,30 @@ class _AppLockPageState extends State<AppLockPage> {
     if (controller != null && !_requestedApps) {
       _requestedApps = true;
       controller.loadApps();
+    }
+    if (!_requestedRemote) {
+      _requestedRemote = true;
+      _loadRemoteUnlocked();
+    }
+  }
+
+  Future<void> _loadRemoteUnlocked() async {
+    final child = RemoteCommands.targetOf(context);
+    final api = ApiScope.maybeOf(context);
+    if (child == null || api == null) return;
+    try {
+      final status = await api.getDeviceStatus(child);
+      if (!mounted) return;
+      setState(() {
+        _remoteUnlocked = {
+          for (final t in status.tempUnlocked)
+            if (t.until.isAfter(DateTime.now())) t.package: t.until.toLocal(),
+        };
+        // App máy con đã báo chặn lại (không còn trong danh sách) thì bỏ cờ "đã gửi lệnh".
+        _relockSent.removeWhere((p) => !_remoteUnlocked.containsKey(p));
+      });
+    } on ApiException {
+      // Không biết trạng thái mở tạm của máy con: không hiện nút "chặn lại ngay", mẹ thử lại sau.
     }
   }
 
@@ -117,6 +150,21 @@ class _AppLockPageState extends State<AppLockPage> {
     InstalledApp app,
   ) async {
     if (!await ParentGate.parentArea(context, 'Chặn lại ${app.name}')) return;
+    if (!mounted) return;
+    // Chế độ mẹ + đã chọn máy con: chặn lại trên máy con, không đụng danh sách của máy mẹ.
+    final child = RemoteCommands.targetOf(context);
+    if (child != null) {
+      final sent = await RemoteCommands.send(
+        context,
+        child,
+        'app_relock',
+        payloadJson: RemoteCommands.packagePayload(app.packageName),
+        done:
+            'Đã gửi lệnh chặn lại ${app.name}. Máy con nhận ở lần đồng bộ kế.',
+      );
+      if (sent && mounted) setState(() => _relockSent.add(app.packageName));
+      return;
+    }
     try {
       await controller.relockNow(app.packageName);
     } catch (_) {
@@ -284,9 +332,15 @@ class _AppLockPageState extends State<AppLockPage> {
           );
         }
         final app = visible[index - header.length];
+        final remote = RemoteCommands.targetOf(context) != null;
         return _AppTile(
           app: app,
           controller: controller,
+          // Chế độ mẹ: hạn mở tạm là của máy con, không phải của máy này.
+          until: remote
+              ? _remoteUnlocked[app.packageName]
+              : controller.unlockedUntil(app.packageName),
+          relockSent: _relockSent.contains(app.packageName),
           onChanged: (locked) => _setLocked(controller, app, locked),
           onUnlock: () => _unlockTemporarily(controller, app),
           onRelock: () => _relockNow(controller, app),
@@ -349,6 +403,8 @@ class _AppTile extends StatelessWidget {
   const _AppTile({
     required this.app,
     required this.controller,
+    required this.until,
+    required this.relockSent,
     required this.onChanged,
     required this.onUnlock,
     required this.onRelock,
@@ -356,6 +412,8 @@ class _AppTile extends StatelessWidget {
 
   final InstalledApp app;
   final AppLockController controller;
+  final DateTime? until;
+  final bool relockSent;
   final ValueChanged<bool> onChanged;
   final VoidCallback onUnlock;
   final VoidCallback onRelock;
@@ -364,7 +422,7 @@ class _AppTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final locked = controller.isLocked(app.packageName);
-    final until = controller.unlockedUntil(app.packageName);
+    final until = this.until;
     final busy = controller.isBusy(app.packageName);
     final icon = app.icon;
 
@@ -379,7 +437,9 @@ class _AppTile extends StatelessWidget {
       title: Text(app.name),
       subtitle: until != null
           ? Text(
-              'Đang mở tạm tới ${_hhmm(until)}',
+              relockSent
+                  ? 'Đã gửi lệnh chặn lại, chờ máy con (đang mở tạm tới ${_hhmm(until)})'
+                  : 'Đang mở tạm tới ${_hhmm(until)}',
               style: TextStyle(color: theme.colorScheme.secondary),
             )
           : locked
@@ -399,7 +459,7 @@ class _AppTile extends StatelessWidget {
           else if (until != null)
             IconButton(
               tooltip: 'Chặn lại ngay',
-              onPressed: onRelock,
+              onPressed: relockSent ? null : onRelock,
               icon: const Icon(Icons.lock_outline_rounded),
             )
           else if (locked)

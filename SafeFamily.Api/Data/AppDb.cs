@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using SafeFamily.Api.Services;
 
 namespace SafeFamily.Api.Data;
 
@@ -15,6 +16,7 @@ public class AppDb(DbContextOptions<AppDb> options) : DbContext(options)
     public DbSet<LocationPoint> LocationPoints => Set<LocationPoint>();
     public DbSet<Geofence> Geofences => Set<Geofence>();
     public DbSet<GeofenceEvent> GeofenceEvents => Set<GeofenceEvent>();
+    public DbSet<DeviceStatus> DeviceStatuses => Set<DeviceStatus>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -34,5 +36,9 @@ public class AppDb(DbContextOptions<AppDb> options) : DbContext(options)
         b.Entity<GeofenceEvent>().HasIndex(e => new { e.DeviceId, e.Time });
         b.Entity<GeofenceEvent>().Property(e => e.GeofenceName).HasMaxLength(100);
         b.Entity<GeofenceEvent>().Property(e => e.Type).HasMaxLength(10);
+        b.Entity<DeviceStatus>().HasIndex(d => d.DeviceId).IsUnique();
+        b.Entity<DeviceStatus>().Property(d => d.AppVersion).HasMaxLength(32);
+        b.Entity<DeviceStatus>().Property(d => d.PermissionsMissingJson).HasMaxLength(StatusRules.MaxListJsonChars);
+        b.Entity<DeviceStatus>().Property(d => d.TempUnlockedJson).HasMaxLength(StatusRules.MaxListJsonChars);
     }
 }

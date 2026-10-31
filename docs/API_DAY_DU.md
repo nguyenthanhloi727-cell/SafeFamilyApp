@@ -9,7 +9,7 @@ Mã task `API-xx` dùng để tham chiếu. Làm theo "Thứ tự đề xuất" 
 
 ---
 
-## 1. API hiện có (24 endpoint)
+## 1. API hiện có (26 endpoint)
 
 | Nhóm | Endpoint | Ai gọi |
 |---|---|---|
@@ -18,6 +18,7 @@ Mã task `API-xx` dùng để tham chiếu. Làm theo "Thứ tự đề xuất" 
 | Thiết bị | `GET /api/devices`, `DELETE /api/devices/{id}` | Mẹ |
 | Luật | `GET/PUT /api/devices/{id}/policy`, `GET /api/devices/me/policy` | Mẹ ghi / Con đọc |
 | Lệnh | `POST/GET /api/devices/{id}/commands`, `GET /api/devices/me/commands`, `POST /api/devices/me/commands/{id}/ack` | Mẹ tạo / Con nhận |
+| Trạng thái | `PUT /api/devices/me/status` (con), `GET /api/devices/{id}/status` (mẹ) | Con báo / Mẹ xem |
 | App đã cài | `POST /api/devices/me/apps`, `GET /api/devices/{id}/apps` | Con gửi / Mẹ xem |
 | Vị trí | `POST /api/devices/me/locations`, `GET /api/devices/{id}/location`, `GET /api/devices/{id}/locations` | Con / Mẹ |
 | Hàng rào | `GET/PUT /api/devices/{id}/geofences`, `GET /api/devices/me/geofences`, `POST /api/devices/me/geofence-events`, `GET /api/devices/{id}/geofence-events` | Mẹ / Con |
@@ -36,7 +37,7 @@ Gói luật (schema `schemaVersion` 1): `{"schemaVersion":1,"timeLimit":{...},"a
 | 3 | Giới hạn thời gian: ngày, giờ ngủ, theo tuổi (`time_limit/`) | Máy con (Kotlin) | 🟡 `policy.timeLimit` | Mẹ đã đẩy được (có test tự động); chờ test 2 máy thật | API-04 |
 | 4 | Giờ học, "Đã học xong", duyệt (`study_approval`, `StudyBlock.kt`) | Máy con | 🟡 lệnh `study_*` có | Con chưa gửi yêu cầu duyệt lên; mẹ chưa có danh sách yêu cầu | API-06 |
 | 5 | Xin thêm giờ (`extra_time`) | Máy con | ❌ | Endpoint yêu cầu, duyệt/từ chối | API-06 |
-| 6 | Tạm dừng (`pause_card`) | Máy con | 🟡 lệnh `pause/unpause` có | UI mẹ đã gọi từ xa (chờ test máy thật); chưa trả trạng thái hiện tại về mẹ | API-09 |
+| 6 | Tạm dừng (`pause_card`) | Máy con | 🟡 lệnh + trạng thái `isPaused` | UI mẹ gửi lệnh và hiện đúng trạng thái/nút tiếp tục theo `isPaused` (code xong, test tự động đạt; chờ test máy thật) | API-09 |
 | 7 | Khóa ứng dụng, lịch chặn, mở tạm (`app_lock/`, `TempRelocks.kt`) | Máy con | 🟡 `policy.appLock.blocked` | Danh sách chặn đã đẩy/ghi được (chờ test máy thật). Lệnh `app_unlock_temp/relock/block/allow` đã có, nút mở tạm của mẹ đã nối (chờ test máy thật). Còn: lịch chặn riêng từng app, UI chặn lại / chặn / cho phép từ xa | API-05, API-07 |
 | 8 | App mới cài (`new_app/`, `NewApps.kt`) | Máy con | 🟡 gửi danh sách app | Trạng thái duyệt (cho dùng/chặn) mỗi app; thông báo cho mẹ khi có app mới | API-07 |
 | 9 | Báo cáo sử dụng (`report/`, `UsageReport.kt`) | Máy con | ❌ | Con gửi `DayUsage` theo ngày; mẹ xem theo máy con | API-08 |
@@ -44,7 +45,7 @@ Gói luật (schema `schemaVersion` 1): `{"schemaVersion":1,"timeLimit":{...},"a
 | 11 | Cảnh báo tamper: đổi giờ máy, gỡ app, tắt trợ năng/Device Admin, mất kết nối (`TimeChangeReceiver`, `UninstallGate`, `SettingsGuardService`) | Máy con | ❌ | Con gửi sự kiện cảnh báo; mẹ nhận; server tự cảnh báo "mất kết nối > ngưỡng" | API-10 |
 | 12 | Vị trí (`FamilyService`, `remote_monitor_page`) | Máy con + server | ✅ | Xóa lịch sử; mẹ bật/tắt chia sẻ vị trí; pin còn lại của máy con | API-11 |
 | 13 | Hàng rào địa lý (`Geofences.kt`) | Máy con + server | ✅ | Thông báo máy mẹ trễ 15 phút (WorkManager), cân nhắc đẩy | API-12 |
-| 14 | Lệnh từ xa (khóa/mở, tắt giới hạn hôm nay…) | Server | ✅ | Trả trạng thái thực thi cho mẹ (ack đã có, chưa có màn lịch sử lệnh) | API-09 |
+| 14 | Lệnh từ xa (khóa/mở, tắt giới hạn hôm nay…) | Server | ✅ | Màn "Lệnh đã gửi" (đang chờ / đã thực thi / quá hạn 24h) đã có, chờ test máy thật | API-09 |
 | 15 | Hồ sơ, liên hệ gia đình, SOS (`profile/`) | Máy | ❌ | Đồng bộ liên hệ khẩn cấp xuống máy con (cân nhắc riêng tư) | API-13 |
 | 16 | Quyền ứng dụng, Setup Wizard, Đang cản trở (`PermissionRegistry`, `setup/`, `home/`) | Máy | ➖ | Chỉ cần báo mẹ khi con thiếu quyền (xem API-10) | – |
 | 17 | PIN, mã khôi phục, sinh trắc (`core/security/`) | Máy | ➖ | Đã chốt chỉ lưu hash trên máy | – |
@@ -85,7 +86,7 @@ Mỗi task: endpoint/bảng cần thêm, phía Flutter/Kotlin cần nối, đi�
 - Server (xong, đã chạy `smoke.sh`): `Services/CommandRules.cs` là danh sách `Type` cho phép (`pause`, `lock`, `unpause`, `unlock`, `study_*`, `disable/enable_limit_today`, `app_unlock_temp`, `app_relock`, `app_block`, `app_allow`; loại lạ → 400). Payload phải là đối tượng JSON ≤4 KB; `app_*` cần `package` đúng dạng tên gói; `app_unlock_temp` cần `minutes` 1–240. Lệnh chưa giao sau 24h không giao nữa (`GET devices/me/commands` lọc theo `CreatedAt`; lỗi #5 và #10 trong TEST_PLAN).
 - Kotlin con (xong, chưa chạy thật): `FamilySync.applyAppCommand`. Mở tạm = `TempRelocks.remember` rồi `stopBlockingApps`; hết hạn do `TempRelocks.sweep` chặn lại (gọi khi đổi cửa sổ, khởi động máy và mỗi lượt đồng bộ). `app_block` không bao giờ chặn app trong `TimeLimits.exemptPackages`. Payload sai / chặn app miễn trừ → không ack.
 - Nhất quán với `policy.appLock.blocked`: `previous` (`GuardPrefs.remoteBlocked`) không đổi khi mở tạm, nên luật mới không cắt ngang mở tạm (`applyRemoteBlocked` bỏ qua app đang mở tạm) và app mẹ bỏ khỏi danh sách thì hạn chặn lại cũ bị xóa theo. `app_block` / `app_allow` ghi vào `remoteBlocked` nhưng luật phiên bản mới của mẹ vẫn là nguồn sự thật: nếu danh sách trên máy mẹ vẫn có app mà mẹ vừa `app_allow` thì lần đẩy luật kế sẽ chặn lại. Chưa có UI mẹ cho `app_block`/`app_allow`; khi làm (API-07) phải sửa danh sách mẹ cùng lúc.
-- Flutter mẹ (xong, có test tự động `remote_commands_test.dart`): `RemoteCommands` (`lib/core/network/remote_commands.dart`). `app_lock_page` nút mở tạm và `pause_card` gửi lệnh khi chế độ "mẹ" đã chọn máy con; vẫn qua `ParentGate`. Chưa chọn máy con thì làm trên máy này như cũ. Chưa có nút "chặn lại ngay" từ xa (cần biết trạng thái mở tạm của máy con, API-09). `pause_card` ở chế độ mẹ chưa hiện trạng thái tạm dừng của máy con.
+- Flutter mẹ (xong, có test tự động `remote_commands_test.dart`): `RemoteCommands` (`lib/core/network/remote_commands.dart`). `app_lock_page` nút mở tạm và `pause_card` gửi lệnh khi chế độ "mẹ" đã chọn máy con; vẫn qua `ParentGate`. Chưa chọn máy con thì làm trên máy này như cũ. Nút "chặn lại ngay" từ xa và trạng thái tạm dừng của máy con: xem API-09.
 - Xong khi: mẹ bấm mở tạm một app, con mở được rồi tự chặn lại (cần 2 máy thật, xem TASKS/TEST_PLAN.md "Bổ sung API-05").
 
 ### API-06 Yêu cầu của con (xin thêm giờ, "đã học xong")
@@ -109,10 +110,12 @@ Mỗi task: endpoint/bảng cần thêm, phía Flutter/Kotlin cần nối, đi�
 - Dữ liệu chỉ là phút theo app, đúng quyết định "chỉ thống kê". Dọn dữ liệu quá 90 ngày.
 - Xong khi: mẹ xem được biểu đồ tuần của máy con.
 
-### API-09 Trạng thái máy con và lịch sử lệnh
-- API: `GET /api/devices/{id}/status` trả `lastSeenAt`, `batteryPercent`, `policyVersion`, `isPaused`, `studyActive`, `permissionsMissing[]`, `appVersion`; con gửi qua `PUT /api/devices/me/status` mỗi lần polling.
-- `GET /api/devices/{id}/commands` đã có: thêm màn "Lệnh đã gửi" (đang chờ / đã thực thi / thất bại).
-- Xong khi: màn máy con hiện đúng "đang tạm dừng", "pin 40%", "lần cuối 2 phút trước".
+### API-09 Trạng thái máy con và lịch sử lệnh — code xong, CHƯA test máy thật
+- Server (xong, đã chạy `smoke.sh`): bảng `DeviceStatus` (migration `DeviceStatus`, mỗi máy một dòng ghi đè). `PUT /api/devices/me/status` (con) nhận đúng: `batteryPercent` 0–100 (tùy chọn), `policyVersion` ≥0, `isPaused`, `studyActive`, `permissionsMissing[]` (≤20 mã dạng `[a-z][a-z0-9_]*` ≤40 ký tự), `appVersion` (≤32, `[0-9A-Za-z.+_-]`), `tempUnlocked[{package, until}]` (≤50, tên gói đúng dạng, `until` bắt buộc và không xa quá 245 phút). Sai kiểu/giới hạn → 400. `GET /api/devices/{id}/status` (mẹ) thêm `lastSeenAt` từ `Device`, `reportedAt` (null = chưa từng báo) và lọc bỏ app mở tạm đã quá hạn. Logic kiểm tra ở `Services/StatusRules.cs`.
+- Kotlin con (xong, biên dịch được, chưa chạy máy thật): `FamilySync.pushStatus` gọi trong mỗi `syncOnce` sau khi kéo luật; mọi lỗi (mạng, 4xx/5xx) bị nuốt, không ảnh hưởng các bước khác. Nguồn: `TimeLimits.pauseMinutesLeft/studyActive`, `BatteryManager` (dự phòng intent pin), `PermissionStatus.missing`, `TempRelocks.pendingUntil`, `versionName`. `PermissionStatus.kt` là bản dùng được từ dịch vụ nền của các kiểm tra quyền trước đây nằm trong `MainActivity` (MainActivity giờ gọi lại nó, không nhân đôi). Quyền micro không bao giờ báo mẹ là "thiếu" (chỉ phục vụ báo thức giọng nói). Chỉ gửi các trường trên: không có app đang dùng, vị trí hay nội dung. TODO(verify): `getIntProperty(BATTERY_PROPERTY_CAPACITY)` trên Xiaomi T11 Pro; `isIgnoringBatteryOptimizations` & kiểm tra Trợ năng từ service nền.
+- Flutter mẹ (xong, có test tự động): `ApiClient.getDeviceStatus/getCommands`, `child_status_text.dart`. (1) `remote_monitor_page`: mục "Trạng thái máy con" (lần cuối, tạm dừng, giờ học, pin, quyền thiếu; máy con chưa báo thì nói rõ, lỗi tải trạng thái không làm mất vị trí/hàng rào). (2) `pause_card`: biết `isPaused` thì đổi sang "Tiếp tục dùng máy con" và chạm là gửi `unpause` (qua `ParentGate`), không paused chỉ hỏi thời lượng; chưa biết thì giữ hộp chọn đủ cả hai; sau khi gửi hiện "chờ máy con xác nhận" tới khi máy con báo lại; tự hỏi lại mỗi 60 giây. (3) `sent_commands_page`: "Lệnh đã gửi". (4) `app_lock_page`: app đang mở tạm trên máy con có nút "Chặn lại ngay" gửi `app_relock` (qua `ParentGate`); không biết trạng thái thì không hiện nút.
+- Giới hạn đã biết: trạng thái chỉ mới bằng lượt đồng bộ 5 phút của máy con, nên "chặn lại ngay" và `isPaused` trễ tối đa vài phút; `isPaused` chỉ là có/không (không có số phút còn lại, theo quy định chỉ gửi các trường đã chốt).
+- Xong khi: màn máy con hiện đúng "đang tạm dừng", "pin 40%", "lần cuối 2 phút trước" (cần 2 máy thật, xem TASKS/TEST_PLAN.md "Bổ sung API-09").
 
 ### API-10 Cảnh báo cho mẹ (tamper và mất kết nối)
 - Bảng `Alert` (DeviceId, Kind, Detail, CreatedAt, ReadAt). Loại: `time_changed`, `app_uninstall_attempt`, `accessibility_off`, `device_admin_off`, `permission_missing`, `offline`.
