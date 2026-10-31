@@ -6,6 +6,7 @@ import 'package:workmanager/workmanager.dart';
 import '../network/api_client.dart';
 import '../network/connection_session.dart';
 import 'geofence_alerts.dart';
+import 'request_alerts.dart';
 
 const _kTask = 'geofence_alert_check';
 const _kUnique = 'safefamily_geofence_alerts';
@@ -22,10 +23,26 @@ void parentAlertDispatcher() {
       if (session.mode != ConnectionMode.parent || !session.isParentLoggedIn) {
         return true;
       }
-      final alerts = await GeofenceAlertChecker(
-        ApiClient(session: session),
-      ).check();
-      await _show(alerts);
+      final api = ApiClient(session: session);
+      // Hai việc độc lập: lỗi mạng ở việc này không được làm mất việc kia.
+      Object? failure;
+      try {
+        await _show([
+          for (final a in await GeofenceAlertChecker(api).check())
+            (title: a.title, body: a.body),
+        ], 'geofence_alerts', 'Cảnh báo vị trí của con');
+      } on ApiException catch (e) {
+        failure = e;
+      }
+      try {
+        await _show([
+          for (final a in await ChildRequestAlertChecker(api).check())
+            (title: a.title, body: a.body),
+        ], 'child_requests', 'Yêu cầu của con');
+      } on ApiException catch (e) {
+        failure ??= e;
+      }
+      if (failure != null) throw failure;
       return true;
     } on ApiException catch (e) {
       // Mất mạng thì để lượt sau; lỗi khác (hết phiên...) đừng thử lại dồn dập.
@@ -36,7 +53,11 @@ void parentAlertDispatcher() {
   });
 }
 
-Future<void> _show(List<GeofenceAlert> alerts) async {
+Future<void> _show(
+  List<({String title, String body})> alerts,
+  String channelId,
+  String channelName,
+) async {
   if (alerts.isEmpty) return;
   final plugin = FlutterLocalNotificationsPlugin();
   await plugin.initialize(
@@ -44,10 +65,10 @@ Future<void> _show(List<GeofenceAlert> alerts) async {
       android: AndroidInitializationSettings('@mipmap/ic_launcher'),
     ),
   );
-  const details = NotificationDetails(
+  final details = NotificationDetails(
     android: AndroidNotificationDetails(
-      'geofence_alerts',
-      'Cảnh báo vị trí của con',
+      channelId,
+      channelName,
       importance: Importance.high,
       priority: Priority.high,
     ),

@@ -134,6 +134,45 @@ class CommandInfo {
   }
 }
 
+/// Loại yêu cầu của máy con (khớp `RequestRules` ở server).
+abstract final class RequestKind {
+  static const extraTime = 'extra_time';
+  static const studyDone = 'study_done';
+}
+
+/// Một yêu cầu của máy con (`GET /api/devices/{id}/requests`). Chỉ có loại và số phút xin.
+class ChildRequestInfo {
+  const ChildRequestInfo({
+    required this.id,
+    required this.deviceId,
+    required this.kind,
+    required this.minutes,
+    required this.status,
+    required this.createdAt,
+    this.decidedAt,
+  });
+
+  /// Số phút duyệt tối đa một lần (khớp `CommandRules.MaxExtraMinutes`).
+  static const maxApproveMinutes = 120;
+
+  final int id;
+  final int deviceId;
+  final String kind;
+
+  /// Số phút con xin; `null` với `study_done`.
+  final int? minutes;
+
+  /// `pending` | `approved` | `rejected`.
+  final String status;
+  final DateTime createdAt;
+  final DateTime? decidedAt;
+
+  bool get isPending => status == 'pending';
+
+  /// Số phút mẹ duyệt: số con xin, không quá [maxApproveMinutes].
+  int get approveMinutes => (minutes ?? 0).clamp(1, maxApproveMinutes);
+}
+
 class LocationInfo {
   const LocationInfo(this.lat, this.lng, this.accuracy, this.time);
   final double lat;
@@ -370,6 +409,50 @@ class ApiClient {
           doneAt: parseServerTime(e['doneAt']),
         ),
     ];
+  }
+
+  /// Yêu cầu của máy con, mới nhất trước. [status] `pending` để chỉ lấy việc đang chờ mẹ duyệt.
+  Future<List<ChildRequestInfo>> getRequests(
+    int deviceId, {
+    String? status,
+  }) async {
+    final query = status == null ? '' : '?status=$status';
+    final list = await _send(
+      'GET',
+      '/api/devices/$deviceId/requests$query',
+      null,
+      auth: _Auth.parent,
+    ) as List<dynamic>;
+    return [
+      for (final e in list.cast<Map<String, dynamic>>())
+        ChildRequestInfo(
+          id: (e['id'] as num).toInt(),
+          deviceId: (e['deviceId'] as num).toInt(),
+          kind: e['kind'] as String,
+          minutes: _requestMinutes(e['payload']),
+          status: e['status'] as String,
+          createdAt: parseServerTime(e['createdAt'])!,
+          decidedAt: parseServerTime(e['decidedAt']),
+        ),
+    ];
+  }
+
+  /// Mẹ duyệt/từ chối; server tự tạo lệnh cho máy con. Đã quyết định rồi hoặc hết hạn → [ApiException.isConflict].
+  /// [minutes] chỉ dùng khi duyệt `extra_time` (bỏ trống = số phút con xin).
+  Future<void> decideRequest(int id, {required bool approve, int? minutes}) =>
+      _send('PUT', '/api/requests/$id', {
+        'decision': approve ? 'approved' : 'rejected',
+        'minutes': ?minutes,
+      }, auth: _Auth.parent);
+
+  static int? _requestMinutes(Object? payload) {
+    if (payload is! String) return null;
+    try {
+      final m = jsonDecode(payload);
+      return m is Map<String, dynamic> ? (m['minutes'] as num?)?.toInt() : null;
+    } catch (_) {
+      return null;
+    }
   }
 
   // ---- Vị trí và hàng rào địa lý (mẹ) ----

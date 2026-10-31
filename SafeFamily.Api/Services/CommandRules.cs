@@ -24,10 +24,16 @@ public static class CommandRules
 
     public const string UnlockTemp = "app_unlock_temp";
 
+    /// <summary>Cộng giờ dùng máy hôm nay (API-06). Tự tạo khi mẹ duyệt yêu cầu <c>extra_time</c>.</summary>
+    public const string ExtraTimeGrant = "extra_time_grant";
+
+    /// <summary>1 đến 120 phút (máy con cho tối đa 240, mẹ chỉ duyệt tới mức này).</summary>
+    public const int MaxExtraMinutes = 120;
+
     /// <summary>Trả về thông báo lỗi, hoặc null nếu hợp lệ.</summary>
     public static string? Validate(string type, string payloadJson)
     {
-        var known = NoPayload.Contains(type) || WithMinutes.Contains(type) || WithPackage.Contains(type) || type == UnlockTemp;
+        var known = NoPayload.Contains(type) || WithMinutes.Contains(type) || WithPackage.Contains(type) || type == UnlockTemp || type == ExtraTimeGrant;
         if (!known) return "Loại lệnh không hợp lệ.";
         if (System.Text.Encoding.UTF8.GetByteCount(payloadJson) > MaxPayloadBytes) return "Payload quá lớn.";
         JsonElement root;
@@ -40,6 +46,11 @@ public static class CommandRules
         if (root.ValueKind != JsonValueKind.Object) return "Payload phải là một đối tượng JSON.";
 
         if (NoPayload.Contains(type)) return null;
+        if (type == ExtraTimeGrant)
+        {
+            if (!root.TryGetProperty("minutes", out var gm) || !TryInt(gm, out var g)) return "Thiếu minutes (số nguyên).";
+            return g is >= 1 and <= MaxExtraMinutes ? null : $"minutes phải từ 1 đến {MaxExtraMinutes}.";
+        }
         if (WithMinutes.Contains(type))
         {
             // minutes là tùy chọn (pause/lock/study_start có mặc định ở máy con); 0 = đến khi tắt, chỉ với pause.

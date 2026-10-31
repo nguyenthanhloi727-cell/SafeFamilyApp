@@ -2,7 +2,7 @@
 
 Mục tiêu: máy mẹ quản lý máy con từ xa qua server. Máy con vẫn tự chặn bằng code Kotlin hiện có; API chỉ chuyển luật/lệnh qua lại.
 
-Cập nhật lần cuối: 2026-10-31 (API-09) · Trạng thái chung: **Đợt 1, 2, 5 xong code; test tự động đạt trên LocalDB; chưa publish MonsterASP, chưa test 2 máy thật (TASKS/TEST_PLAN.md)**
+Cập nhật lần cuối: 2026-10-31 (API-06) · Trạng thái chung: **Đợt 1, 2, 5 xong code; test tự động đạt trên LocalDB; chưa publish MonsterASP, chưa test 2 máy thật (TASKS/TEST_PLAN.md)**
 
 Ký hiệu: `[ ]` chưa làm · `[~]` đang làm · `[x]` xong
 
@@ -81,7 +81,7 @@ Cột mốc đợt 2: mẹ đặt giới hạn cho 1 app trên máy mẹ, máy c
 
 ## Đợt 3 – Hai chiều
 
-- [ ] Con xin thêm giờ → mẹ duyệt / từ chối (`extra_time`, `study_approval`, `StudyBlock.kt`)
+- [~] Con xin thêm giờ / báo "đã học xong" → mẹ duyệt / từ chối (`extra_time`, `study_done`; API-06). Server + Flutter mẹ đã test tự động đạt; Kotlin con biên dịch được nhưng CHƯA chạy máy thật nên chưa tick
 - [ ] Con báo app mới cài → mẹ cho dùng hoặc chặn (`NewApps.kt`)
 - [ ] Con gửi báo cáo sử dụng → mẹ xem (`UsageReport.kt`, `report_page`)
 - [ ] Con gửi nhật ký mở khóa (`unlock_log`)
@@ -149,7 +149,7 @@ Emulator Android gọi máy tính qua `http://10.0.2.2:<cổng>`; app mặc đ�
 | Thiết bị | `GET /api/devices`, `DELETE /api/devices/{id}` | Mẹ | Danh sách / hủy ghép |
 | Luật | `GET/PUT /api/devices/{id}/policy` | Mẹ ghi, con đọc | Có số phiên bản |
 | Lệnh | `POST /api/devices/{id}/commands`, `GET /api/devices/me/commands` | Mẹ tạo, con đọc | Tạm dừng, cho thêm giờ |
-| Yêu cầu | `POST /api/requests`, `PUT /api/requests/{id}` | Con tạo, mẹ duyệt | Xin giờ, app mới |
+| Yêu cầu | `POST /api/devices/me/requests`, `GET /api/devices/me/requests/{id}`, `GET /api/devices/{id}/requests`, `PUT /api/requests/{id}` | Con tạo, mẹ duyệt | Xin thêm giờ, đã học xong (API-06); app mới để API-07 |
 | Báo cáo | `POST /api/reports`, `GET /api/devices/{id}/reports` | Con gửi, mẹ xem | |
 
 (Tên endpoint là dự kiến, sẽ chỉnh khi làm.)
@@ -179,3 +179,4 @@ Còn lại: quên mật khẩu khôi phục qua email, cần kiểm tra MonsterA
 - 2026-10-31: API-04. Chốt schema policy `schemaVersion` 1 (`lib/core/network/policy_schema.dart`). Flutter mẹ: `PolicySync` (`lib/core/network/policy_sync.dart`) gom các lần sửa 2 giây rồi `putPolicy`; máy con mẹ chọn lưu ở `ConnectionSession.selectedChildId` (tự chọn khi chỉ có 1 máy, chạm máy trong "Kết nối gia đình" để chọn); phiên bản luật mẹ biết lưu theo từng máy con; 409 thì tải luật server, nếu khác thì hỏi "Giữ luật trên máy chủ / Ghi đè" (ghi đè qua `ParentGate.always`). Kotlin: `FamilySync.pullPolicy` kiểm tra hết rồi mới ghi, đọc thêm `appLock.blocked` (khóa qua `BlockingServiceManager` của app_blocker, bỏ qua app hệ thống, nhớ danh sách mẹ khóa trong `GuardPrefs.remoteBlocked`). Server: kiểm tra kích thước theo byte + gốc phải là đối tượng JSON. Test: analyze sạch, `flutter test` 299 đạt, APK debug build được, `dotnet build` 0 lỗi, `smoke.sh` trên LocalDB đạt (kể cả 409/400 của policy). Chưa có project `dotnet test`. CHƯA test 2 máy thật.
 - 2026-10-31: API-05. Server: `CommandRules` (danh sách Type + kiểm payload JSON ≤4 KB, `app_unlock_temp` minutes 1–240), lệnh quá 24h không giao nữa. Kotlin con: `FamilySync.applyAppCommand` (`app_unlock_temp/relock/block/allow`, tái dùng `TempRelocks`, `BlockingServiceManager`, `GuardPrefs.remoteBlocked`; không chặn app miễn trừ; sai thì không ack), luật mới không cắt ngang mở tạm. Flutter mẹ: `RemoteCommands`, nối `app_lock_page` (mở tạm) và `pause_card` (pause/unpause) khi chế độ mẹ đã chọn máy con. Đã đạt: `flutter analyze`, `flutter test` (303), `flutter build apk --debug`, `dotnet build`, `smoke.sh` (+17 ca lệnh, hạn 24h kiểm tay qua SQL) trên LocalDB tạm đã xóa. Kotlin chưa chạy trên máy thật; chưa có dotnet test.
 - 2026-10-31: API-09. Server: bảng `DeviceStatus` (migration `DeviceStatus`), `PUT /api/devices/me/status` (kiểm kiểu/độ dài/số lượng từng trường, `Services/StatusRules.cs`), `GET /api/devices/{id}/status` (lọc app mở tạm quá hạn). Kotlin con: `FamilySync.pushStatus` trong mỗi `syncOnce` (lỗi bị nuốt), `PermissionStatus` dùng chung với `MainActivity`, `TempRelocks.pendingUntil`. Flutter mẹ: trạng thái ở `remote_monitor_page`, `pause_card` theo `isPaused`, màn "Lệnh đã gửi", nút "Chặn lại ngay" từ xa ở `app_lock_page`. Đã đạt: `flutter analyze`, `flutter test` (313), `flutter build apk --debug`, `dotnet build` 0 lỗi, `smoke.sh` (+~28 ca status, tất cả khớp mã mong đợi) trên LocalDB tạm đã xóa. Chưa có dotnet test; Kotlin chưa chạy trên máy thật; CHƯA test 2 máy thật.
+- 2026-10-31: API-06. Server: bảng `ChildRequest` (migration `ChildRequests`), `POST/GET devices/me/requests`, `GET devices/{id}/requests?status=`, `PUT requests/{id}` (duyệt/từ chối, tự tạo lệnh `study_approve`/`study_reject`/`extra_time_grant` trong cùng một lần lưu; `Services/RequestRules.cs`, chặn trùng đang chờ → 409, hết hạn 24 giờ, mẹ gia đình khác → 404, kiểm kiểu/độ dài/số lượng từng trường, payload chỉ có `minutes`). Kotlin con: `FamilySync.queueRequest` (hàng chờ SharedPreferences, gửi bù, nuốt lỗi), thông báo kết quả cho con, `extra_time_grant`, nối `TimeLimitBlockActivity` và `StudyBlock.claimDone`. Flutter mẹ: `ChildRequestsPage` (duyệt/từ chối qua `ParentGate`), `ChildRequestAlertChecker` trong `parent_alert_worker`. Đã đạt: `flutter analyze` sạch, `flutter test` 321, `flutter build apk --debug`, `dotnet build` 0 lỗi, `smoke.sh` (+~60 ca yêu cầu, 91 ca có mã mong đợi đều khớp; hạn 24 giờ kiểm tay bằng SQL) trên LocalDB tạm đã xóa. Chưa có dotnet test; Kotlin chưa chạy trên máy thật; CHƯA test 2 máy thật.

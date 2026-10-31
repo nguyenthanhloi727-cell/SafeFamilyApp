@@ -12,6 +12,7 @@ import '../../../core/network/policy_sync.dart';
 import '../../../core/security/ui/parent_gate.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/widgets/app_snack_bar.dart';
+import 'child_requests_page.dart';
 import 'sent_commands_page.dart';
 
 /// Máy mẹ xem và điều khiển một máy con: vị trí, hàng rào địa lý, lệnh nhanh
@@ -35,6 +36,7 @@ class RemoteMonitorPage extends StatefulWidget {
 
 class _RemoteMonitorPageState extends State<RemoteMonitorPage> {
   DeviceStatusInfo? _status;
+  int? _pendingRequests;
   LocationInfo? _location;
   GeofenceSet? _fences;
   List<GeofenceEventInfo> _events = const [];
@@ -61,6 +63,7 @@ class _RemoteMonitorPageState extends State<RemoteMonitorPage> {
     final api = ApiScope.of(context);
     // Trạng thái tải riêng: lỗi ở đây không được làm mất vị trí / hàng rào.
     unawaited(_loadStatus(api));
+    unawaited(_loadPendingRequests(api));
     try {
       final results = await Future.wait<Object?>([
         api.getLastLocation(_id),
@@ -91,6 +94,15 @@ class _RemoteMonitorPageState extends State<RemoteMonitorPage> {
       if (mounted) setState(() => _status = status);
     } on ApiException {
       // Giữ trạng thái cũ; màn vẫn dùng được.
+    }
+  }
+
+  Future<void> _loadPendingRequests(ApiClient api) async {
+    try {
+      final list = await api.getRequests(_id, status: 'pending');
+      if (mounted) setState(() => _pendingRequests = list.length);
+    } on ApiException {
+      // Giữ số cũ; vào màn yêu cầu sẽ báo lỗi rõ hơn.
     }
   }
 
@@ -247,6 +259,25 @@ class _RemoteMonitorPageState extends State<RemoteMonitorPage> {
             ],
           ),
           const SizedBox(height: AppSpace.lg),
+          OutlinedButton.icon(
+            key: const Key('child-requests'),
+            onPressed: () async {
+              final api = ApiScope.of(context);
+              await Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => ChildRequestsPage(device: widget.device),
+                ),
+              );
+              if (mounted) unawaited(_loadPendingRequests(api));
+            },
+            icon: const Icon(Icons.mark_email_unread_rounded),
+            label: Text(
+              (_pendingRequests ?? 0) > 0
+                  ? 'Yêu cầu của con ($_pendingRequests chờ duyệt)'
+                  : 'Yêu cầu của con',
+            ),
+          ),
+          const SizedBox(height: AppSpace.sm),
           OutlinedButton.icon(
             key: const Key('sent-commands'),
             onPressed: () => Navigator.of(context).push(

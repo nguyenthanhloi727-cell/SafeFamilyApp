@@ -17,6 +17,7 @@ public class AppDb(DbContextOptions<AppDb> options) : DbContext(options)
     public DbSet<Geofence> Geofences => Set<Geofence>();
     public DbSet<GeofenceEvent> GeofenceEvents => Set<GeofenceEvent>();
     public DbSet<DeviceStatus> DeviceStatuses => Set<DeviceStatus>();
+    public DbSet<ChildRequest> ChildRequests => Set<ChildRequest>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -40,5 +41,9 @@ public class AppDb(DbContextOptions<AppDb> options) : DbContext(options)
         b.Entity<DeviceStatus>().Property(d => d.AppVersion).HasMaxLength(32);
         b.Entity<DeviceStatus>().Property(d => d.PermissionsMissingJson).HasMaxLength(StatusRules.MaxListJsonChars);
         b.Entity<DeviceStatus>().Property(d => d.TempUnlockedJson).HasMaxLength(StatusRules.MaxListJsonChars);
+        b.Entity<ChildRequest>().HasIndex(r => new { r.DeviceId, r.Status });
+        b.Entity<ChildRequest>().Property(r => r.Kind).HasMaxLength(20);
+        b.Entity<ChildRequest>().Property(r => r.Status).HasMaxLength(10).IsConcurrencyToken(); // hai lần duyệt cùng lúc: chỉ một lần thắng
+        b.Entity<ChildRequest>().Property(r => r.Payload).HasMaxLength(RequestRules.MaxPayloadBytes);
     }
 }

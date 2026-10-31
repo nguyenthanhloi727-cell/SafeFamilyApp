@@ -85,3 +85,69 @@ curl -s -o /dev/null -w "status get from another family (expect 404) %{http_code
 curl -s -o /dev/null -w "commands get from another family (expect 404) %{http_code}\n" $B/api/devices/$DID/commands -H "Authorization: Bearer $A2"
 echo "commands list (mother) has createdAt/doneAt:"
 curl -s $B/api/devices/$DID/commands -H "Authorization: Bearer $A" | python -c "import sys,json;d=json.load(sys.stdin);print(len(d),sorted(d[0].keys()))"
+# --- Yêu cầu của máy con (API-06) ---
+rq() { python -c "import json,sys;print(json.dumps({'kind':sys.argv[1],'payloadJson':sys.argv[2]} if sys.argv[2]!='-' else {'kind':sys.argv[1]}))" "$1" "$2" | curl -s -o /dev/null -w "$3 (expect $4) %{http_code}\n" -X POST $B/api/devices/me/requests -H "$J" -H "Authorization: Bearer $DT" -d @-; }
+rq extra_time '{"minutes":0}' "extra_time minutes 0" 400
+rq extra_time '{"minutes":241}' "extra_time minutes 241" 400
+rq extra_time '{"minutes":"15"}' "extra_time minutes string" 400
+rq extra_time '{"minutes":1.5}' "extra_time minutes decimal" 400
+rq extra_time '{}' "extra_time no minutes" 400
+rq extra_time - "extra_time no payload" 400
+rq extra_time '{"minutes":15,"app":"com.zing.zalo"}' "extra_time extra field (privacy)" 400
+rq study_done '{"minutes":5}' "study_done with field" 400
+rq study_done '[1]' "study_done array" 400
+rq study_done 'khong phai json' "payload not json" 400
+rq abc '{}' "unknown kind" 400
+rq "" '{}' "empty kind" 400
+python -c "import json;print(json.dumps({'kind':'extra_time','payloadJson':json.dumps({'minutes':15,'x':'a'*300})}))" | curl -s -o /dev/null -w "payload too big (expect 400) %{http_code}\n" -X POST $B/api/devices/me/requests -H "$J" -H "Authorization: Bearer $DT" -d @-
+python -c "import json;print(json.dumps({'kind':'x'*21,'payloadJson':'{}'}))" | curl -s -o /dev/null -w "kind 21 chars (expect 400) %{http_code}\n" -X POST $B/api/devices/me/requests -H "$J" -H "Authorization: Bearer $DT" -d @-
+curl -s -o /dev/null -w "kind wrong type (expect 400) %{http_code}\n" -X POST $B/api/devices/me/requests -H "$J" -H "Authorization: Bearer $DT" -d '{"kind":5}'
+curl -s -o /dev/null -w "request with parent token (expect 403) %{http_code}\n" -X POST $B/api/devices/me/requests -H "$J" -H "Authorization: Bearer $A" -d '{"kind":"study_done"}'
+curl -s -o /dev/null -w "request no token (expect 401) %{http_code}\n" -X POST $B/api/devices/me/requests -H "$J" -d '{"kind":"study_done"}'
+R1=$(curl -s -X POST $B/api/devices/me/requests -H "$J" -H "Authorization: Bearer $DT" -d '{"kind":"extra_time","payloadJson":"{\"minutes\":30}"}')
+echo "extra_time create (expect pending, minutes 30): $R1"
+RID=$(echo $R1 | py "['id']")
+curl -s -w "\nduplicate pending (expect 409 with same id $RID) %{http_code}\n" -X POST $B/api/devices/me/requests -H "$J" -H "Authorization: Bearer $DT" -d '{"kind":"extra_time","payloadJson":"{\"minutes\":15}"}'
+echo "child reads own request (expect pending):"; curl -s $B/api/devices/me/requests/$RID -H "Authorization: Bearer $DT" | py "['status']"
+echo "mother lists pending (expect 1 extra_time):"; curl -s "$B/api/devices/$DID/requests?status=pending" -H "Authorization: Bearer $A" | python -c "import sys,json;print([(r['kind'],r['status']) for r in json.load(sys.stdin)])"
+curl -s -o /dev/null -w "list bad status (expect 400) %{http_code}\n" "$B/api/devices/$DID/requests?status=abc" -H "Authorization: Bearer $A"
+curl -s -o /dev/null -w "list with device token (expect 403) %{http_code}\n" "$B/api/devices/$DID/requests" -H "Authorization: Bearer $DT"
+# Gia đình khác: không đọc/duyệt được (404)
+E2="u$RANDOM@x.com"; A2=$(curl -s -X POST $B/api/auth/register -H "$J" -d "{\"email\":\"$E2\",\"password\":\"password123\"}" | py "['accessToken']")
+CODE2=$(curl -s -X POST $B/api/pairing/code -H "$J" -H "Authorization: Bearer $A2" -d '{"deviceName":"Con2"}' | py "['code']")
+DT2=$(curl -s -X POST $B/api/pairing/claim -H "$J" -d "{\"code\":\"$CODE2\"}" | py "['deviceToken']")
+curl -s -o /dev/null -w "other family list (expect 404) %{http_code}\n" "$B/api/devices/$DID/requests" -H "Authorization: Bearer $A2"
+curl -s -o /dev/null -w "other family approve (expect 404) %{http_code}\n" -X PUT $B/api/requests/$RID -H "$J" -H "Authorization: Bearer $A2" -d '{"decision":"approved"}'
+curl -s -o /dev/null -w "other child reads my request (expect 404) %{http_code}\n" $B/api/devices/me/requests/$RID -H "Authorization: Bearer $DT2"
+curl -s -o /dev/null -w "unknown request (expect 404) %{http_code}\n" -X PUT $B/api/requests/999999 -H "$J" -H "Authorization: Bearer $A" -d '{"decision":"approved"}'
+curl -s -o /dev/null -w "approve with device token (expect 403) %{http_code}\n" -X PUT $B/api/requests/$RID -H "$J" -H "Authorization: Bearer $DT" -d '{"decision":"approved"}'
+curl -s -o /dev/null -w "approve no token (expect 401) %{http_code}\n" -X PUT $B/api/requests/$RID -H "$J" -d '{"decision":"approved"}'
+dec() { curl -s -o /dev/null -w "$3 (expect $4) %{http_code}\n" -X PUT $B/api/requests/$1 -H "$J" -H "Authorization: Bearer $A" -d "$2"; }
+dec $RID '{"decision":"maybe"}' "decision invalid" 400
+dec $RID '{}' "decision missing" 400
+dec $RID '{"decision":"approved","minutes":0}' "approve minutes 0" 400
+dec $RID '{"decision":"approved","minutes":121}' "approve minutes 121" 400
+dec $RID '{"decision":"rejected","minutes":10}' "reject with minutes" 400
+dec $RID '{"decision":"approved","minutes":"x"}' "approve minutes string" 400
+echo "still pending after bad attempts (expect pending):"; curl -s $B/api/devices/me/requests/$RID -H "Authorization: Bearer $DT" | py "['status']"
+dec $RID '{"decision":"approved","minutes":20}' "approve with 20 min override" 200
+dec $RID '{"decision":"rejected"}' "decide twice" 409
+echo "child sees approved:"; curl -s $B/api/devices/me/requests/$RID -H "Authorization: Bearer $DT" | python -c "import sys,json;d=json.load(sys.stdin);print(d['status'],d['decidedAt'] is not None)"
+echo "child commands (expect last = extra_time_grant minutes 20):"; curl -s $B/api/devices/me/commands -H "Authorization: Bearer $DT" | python -c "import sys,json;c=json.load(sys.stdin)[-1];print(c['type'],c['payloadJson'])"
+R2=$(curl -s -X POST $B/api/devices/me/requests -H "$J" -H "Authorization: Bearer $DT" -d '{"kind":"study_done"}'); RID2=$(echo $R2 | py "['id']")
+curl -s -o /dev/null -w "new extra_time after decided allowed (expect 200) %{http_code}\n" -X POST $B/api/devices/me/requests -H "$J" -H "Authorization: Bearer $DT" -d '{"kind":"extra_time","payloadJson":"{\"minutes\":5}"}'
+curl -s -o /dev/null -w "study_done duplicate (expect 409) %{http_code}\n" -X POST $B/api/devices/me/requests -H "$J" -H "Authorization: Bearer $DT" -d '{"kind":"study_done"}'
+dec $RID2 '{"decision":"approved","minutes":5}' "approve study_done with minutes" 400
+dec $RID2 '{"decision":"rejected"}' "reject study_done" 200
+echo "child commands (expect last = study_reject):"; curl -s $B/api/devices/me/commands -H "Authorization: Bearer $DT" | python -c "import sys,json;print(json.load(sys.stdin)[-1]['type'])"
+RID4=$(curl -s "$B/api/devices/$DID/requests?status=pending" -H "Authorization: Bearer $A" | python -c "import sys,json;print([r['id'] for r in json.load(sys.stdin) if r['kind']=='extra_time'][0])")
+N0=$(curl -s $B/api/devices/me/commands -H "Authorization: Bearer $DT" | python -c "import sys,json;print(len(json.load(sys.stdin)))")
+dec $RID4 '{"decision":"rejected"}' "reject extra_time" 200
+N1=$(curl -s $B/api/devices/me/commands -H "Authorization: Bearer $DT" | python -c "import sys,json;print(len(json.load(sys.stdin)))")
+echo "commands before/after reject extra_time (expect equal): $N0 $N1"
+echo "child sees rejected:"; curl -s $B/api/devices/me/requests/$RID4 -H "Authorization: Bearer $DT" | py "['status']"
+R3=$(curl -s -X POST $B/api/devices/me/requests -H "$J" -H "Authorization: Bearer $DT" -d '{"kind":"study_done"}'); RID3=$(echo $R3 | py "['id']")
+curl -s -o /dev/null -w "unpair (expect 204) %{http_code}\n" -X DELETE $B/api/devices/$DID -H "Authorization: Bearer $A"
+dec $RID3 '{"decision":"approved"}' "approve after unpair" 404
+curl -s -o /dev/null -w "list after unpair (expect 404) %{http_code}\n" "$B/api/devices/$DID/requests" -H "Authorization: Bearer $A"
+curl -s -o /dev/null -w "child request after unpair (expect 401) %{http_code}\n" -X POST $B/api/devices/me/requests -H "$J" -H "Authorization: Bearer $DT" -d '{"kind":"study_done"}'

@@ -1,3 +1,5 @@
+using SafeFamily.Api.Services;
+
 namespace SafeFamily.Api.Data;
 
 public class Family
@@ -136,4 +138,22 @@ public class DeviceStatus
     /// <summary>Mảng JSON {package, until} các app đang mở tạm; giữ để mẹ bấm "chặn lại ngay".</summary>
     public string TempUnlockedJson { get; set; } = "[]";
     public DateTime ReportedAt { get; set; } = DateTime.UtcNow;
+}
+
+/// <summary>
+/// Yêu cầu của máy con (API-06): xin thêm giờ hoặc báo "đã học xong". Chỉ có loại yêu cầu và số phút xin,
+/// không có nội dung hay app đang dùng. Mẹ duyệt/từ chối thì server tạo lệnh tương ứng.
+/// </summary>
+public class ChildRequest
+{
+    public int Id { get; set; }
+    public int DeviceId { get; set; }
+    /// <summary>"extra_time" | "study_done".</summary>
+    public string Kind { get; set; } = "";
+    /// <summary>JSON: extra_time = {"minutes":N}, study_done = {}.</summary>
+    public string Payload { get; set; } = "{}";
+    /// <summary>"pending" | "approved" | "rejected".</summary>
+    public string Status { get; set; } = RequestRules.Pending;
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime? DecidedAt { get; set; }
 }

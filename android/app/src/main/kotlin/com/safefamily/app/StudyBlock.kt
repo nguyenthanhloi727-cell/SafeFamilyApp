@@ -62,6 +62,8 @@ object StudyBlock {
         if (!TimeLimits.studyActive(context)) return
         if (state(context) == CHILD_CLAIMS_DONE) return
         put(context, CHILD_CLAIMS_DONE)
+        // Máy con đã ghép: báo mẹ ở xa qua server (API-06). Lỗi gì cũng không được làm hỏng màn học.
+        runCatching { FamilySync.queueRequest(context, FamilySync.REQUEST_STUDY_DONE) }
     }
 
     /** Phụ huynh đã xác thực và duyệt: mở khóa app đến hết hôm nay. */

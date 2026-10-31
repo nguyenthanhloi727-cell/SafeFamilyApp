@@ -9,7 +9,7 @@ Mã task `API-xx` dùng để tham chiếu. Làm theo "Thứ tự đề xuất" 
 
 ---
 
-## 1. API hiện có (26 endpoint)
+## 1. API hiện có (30 endpoint)
 
 | Nhóm | Endpoint | Ai gọi |
 |---|---|---|
@@ -22,8 +22,9 @@ Mã task `API-xx` dùng để tham chiếu. Làm theo "Thứ tự đề xuất" 
 | App đã cài | `POST /api/devices/me/apps`, `GET /api/devices/{id}/apps` | Con gửi / Mẹ xem |
 | Vị trí | `POST /api/devices/me/locations`, `GET /api/devices/{id}/location`, `GET /api/devices/{id}/locations` | Con / Mẹ |
 | Hàng rào | `GET/PUT /api/devices/{id}/geofences`, `GET /api/devices/me/geofences`, `POST /api/devices/me/geofence-events`, `GET /api/devices/{id}/geofence-events` | Mẹ / Con |
+| Yêu cầu của con | `POST /api/devices/me/requests`, `GET /api/devices/me/requests/{id}` (con); `GET /api/devices/{id}/requests?status=`, `PUT /api/requests/{id}` (mẹ) | Con gửi / Mẹ duyệt |
 
-Lệnh máy con đã hiểu (`FamilySync.apply`): `pause`, `lock`, `unpause`, `unlock`, `study_start`, `study_stop`, `disable_limit_today`, `enable_limit_today`, `study_approve`, `study_reject`.
+Lệnh máy con đã hiểu (`FamilySync.apply`): `pause`, `lock`, `unpause`, `unlock`, `study_start`, `study_stop`, `disable_limit_today`, `enable_limit_today`, `study_approve`, `study_reject`, `extra_time_grant` (API-06), `app_unlock_temp`, `app_relock`, `app_block`, `app_allow`.
 Gói luật (schema `schemaVersion` 1): `{"schemaVersion":1,"timeLimit":{...},"appLock":{"blocked":[pkg],"schedules":[]}}`.
 
 ---
@@ -35,8 +36,8 @@ Gói luật (schema `schemaVersion` 1): `{"schemaVersion":1,"timeLimit":{...},"a
 | 1 | Chọn vai trò, ghép đôi (`connection/`) | Máy + server | ✅ | Đổi tên máy con; xem thông tin máy con (`/me`); thêm người giám hộ thứ 2 | API-01, API-02 |
 | 2 | Tài khoản mẹ (`parent_login_page`) | Server | 🟡 | Đăng xuất (thu hồi refresh), đổi mật khẩu, quên mật khẩu, xóa tài khoản | API-03 |
 | 3 | Giới hạn thời gian: ngày, giờ ngủ, theo tuổi (`time_limit/`) | Máy con (Kotlin) | 🟡 `policy.timeLimit` | Mẹ đã đẩy được (có test tự động); chờ test 2 máy thật | API-04 |
-| 4 | Giờ học, "Đã học xong", duyệt (`study_approval`, `StudyBlock.kt`) | Máy con | 🟡 lệnh `study_*` có | Con chưa gửi yêu cầu duyệt lên; mẹ chưa có danh sách yêu cầu | API-06 |
-| 5 | Xin thêm giờ (`extra_time`) | Máy con | ❌ | Endpoint yêu cầu, duyệt/từ chối | API-06 |
+| 4 | Giờ học, "Đã học xong", duyệt (`study_approval`, `StudyBlock.kt`) | Máy con | 🟡 lệnh `study_*` có | Code xong, chờ test máy thật: con gửi yêu cầu "đã học xong", mẹ có danh sách duyệt | API-06 |
+| 5 | Xin thêm giờ (`extra_time`) | Máy con + server | 🟡 | Code xong, chờ test máy thật: con xin 5/15/30 phút, mẹ duyệt/từ chối | API-06 |
 | 6 | Tạm dừng (`pause_card`) | Máy con | 🟡 lệnh + trạng thái `isPaused` | UI mẹ gửi lệnh và hiện đúng trạng thái/nút tiếp tục theo `isPaused` (code xong, test tự động đạt; chờ test máy thật) | API-09 |
 | 7 | Khóa ứng dụng, lịch chặn, mở tạm (`app_lock/`, `TempRelocks.kt`) | Máy con | 🟡 `policy.appLock.blocked` | Danh sách chặn đã đẩy/ghi được (chờ test máy thật). Lệnh `app_unlock_temp/relock/block/allow` đã có, nút mở tạm của mẹ đã nối (chờ test máy thật). Còn: lịch chặn riêng từng app, UI chặn lại / chặn / cho phép từ xa | API-05, API-07 |
 | 8 | App mới cài (`new_app/`, `NewApps.kt`) | Máy con | 🟡 gửi danh sách app | Trạng thái duyệt (cho dùng/chặn) mỗi app; thông báo cho mẹ khi có app mới | API-07 |
@@ -89,12 +90,13 @@ Mỗi task: endpoint/bảng cần thêm, phía Flutter/Kotlin cần nối, đi�
 - Flutter mẹ (xong, có test tự động `remote_commands_test.dart`): `RemoteCommands` (`lib/core/network/remote_commands.dart`). `app_lock_page` nút mở tạm và `pause_card` gửi lệnh khi chế độ "mẹ" đã chọn máy con; vẫn qua `ParentGate`. Chưa chọn máy con thì làm trên máy này như cũ. Nút "chặn lại ngay" từ xa và trạng thái tạm dừng của máy con: xem API-09.
 - Xong khi: mẹ bấm mở tạm một app, con mở được rồi tự chặn lại (cần 2 máy thật, xem TASKS/TEST_PLAN.md "Bổ sung API-05").
 
-### API-06 Yêu cầu của con (xin thêm giờ, "đã học xong")
-- Bảng `ChildRequest` (DeviceId, Kind: `extra_time|study_done`, Payload, Status: `pending|approved|rejected`, CreatedAt, DecidedAt).
-- API: `POST /api/devices/me/requests` (con), `GET /api/devices/me/requests/{id}` (con xem kết quả), `GET /api/devices/{id}/requests?status=pending` (mẹ), `PUT /api/requests/{id}` (mẹ duyệt/từ chối; server tự tạo lệnh `study_approve/reject` hoặc cộng giờ).
-- Kotlin: `extra_time` và `StudyBlock` gửi yêu cầu khi có mạng, xếp hàng khi offline.
-- Flutter mẹ: danh sách chờ duyệt, qua khóa phụ huynh (sinh trắc) trước khi duyệt.
-- Xong khi: con xin thêm 30 phút, mẹ duyệt, con thấy được cộng giờ.
+### API-06 Yêu cầu của con (xin thêm giờ, "đã học xong") — code xong, CHƯA test máy thật
+- Server (xong, đã chạy `smoke.sh`): bảng `ChildRequest` (migration `ChildRequests`; `Kind` `extra_time|study_done`, `Payload`, `Status` `pending|approved|rejected`, `CreatedAt`, `DecidedAt`). `POST /api/devices/me/requests` (con) nhận `{kind, payloadJson}`: `extra_time` chỉ có đúng trường `minutes` (số nguyên 1–240), `study_done` không có trường nào (trường thừa → 400, để không lọt nội dung/app đang dùng); payload ≤256 byte, `kind` ≤20 ký tự. Đã có yêu cầu cùng loại đang chờ (chưa quá 24 giờ) → 409 kèm `id` của nó. Dọn yêu cầu cũ hơn 7 ngày mỗi lần con gửi mới; tối đa 200 dòng/máy (429). `GET me/requests/{id}` (con, của máy khác → 404). `GET /api/devices/{id}/requests?status=` (mẹ; ≤50, mới nhất trước, `status` sai → 400, yêu cầu chờ quá 24 giờ bị ẩn). `PUT /api/requests/{id}` (mẹ) nhận `{decision: approved|rejected, minutes?}`: server đổi trạng thái và tạo lệnh trong cùng một lần lưu (`study_done` → `study_approve`/`study_reject`; `extra_time` duyệt → lệnh mới `extra_time_grant` với `minutes` 1–120, từ chối → không tạo lệnh, con xem kết quả qua GET). Quyết định hai lần → 409 (cột `Status` là concurrency token nên hai lần bấm cùng lúc chỉ một lần thắng); hết hạn 24 giờ → 409; mẹ gia đình khác hoặc máy đã hủy ghép → 404. Logic ở `Services/RequestRules.cs`, `CommandRules` thêm `extra_time_grant`.
+- Kotlin con (xong, biên dịch được, chưa chạy máy thật): `FamilySync.queueRequest` xếp hàng chờ trong SharedPreferences (`pending_requests`, như hàng chờ vị trí), gửi ngay ở luồng nền và gửi bù mỗi `syncOnce`; mọi lỗi mạng/máy chủ bị nuốt, không làm hỏng lượt đồng bộ. Theo dõi kết quả bằng `tracked_requests`, khi mẹ quyết định thì con thấy thông báo ("Bố mẹ đã đồng ý/chưa đồng ý cho thêm giờ", "đã duyệt/chưa duyệt"). `extra_time_grant` → `TimeLimits.addBonus` (1–120 phút, sai thì không ack). `TimeLimitBlockActivity` "Xin thêm giờ": máy đã ghép thì hỏi 5/15/30 phút gửi cho mẹ, hoặc "Đưa máy cho bố mẹ" (cách tại chỗ cũ); máy chưa ghép giữ nguyên cách cũ. `StudyBlock.claimDone` gửi `study_done`. Khóa riêng cho hàng chờ, không dùng khóa `FamilySync` (tránh khóa chéo với `StudyBlock`).
+- Flutter mẹ (xong, có test tự động): `ApiClient.getRequests/decideRequest`, màn `ChildRequestsPage` (từ màn máy con, nút "Yêu cầu của con (N chờ duyệt)"): duyệt VÀ từ chối đều qua `ParentGate.always` (sinh trắc/PIN), huỷ khóa thì không gọi server; 409 thì báo và tải lại. Báo mẹ khi có yêu cầu mới: `ChildRequestAlertChecker` chạy trong `parent_alert_worker` (cùng WorkManager 15 phút với vào/ra vùng). TODO(verify): thông báo nền trên máy mẹ thật (Android 13+ cần quyền thông báo; trễ tối thiểu 15 phút).
+- Quyền riêng tư: chỉ gửi loại yêu cầu và số phút xin.
+- Giới hạn đã biết: nếu phụ huynh duyệt tại chỗ trên máy con (cách cũ) thì yêu cầu gửi lên server vẫn "chờ" tới khi mẹ xử lý hoặc hết hạn 24 giờ (duyệt thêm sẽ cộng giờ lần nữa với `extra_time`; `study_approve` thì vô hại vì máy con bỏ qua khi không còn ở trạng thái chờ). Con chọn 5/15/30 phút, mẹ duyệt đúng số con xin (tối đa 120), chưa có ô sửa số phút trên giao diện (API có `minutes`).
+- Xong khi: con xin thêm 30 phút, mẹ duyệt, con thấy được cộng giờ (cần 2 máy thật, xem TASKS/TEST_PLAN.md "Bổ sung API-06").
 
 ### API-07 Duyệt app mới cài
 - Mở rộng `InstalledApp`: `Status` (`new|allowed|blocked`), `DecidedAt`.

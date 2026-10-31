@@ -30,12 +30,28 @@ object FamilySync {
     private const val KEY_GEOFENCE_VERSION = "geofence_version"
     private const val KEY_LOCATIONS = "pending_locations"
     private const val KEY_EVENTS = "pending_events"
+    private const val KEY_REQUESTS = "pending_requests"
+    private const val KEY_TRACKED = "tracked_requests"
     private const val MAX_QUEUE = 500
     private const val TIMEOUT_MS = 15_000
     private const val DEFAULT_LOCK_MINUTES = 60
 
     /** Khớp CommandRules.MaxUnlockMinutes ở server. */
     private const val MAX_UNLOCK_MINUTES = 240
+
+    /** Khớp CommandRules.MaxExtraMinutes ở server. */
+    private const val MAX_EXTRA_MINUTES = 120
+
+    /** Loại yêu cầu của con (RequestRules ở server). */
+    const val REQUEST_EXTRA_TIME = "extra_time"
+    const val REQUEST_STUDY_DONE = "study_done"
+    private const val MAX_REQUEST_QUEUE = 10
+    private const val MAX_TRACKED = 20
+
+    /** Khớp RequestRules.PendingMaxAge ở server: quá hạn này server không còn xét yêu cầu. */
+    private const val REQUEST_MAX_AGE_MS = 24 * 60 * 60_000L
+    private const val REQUEST_CHANNEL = "request_result"
+    private const val REQUEST_NOTIFICATION_ID = 0x57D2
 
     /** Bản schema gói luật máy con hiểu (xem lib/core/network/policy_schema.dart). */
     private const val SUPPORTED_SCHEMA = 1
@@ -145,11 +161,166 @@ object FamilySync {
             pullPolicy(context)
             pullGeofences(context)
             pushStatus(context) // lỗi mạng/ máy chủ chỉ bỏ qua lượt này, không làm hỏng các bước còn lại
+            syncRequests(context) // gửi yêu cầu chờ + xem kết quả; mọi lỗi chỉ bỏ qua lượt này
             flush(context, KEY_LOCATIONS, "locations", "points")
             flush(context, KEY_EVENTS, "geofence-events", "events")
             true
         } catch (e: java.io.IOException) {
             false // offline: giữ nguyên luật + hàng chờ, lượt sau thử lại
+        }
+    }
+
+    // ---- Yêu cầu của con (API-06) ------------------------------------------
+
+    /**
+     * Con xin thêm giờ / báo "đã học xong". Xếp vào hàng chờ (SharedPreferences, không mất khi offline hay kill
+     * app) rồi gửi ngay ở luồng nền nếu có mạng; không có mạng thì lượt đồng bộ sau gửi bù. CHỈ gửi loại yêu cầu
+     * và số phút xin ([minutes] chỉ cho extra_time), không gửi app đang dùng hay nội dung. Máy chưa ghép thì bỏ qua.
+     * Cùng loại đang chờ thì không xếp thêm (server cũng chặn trùng).
+     */
+    fun queueRequest(context: Context, kind: String, minutes: Int = 0) {
+        if (!isConfigured(context)) return
+        if (kind == REQUEST_EXTRA_TIME && minutes !in 1..MAX_EXTRA_MINUTES) return
+        val p = prefs(context)
+        // Khóa riêng (không phải khóa của FamilySync): StudyBlock giữ khóa của nó khi gọi vào đây, còn
+        // syncOnce giữ khóa FamilySync khi gọi StudyBlock; dùng chung khóa sẽ khóa chéo nhau.
+        synchronized(requestQueueLock) {
+            val queue = JSONArray(p.getString(KEY_REQUESTS, "[]"))
+            for (i in 0 until queue.length()) if (queue.getJSONObject(i).optString("kind") == kind) return
+            if (queue.length() >= MAX_REQUEST_QUEUE) return
+            val item = JSONObject().put("kind", kind).put("at", System.currentTimeMillis())
+            if (kind == REQUEST_EXTRA_TIME) item.put("minutes", minutes)
+            queue.put(item)
+            p.edit().putString(KEY_REQUESTS, queue.toString()).apply()
+        }
+        Thread { syncRequests(context) }.start()
+    }
+
+    private val requestQueueLock = Any()
+    private val requestSyncLock = Any()
+
+    /** Gửi hàng chờ rồi hỏi kết quả các yêu cầu đã gửi. Lỗi (mạng, 5xx, đọc dữ liệu) bị nuốt: lượt sau thử lại. */
+    private fun syncRequests(context: Context) {
+        synchronized(requestSyncLock) {
+            runCatching {
+                flushRequests(context)
+                pollRequests(context)
+            }
+        }
+    }
+
+    private fun flushRequests(context: Context) {
+        val p = prefs(context)
+        val queue = synchronized(requestQueueLock) { JSONArray(p.getString(KEY_REQUESTS, "[]")) }
+        if (queue.length() == 0) return
+        val handled = mutableSetOf<String>() // mục đã gửi xong hoặc bỏ; phần còn lại giữ nguyên trong hàng
+        var stop = false
+        try {
+            for (i in 0 until queue.length()) {
+                if (stop) break
+                val item = queue.getJSONObject(i)
+                val key = "${item.optString("kind")}@${item.optLong("at", 0L)}"
+                // Quá hạn thì server cũng không xét nữa: bỏ, con bấm lại nếu vẫn cần.
+                if (System.currentTimeMillis() - item.optLong("at", 0L) > REQUEST_MAX_AGE_MS) { handled.add(key); continue }
+                val kind = item.getString("kind")
+                val payload = if (kind == REQUEST_EXTRA_TIME) JSONObject().put("minutes", item.getInt("minutes")) else JSONObject()
+                val body = JSONObject().put("kind", kind).put("payloadJson", payload.toString())
+                val r = request(context, "POST", "/api/devices/me/requests", body) // IOException: offline, giữ nguyên hàng
+                when (r.code) {
+                    200, 409 -> { // 409 = đã có yêu cầu cùng loại đang chờ: theo dõi chính nó
+                        val id = runCatching { JSONObject(r.body).getInt("id") }.getOrNull()
+                        if (id != null) track(context, id, kind)
+                        handled.add(key)
+                    }
+                    400, 401, 404 -> handled.add(key) // dữ liệu hỏng / máy bị hủy ghép: bỏ, tránh kẹt hàng chờ
+                    else -> stop = true // 429, 5xx: giữ, thử lại sau
+                }
+            }
+        } finally {
+            if (handled.isNotEmpty()) synchronized(requestQueueLock) {
+                // Đọc lại: con có thể vừa xếp thêm yêu cầu trong lúc đang gửi.
+                val now = JSONArray(p.getString(KEY_REQUESTS, "[]"))
+                val rest = JSONArray()
+                for (i in 0 until now.length()) {
+                    val entry = now.getJSONObject(i)
+                    if ("${entry.optString("kind")}@${entry.optLong("at", 0L)}" !in handled) rest.put(entry)
+                }
+                p.edit().putString(KEY_REQUESTS, rest.toString()).apply()
+            }
+        }
+    }
+
+    private fun track(context: Context, id: Int, kind: String) {
+        val p = prefs(context)
+        val list = JSONArray(p.getString(KEY_TRACKED, "[]"))
+        for (i in 0 until list.length()) if (list.getJSONObject(i).optInt("id") == id) return
+        list.put(JSONObject().put("id", id).put("kind", kind).put("at", System.currentTimeMillis()))
+        val kept = if (list.length() > MAX_TRACKED) {
+            JSONArray().also { out -> for (i in list.length() - MAX_TRACKED until list.length()) out.put(list.get(i)) }
+        } else list
+        p.edit().putString(KEY_TRACKED, kept.toString()).apply()
+    }
+
+    /** Hỏi kết quả từng yêu cầu đang theo dõi; đã duyệt/từ chối thì báo con rồi thôi theo dõi. */
+    private fun pollRequests(context: Context) {
+        val p = prefs(context)
+        val tracked = JSONArray(p.getString(KEY_TRACKED, "[]"))
+        if (tracked.length() == 0) return
+        val keep = JSONArray()
+        for (i in 0 until tracked.length()) {
+            val item = tracked.getJSONObject(i)
+            val r = try {
+                request(context, "GET", "/api/devices/me/requests/${item.getInt("id")}", null)
+            } catch (e: java.io.IOException) {
+                for (j in i until tracked.length()) keep.put(tracked.get(j)) // offline: giữ phần còn lại
+                break
+            }
+            val expired = System.currentTimeMillis() - item.optLong("at", 0L) > REQUEST_MAX_AGE_MS
+            when (r.code) {
+                200 -> {
+                    val status = runCatching { JSONObject(r.body).getString("status") }.getOrDefault("pending")
+                    if (status == "pending") {
+                        if (!expired) keep.put(item)
+                    } else {
+                        notifyRequestResult(context, item.getString("kind"), status == "approved")
+                    }
+                }
+                404 -> {} // server không còn yêu cầu này
+                else -> if (!expired) keep.put(item)
+            }
+        }
+        p.edit().putString(KEY_TRACKED, keep.toString()).apply()
+    }
+
+    /** Con thấy kết quả bằng thông báo. Thiếu quyền POST_NOTIFICATIONS thì notify() bị bỏ qua (TODO(verify) trên máy thật). */
+    private fun notifyRequestResult(context: Context, kind: String, approved: Boolean) {
+        runCatching {
+            val text = when {
+                kind == REQUEST_EXTRA_TIME && approved -> "Bố mẹ đã đồng ý cho thêm giờ."
+                kind == REQUEST_EXTRA_TIME -> "Bố mẹ chưa đồng ý cho thêm giờ."
+                approved -> "Bố mẹ đã duyệt: con dùng máy lại được."
+                else -> "Bố mẹ chưa duyệt, con học tiếp nhé."
+            }
+            val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                manager.createNotificationChannel(
+                    android.app.NotificationChannel(REQUEST_CHANNEL, "Trả lời của bố mẹ", android.app.NotificationManager.IMPORTANCE_DEFAULT),
+                )
+            }
+            val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                android.app.Notification.Builder(context, REQUEST_CHANNEL)
+            } else {
+                @Suppress("DEPRECATION")
+                android.app.Notification.Builder(context)
+            }
+            manager.notify(
+                REQUEST_NOTIFICATION_ID + if (kind == REQUEST_EXTRA_TIME) 0 else 1,
+                builder.setSmallIcon(context.applicationInfo.icon)
+                    .setContentTitle("SafeFamily")
+                    .setContentText(text)
+                    .setAutoCancel(true)
+                    .build(),
+            )
         }
     }
 
@@ -184,6 +355,11 @@ object FamilySync {
             "study_stop" -> TimeLimits.stopStudySession(context)
             "disable_limit_today" -> TimeLimits.setTotalLimitDisabledToday(context, true)
             "enable_limit_today" -> TimeLimits.setTotalLimitDisabledToday(context, false)
+            "extra_time_grant" -> {
+                // Mẹ duyệt xin thêm giờ (API-06). Số phút sai thì không ack.
+                if (minutes !in 1..MAX_EXTRA_MINUTES) return false
+                TimeLimits.addBonus(context, minutes)
+            }
             "study_approve" -> StudyBlock.approve(context)
             "study_reject" -> StudyBlock.reject(context)
             "app_unlock_temp", "app_relock", "app_block", "app_allow" -> return applyAppCommand(context, type, payloadJson)

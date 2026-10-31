@@ -50,3 +50,10 @@ public record PutStatusRequest([Range(0, 100)] int? BatteryPercent, [Range(0, in
 public record DeviceStatusDto(DateTime? LastSeenAt, DateTime? ReportedAt, int? BatteryPercent, int PolicyVersion,
                               bool IsPaused, bool StudyActive, List<string> PermissionsMissing, string? AppVersion,
                               List<TempUnlockItem> TempUnlocked);
+
+// ---- Yêu cầu của máy con (API-06). Chỉ loại yêu cầu + số phút xin. ----
+public record CreateChildRequest([Required, MaxLength(20)] string Kind, string? PayloadJson);
+public record ChildRequestDto(int Id, int DeviceId, string Kind, string Payload, string Status,
+                              DateTime CreatedAt, DateTime? DecidedAt);
+/// <summary>Decision = "approved" | "rejected". Minutes chỉ dùng khi duyệt extra_time (bỏ trống = số phút con xin).</summary>
+public record DecideRequest([Required, MaxLength(10)] string Decision, int? Minutes);

@@ -93,8 +93,26 @@ class TimeLimitBlockActivity : Activity() {
     @Deprecated("Back cũng về màn hình chính, không quay lại app bị chặn")
     override fun onBackPressed() = goHome()
 
-    /** Phụ huynh xác thực trong SafeFamily rồi chọn 5/15/30 phút. */
+    /**
+     * Máy đã ghép đôi: con chọn số phút xin rồi gửi cho mẹ ở xa (API-06), hoặc đưa máy cho phụ huynh
+     * duyệt tại chỗ như cũ. Máy chưa ghép: chỉ cách tại chỗ.
+     */
     private fun requestMoreTime() {
+        if (!FamilySync.isConfigured(this)) return requestOnThisDevice()
+        val choices = intArrayOf(5, 15, 30)
+        AlertDialog.Builder(this)
+            .setTitle("Xin bố mẹ thêm giờ")
+            .setItems(choices.map { "Xin $it phút" }.toTypedArray()) { _, i ->
+                FamilySync.queueRequest(this, FamilySync.REQUEST_EXTRA_TIME, choices[i])
+                android.widget.Toast.makeText(this, "Đã gửi cho bố mẹ. Chờ bố mẹ trả lời nhé.", android.widget.Toast.LENGTH_LONG).show()
+            }
+            .setNeutralButton("Đưa máy cho bố mẹ") { _, _ -> requestOnThisDevice() }
+            .setNegativeButton("Thôi", null)
+            .show()
+    }
+
+    /** Phụ huynh xác thực trong SafeFamily rồi chọn 5/15/30 phút. */
+    private fun requestOnThisDevice() {
         GuardPrefs.setExtraTimePending(this, true)
         startActivity(
             Intent(this, MainActivity::class.java)

@@ -115,6 +115,24 @@ public class DevicesController(AppDb db) : ApiBase
             StatusRules.ParseTempUnlocked(s.TempUnlockedJson).Where(t => t.Until.ToUniversalTime() > now).ToList());
     }
 
+    /// <summary>
+    /// Yêu cầu của máy con (API-06), mới nhất trước, tối đa 50. <c>status</c> bỏ trống = tất cả. Yêu cầu chờ quá
+    /// 24 giờ bị ẩn (hết hạn). Gia đình khác hoặc máy đã hủy ghép → 404.
+    /// </summary>
+    [HttpGet("{id:int}/requests")]
+    public async Task<ActionResult<List<ChildRequestDto>>> Requests(int id, [FromQuery] string? status = null)
+    {
+        if (await Own(id) is null) return NotFound();
+        if (status is not null && !RequestRules.IsStatus(status)) return BadRequest(new { error = "status không hợp lệ." });
+        var oldestPending = DateTime.UtcNow - RequestRules.PendingMaxAge;
+        var q = db.ChildRequests.Where(r => r.DeviceId == id &&
+            (r.Status != RequestRules.Pending || r.CreatedAt > oldestPending));
+        if (status is not null) q = q.Where(r => r.Status == status);
+        return await q.OrderByDescending(r => r.Id).Take(50)
+            .Select(r => new ChildRequestDto(r.Id, r.DeviceId, r.Kind, r.Payload, r.Status, r.CreatedAt, r.DecidedAt))
+            .ToListAsync();
+    }
+
     /// <summary>Vị trí mới nhất của máy con (204 nếu chưa có).</summary>
     [HttpGet("{id:int}/location")]
     public async Task<ActionResult<LocationDto>> LastLocation(int id)
@@ -257,6 +275,47 @@ public class DeviceSelfController(AppDb db) : ApiBase
         await db.SaveChangesAsync();
         return NoContent();
     }
+
+    /// <summary>
+    /// Con gửi yêu cầu (API-06): <c>extra_time</c> {"minutes":N} hoặc <c>study_done</c> {}. Đã có yêu cầu cùng loại
+    /// đang chờ (chưa quá 24 giờ) → 409 kèm <c>id</c> của nó, để máy con gửi bù không tạo trùng mà vẫn theo dõi được.
+    /// </summary>
+    [HttpPost("requests")]
+    public async Task<ActionResult<ChildRequestDto>> CreateRequest(CreateChildRequest req)
+    {
+        if (!await Touch()) return Unauthorized();
+        var error = RequestRules.Validate(req.Kind, req.PayloadJson, out var payload);
+        if (error is not null) return BadRequest(new { error });
+
+        var now = DateTime.UtcNow;
+        var oldestPending = now - RequestRules.PendingMaxAge;
+        var dup = await db.ChildRequests.Where(r => r.DeviceId == SubjectId && r.Kind == req.Kind &&
+            r.Status == RequestRules.Pending && r.CreatedAt > oldestPending).OrderByDescending(r => r.Id).FirstOrDefaultAsync();
+        if (dup is not null) return Conflict(new { error = "Đã có yêu cầu này đang chờ mẹ duyệt.", id = dup.Id });
+
+        // Dọn: yêu cầu đã quyết định quá hạn giữ, yêu cầu chờ quá hạn, và chặn bảng phình ra.
+        var decidedCutoff = now - RequestRules.DecidedRetention;
+        await db.ChildRequests.Where(r => r.DeviceId == SubjectId && r.CreatedAt < decidedCutoff).ExecuteDeleteAsync();
+        if (await db.ChildRequests.CountAsync(r => r.DeviceId == SubjectId) >= RequestRules.MaxRowsPerDevice)
+            return StatusCode(StatusCodes.Status429TooManyRequests, new { error = "Quá nhiều yêu cầu." });
+
+        var row = new ChildRequest { DeviceId = SubjectId, Kind = req.Kind, Payload = payload, CreatedAt = now };
+        db.ChildRequests.Add(row);
+        await db.SaveChangesAsync();
+        return RequestDto(row);
+    }
+
+    /// <summary>Con xem kết quả một yêu cầu của chính nó. Của máy khác → 404.</summary>
+    [HttpGet("requests/{id:int}")]
+    public async Task<ActionResult<ChildRequestDto>> GetRequest(int id)
+    {
+        if (!await Touch()) return Unauthorized();
+        var row = await db.ChildRequests.FirstOrDefaultAsync(r => r.Id == id && r.DeviceId == SubjectId);
+        return row is null ? NotFound() : RequestDto(row);
+    }
+
+    internal static ChildRequestDto RequestDto(ChildRequest r) =>
+        new(r.Id, r.DeviceId, r.Kind, r.Payload, r.Status, r.CreatedAt, r.DecidedAt);
 
     /// <summary>Gửi danh sách app đã cài (tên + tên gói). Thêm app mới, cập nhật nhãn, giữ FirstSeenAt.</summary>
     [HttpPost("apps")]

@@ -20,6 +20,14 @@ String permissionLabel(String id) {
   return id;
 }
 
+/// Câu hiển thị cho mẹ về một yêu cầu của con, ví dụ "Con xin thêm 15 phút".
+String requestLabel(ChildRequestInfo r) => switch (r.kind) {
+  RequestKind.extraTime =>
+    r.minutes == null ? 'Con xin thêm giờ' : 'Con xin thêm ${r.minutes} phút',
+  RequestKind.studyDone => 'Con báo đã học xong',
+  _ => 'Yêu cầu của con',
+};
+
 /// Mô tả ngắn một lệnh mẹ đã gửi, ví dụ "Mở tạm com.zing.zalo 15 phút".
 String commandLabel(CommandInfo c) {
   Map<String, dynamic> p = const {};
@@ -42,6 +50,7 @@ String commandLabel(CommandInfo c) {
     'unlock' => 'Mở khóa máy',
     'study_start' => 'Bắt đầu giờ học$forMinutes',
     'study_stop' => 'Dừng giờ học',
+    'extra_time_grant' => 'Cộng$forMinutes giờ dùng máy hôm nay',
     'study_approve' => 'Duyệt đã học xong',
     'study_reject' => 'Từ chối đã học xong',
     'disable_limit_today' => 'Tắt giới hạn hôm nay',
