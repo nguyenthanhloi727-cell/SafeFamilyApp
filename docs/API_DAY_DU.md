@@ -55,6 +55,7 @@ Gói luật (schema `schemaVersion` 1): `{"schemaVersion":1,"timeLimit":{...},"a
 | 18 | Báo thức giọng nói (`alarm/`) | Máy | ➖ | Không liên quan giám sát | – |
 | 19 | Thành viên nhóm (`team/`, `assets/team`) | Asset | ➖ | Dữ liệu tĩnh trong app | – |
 | 20 | Chủ đề, ngôn ngữ (`theme_settings`, `app_languages`) | Máy | ➖ | – | – |
+| 21 | Kiểm thử tự động API (`SafeFamily.Api.Tests`, `smoke.sh`) | Server | ✅ | Test tích hợp 174 ca đạt; còn test máy thật theo `TEST_PLAN.md` | API-15 |
 
 ---
 
@@ -166,10 +167,18 @@ Mỗi task: endpoint/bảng cần thêm, phía Flutter/Kotlin cần nối, đi�
 - Versioning: tiền tố `/api/v1` hoặc header `X-App-Version`, để bản app cũ không làm hỏng server mới.
 - Publish MyASP.net, chạy `smoke.sh` trên máy chủ thật.
 
-### API-15 Kiểm thử
-- Test tích hợp cho `SafeFamily.Api` (xUnit + `WebApplicationFactory`): phân quyền chéo gia đình (mẹ A không đọc máy con của mẹ B), 409 lệch phiên bản, mã ghép dùng lại, token bị thu hồi.
-- Mở rộng `smoke.sh` cho mọi endpoint mới.
-- Test máy thật theo `TASKS/TEST_PLAN.md`.
+### API-15 Kiểm thử — test tự động API xong và đạt; test máy thật (TEST_PLAN) CHƯA chạy
+- Test tích hợp `SafeFamily.Api.Tests` (xUnit + `WebApplicationFactory<Program>`, 174 ca, chạy `dotnet test` trong thư mục `SafeFamily.Api.Tests`): mỗi lần chạy tạo một CSDL LocalDB tạm bằng `Migrate()` (kiểm luôn migration) và xóa khi xong; không đụng CSDL dev. Cần LocalDB (`sqllocaldb i` thấy `MSSQLLocalDB`).
+- Phân quyền chéo gia đình: mẹ B gọi 21 đường dẫn phía mẹ trên máy con của mẹ A (đổi tên, policy, apps + quyết định app, commands, status, requests, usage, alerts, location-sharing, locations, location, geofences, geofence-events, `PUT /api/requests/{id}`, `POST /api/alerts/{id}/read`) đều 404 và dữ liệu không đổi; mẹ A gọi cùng đường dẫn thì thành công (đối chứng). Thêm: hủy ghép chéo gia đình 404, hàng rào / sự kiện của máy khác không bị ghi đè, token ký đúng khóa nhưng sai gia đình vẫn 404.
+- 409: lệch phiên bản policy và hàng rào, duyệt một yêu cầu hai lần, yêu cầu / cảnh báo trùng (kèm `id` đã có), yêu cầu quá 24 giờ.
+- Mã ghép: dùng lại 400, hết hạn 400, sai dạng 400, claim bị giới hạn tần suất 429, mã của mẹ khác không bị xóa khi mẹ B tạo mã.
+- Token: refresh đã đổi 401, refresh hết hạn 401, hủy ghép thì mọi endpoint phía con 401, token giả / hết hạn / sai khóa / sai audience / sai issuer 401, sai vai trò 403, không token 401.
+- Kiểm kiểu / độ dài / số lượng từng nhóm: policy (kích thước tính bằng byte, đúng 64 KiB), commands (mọi loại lệnh, biên phút), requests (kèm trần 200 dòng → 429), apps (mép 2000 app → 429), usage, status, alerts, locations, geofences, geofence-events, location-sharing, đổi tên máy, đăng ký / đăng nhập; mỗi nhóm có ca ở đúng mép giới hạn phải thành công.
+- Swagger: so khớp từng action của controller với `swagger.json`, thiếu action nào là test đỏ.
+- `smoke.sh` có thêm khối "API-15" (thế giới mới: 21 đường dẫn × mẹ khác 404 / chủ 2xx / token con 403 / không token 401, mã ghép dùng lại, refresh đã đổi, token giả, hủy ghép), in số đường dẫn Swagger. Nên chạy API với `RateLimit__AuthPerMinute` và `RateLimit__ClaimPer10Min` lớn (cấu hình mới; mặc định giữ 10 và 5).
+- Sửa server khi viết test: `POST devices/me/locations` không còn lưu điểm quá hạn giữ 7 ngày (trước đây lưu rồi mới bị xóa ở lượt gửi sau).
+- Ghi nhận chưa sửa (TODO(verify), chờ quyết định): (1) MVC ép chuỗi số thành số (`"minutes":"5"` được nhận như 5) ở các trường số của DTO; (2) `readAt` của `POST alerts/{id}/read` lần đầu có hậu tố `Z`, lần sau không (cùng thời điểm); (3) giới hạn tên máy 50 ký tự tính trên chuỗi thô, trước khi cắt khoảng trắng.
+- Chưa làm trong task này: test máy thật theo `TASKS/TEST_PLAN.md` (mục "Bổ sung API-15"); test Kotlin tự động.
 
 ---
 

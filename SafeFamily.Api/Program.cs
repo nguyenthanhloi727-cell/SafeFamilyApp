@@ -44,16 +44,20 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     });
 builder.Services.AddAuthorization();
 
+// RateLimit:AuthPerMinute chỉ để nâng trần khi chạy smoke.sh (mặc định 10, giữ nguyên khi chạy thật).
+var authPerMinute = builder.Configuration.GetValue("RateLimit:AuthPerMinute", 10);
+var claimPer10Min = builder.Configuration.GetValue("RateLimit:ClaimPer10Min", 5); // API-15: test tích hợp nâng trần
+
 // Giới hạn tần suất theo IP: đăng nhập/đăng ký, và nhập mã ghép đôi (mã chỉ 6 số nên chặn đoán mò).
 builder.Services.AddRateLimiter(o =>
 {
     o.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
     o.AddPolicy("auth", ctx => RateLimitPartition.GetFixedWindowLimiter(
         ctx.Connection.RemoteIpAddress?.ToString() ?? "?",
-        _ => new FixedWindowRateLimiterOptions { PermitLimit = 10, Window = TimeSpan.FromMinutes(1) }));
+        _ => new FixedWindowRateLimiterOptions { PermitLimit = authPerMinute, Window = TimeSpan.FromMinutes(1) }));
     o.AddPolicy("claim", ctx => RateLimitPartition.GetFixedWindowLimiter(
         ctx.Connection.RemoteIpAddress?.ToString() ?? "?",
-        _ => new FixedWindowRateLimiterOptions { PermitLimit = 5, Window = TimeSpan.FromMinutes(10) }));
+        _ => new FixedWindowRateLimiterOptions { PermitLimit = claimPer10Min, Window = TimeSpan.FromMinutes(10) }));
 });
 
 builder.Services.AddEndpointsApiExplorer();
@@ -87,3 +91,6 @@ app.UseAuthorization();
 app.MapControllers();
 
 app.Run();
+
+// API-15: để SafeFamily.Api.Tests dùng WebApplicationFactory<Program>.
+public partial class Program;

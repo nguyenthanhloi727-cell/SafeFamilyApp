@@ -515,12 +515,13 @@ public class DeviceSelfController(AppDb db) : ApiBase
             return StatusCode(StatusCodes.Status403Forbidden, new { error = LocationRules.SharingOffError, locationSharing = false });
         if (req.Points.Count > 500) return BadRequest(new { error = "Quá nhiều điểm." });
         var now = DateTime.UtcNow;
-        foreach (var p in req.Points.Where(p => p.Time.ToUniversalTime() < now.AddMinutes(5)))
+        var cutoff = now - LocationRules.Retention;
+        // Điểm quá hạn giữ không được lưu (API-15: trước đây lưu rồi mới bị xóa ở lượt gửi sau).
+        foreach (var p in req.Points.Where(p => p.Time.ToUniversalTime() < now.AddMinutes(5) && p.Time.ToUniversalTime() >= cutoff))
             db.LocationPoints.Add(new LocationPoint
             {
                 DeviceId = SubjectId, Lat = p.Lat, Lng = p.Lng, Accuracy = p.Accuracy, Time = p.Time.ToUniversalTime(),
             });
-        var cutoff = now - LocationRules.Retention;
         await db.LocationPoints.Where(l => l.DeviceId == SubjectId && l.Time < cutoff).ExecuteDeleteAsync();
         await db.SaveChangesAsync();
         return NoContent();

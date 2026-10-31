@@ -403,3 +403,76 @@ if [ -n "$SF_SQL_SERVER" ] && [ -n "$SF_SQL_DB" ] && command -v sqlcmd >/dev/nul
 fi
 code "rename after unpair" 404 -X PATCH $B/api/devices/$DID -H "$J" -H "Authorization: Bearer $A" -d '{"name":"X"}'
 code "me after unpair" 401 $B/api/devices/me -H "Authorization: Bearer $DT"
+# --- Kiểm thử chéo gia đình / token / mã ghép (API-15): thế giới mới, không dùng lại $DID đã hủy ghép ---
+# Chạy smoke nên đặt RateLimit__AuthPerMinute và RateLimit__ClaimPer10Min lớn khi khởi động API (xem docs/API_TIEN_TRINH.md); không đặt thì
+# khởi động lại API giữa các lần chạy và phần ghép đôi bị 429 khi smoke có hơn 5 lần claim.
+reg() { curl -s -X POST $B/api/auth/register -H "$J" -d "{\"email\":\"$1$RANDOM@x.com\",\"password\":\"password123\"}"; }
+R1=$(reg p); M1=$(echo "$R1" | py "['accessToken']"); RT1=$(echo "$R1" | py "['refreshToken']")
+M2=$(reg q | py "['accessToken']")
+CODE15=$(curl -s -X POST $B/api/pairing/code -H "$J" -H "Authorization: Bearer $M1" -d '{"deviceName":"Con 15"}' | py "['code']")
+CL15=$(curl -s -X POST $B/api/pairing/claim -H "$J" -d "{\"code\":\"$CODE15\"}")
+K15=$(echo "$CL15" | py "['deviceToken']"); D15=$(echo "$CL15" | py "['deviceId']")
+code "pairing code reused" 400 -X POST $B/api/pairing/claim -H "$J" -d "{\"code\":\"$CODE15\"}"
+code "pairing code wrong length" 400 -X POST $B/api/pairing/claim -H "$J" -d '{"code":"12345"}'
+code "pairing code missing" 400 -X POST $B/api/pairing/claim -H "$J" -d '{}'
+code "pairing code by device token" 403 -X POST $B/api/pairing/code -H "$J" -H "Authorization: Bearer $K15" -d '{}'
+NOW15=$(date -u +%FT%TZ)
+curl -s -o /dev/null -X POST $B/api/devices/me/apps -H "$J" -H "Authorization: Bearer $K15" -d '{"apps":[{"packageName":"com.seed.app","label":"Seed","isNew":true}]}'
+RQ15=$(curl -s -X POST $B/api/devices/me/requests -H "$J" -H "Authorization: Bearer $K15" -d '{"kind":"extra_time","payloadJson":"{\"minutes\":10}"}' | py "['id']")
+AL15=$(curl -s -X POST $B/api/devices/me/alerts -H "$J" -H "Authorization: Bearer $K15" -d '{"kind":"time_changed"}' | py "['id']")
+# Mỗi dòng: tên|phương thức|đường dẫn|body. Mẹ B (M2) phải 404; mẹ A (M1) phải 2xx (đối chứng đường dẫn đúng).
+while IFS='|' read -r NM MT PT BD; do
+  PT=${PT//\{id\}/$D15}; PT=${PT//\{req\}/$RQ15}; PT=${PT//\{alert\}/$AL15}
+  if [ -n "$BD" ]; then ARGS=(-d "$BD"); else ARGS=(); fi
+  code "x-family $NM (other mother)" 404 -X $MT "$B$PT" -H "$J" -H "Authorization: Bearer $M2" "${ARGS[@]}"
+  code "x-family $NM (owner, expect 2xx)" "2xx" -X $MT "$B$PT" -H "$J" -H "Authorization: Bearer $M1" "${ARGS[@]}"
+  code "x-family $NM (device token)" 403 -X $MT "$B$PT" -H "$J" -H "Authorization: Bearer $K15" "${ARGS[@]}"
+  code "x-family $NM (no token)" 401 -X $MT "$B$PT" -H "$J" "${ARGS[@]}"
+done <<'EOF'
+rename|PATCH|/api/devices/{id}|{"name":"Ten moi"}
+policy get|GET|/api/devices/{id}/policy|
+policy put|PUT|/api/devices/{id}/policy|{"json":"{}","expectedVersion":0}
+apps list|GET|/api/devices/{id}/apps|
+app decide|PUT|/api/devices/{id}/apps/com.seed.app|{"status":"blocked"}
+command post|POST|/api/devices/{id}/commands|{"type":"pause","payloadJson":"{\"minutes\":5}"}
+commands list|GET|/api/devices/{id}/commands|
+status|GET|/api/devices/{id}/status|
+requests list|GET|/api/devices/{id}/requests|
+usage|GET|/api/devices/{id}/usage|
+alerts list|GET|/api/devices/{id}/alerts|
+sharing get|GET|/api/devices/{id}/location-sharing|
+sharing put|PUT|/api/devices/{id}/location-sharing|{"enabled":true}
+locations delete|DELETE|/api/devices/{id}/locations|
+location last|GET|/api/devices/{id}/location|
+locations history|GET|/api/devices/{id}/locations|
+geofences get|GET|/api/devices/{id}/geofences|
+geofences put|PUT|/api/devices/{id}/geofences|{"geofences":[],"expectedVersion":0}
+geofence events|GET|/api/devices/{id}/geofence-events|
+request decide|PUT|/api/requests/{req}|{"decision":"rejected"}
+alert read|POST|/api/alerts/{alert}/read|
+EOF
+code "unpair by other mother" 404 -X DELETE $B/api/devices/$D15 -H "Authorization: Bearer $M2"
+echo "device still listed for owner (expect 1): $(curl -s $B/api/devices -H "Authorization: Bearer $M1" | python -c "import sys,json;print(len(json.load(sys.stdin)))")"
+echo "device list of other mother (expect 0): $(curl -s $B/api/devices -H "Authorization: Bearer $M2" | python -c "import sys,json;print(len(json.load(sys.stdin)))")"
+# Token giả / sai vai trò
+code "forged token parent route" 401 $B/api/devices -H "Authorization: Bearer abc.def.ghi"
+code "garbage token device route" 401 $B/api/devices/me -H "Authorization: Bearer khong-phai-jwt"
+code "parent token on device route" 403 $B/api/devices/me/policy -H "Authorization: Bearer $M1"
+# Refresh token: dùng lại token đã đổi phải 401
+RF2=$(curl -s -X POST $B/api/auth/refresh -H "$J" -d "{\"refreshToken\":\"$RT1\"}" | py "['refreshToken']")
+code "refresh old token reused" 401 -X POST $B/api/auth/refresh -H "$J" -d "{\"refreshToken\":\"$RT1\"}"
+code "refresh new token" 200 -X POST $B/api/auth/refresh -H "$J" -d "{\"refreshToken\":\"$RF2\"}"
+code "refresh garbage" 401 -X POST $B/api/auth/refresh -H "$J" -d '{"refreshToken":"khong-co"}'
+code "refresh missing" 400 -X POST $B/api/auth/refresh -H "$J" -d '{}'
+# Hủy ghép: mọi endpoint phía con phải 401
+code "unpair (owner)" 204 -X DELETE $B/api/devices/$D15 -H "Authorization: Bearer $M1"
+code "unpair again" 404 -X DELETE $B/api/devices/$D15 -H "Authorization: Bearer $M1"
+for P in "" /settings /policy /commands /apps/decisions /geofences /requests/1; do
+  code "revoked device GET /me$P" 401 $B/api/devices/me$P -H "Authorization: Bearer $K15"
+done
+code "revoked device PUT status" 401 -X PUT $B/api/devices/me/status -H "$J" -H "Authorization: Bearer $K15" -d '{"policyVersion":0,"isPaused":false,"studyActive":false}'
+code "revoked device POST alerts" 401 -X POST $B/api/devices/me/alerts -H "$J" -H "Authorization: Bearer $K15" -d '{"kind":"time_changed"}'
+code "revoked device POST locations" 401 -X POST $B/api/devices/me/locations -H "$J" -H "Authorization: Bearer $K15" -d "{\"points\":[{\"lat\":1,\"lng\":1,\"accuracy\":1,\"time\":\"$NOW15\"}]}"
+code "revoked device POST ack" 401 -X POST $B/api/devices/me/commands/1/ack -H "Authorization: Bearer $K15"
+# Swagger: mọi endpoint phải hiện (test tích hợp SafeFamily.Api.Tests so khớp từng action; ở đây chỉ in số đường dẫn)
+echo "swagger path count (info): $(curl -s $B/swagger/v1/swagger.json | py "['paths'].__len__()")"
