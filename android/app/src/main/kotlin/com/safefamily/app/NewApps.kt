@@ -7,6 +7,8 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import org.json.JSONArray
+import org.json.JSONObject
 
 /**
  * Duyệt app mới cài: app xuất hiện sau lần quét đầu tiên bị chặn cho tới khi
@@ -25,6 +27,11 @@ object NewApps {
     private const val KEY_PENDING = "pending"
     private const val KEY_REJECTED = "rejected"
     private const val KEY_REVIEW = "review_pending"
+    private const val KEY_UPLOADED = "uploaded"
+    private const val KEY_APPLIED = "applied_decisions"
+    private const val UPLOAD_BATCH = 100
+    private const val MAX_LABEL = 200
+    private val PACKAGE_RE = Regex("^[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z0-9_]+)+$")
     private const val CHANNEL = "new_apps"
     private const val SCAN_MIN_GAP_MS = 5_000L
 
@@ -32,6 +39,7 @@ object NewApps {
     const val EXTRA_REVIEW = "review_new_apps"
 
     private var lastScan = 0L
+    private val netLock = Any()
 
     private fun prefs(context: Context) =
         context.applicationContext.getSharedPreferences(FILE, Context.MODE_PRIVATE)
@@ -105,7 +113,13 @@ object NewApps {
             KEY_KNOWN,
             known.filterTo(mutableSetOf()) { it in installed || it in pending || it in rejected },
         )
+        // App đã gỡ thì quên chuyện đã gửi / đã áp quyết định: cài lại phải gửi lên và duyệt lại.
+        forgetSync(context) { it in installed }
         added.forEach { announce(context, it) }
+        if (added.isNotEmpty() && FamilySync.isConfigured(context)) {
+            val app = context.applicationContext
+            Thread { syncWithServer(app) }.start() // gửi ngay nếu có mạng; không thì lượt đồng bộ sau gửi bù
+        }
         return added
     }
 
@@ -115,6 +129,7 @@ object NewApps {
         putStrings(context, KEY_PENDING, strings(context, KEY_PENDING) - packageName)
         putStrings(context, KEY_REJECTED, strings(context, KEY_REJECTED) - packageName)
         putStrings(context, KEY_KNOWN, strings(context, KEY_KNOWN) - packageName)
+        forgetSync(context) { it != packageName }
         cancelAnnouncement(context, packageName)
     }
 
@@ -168,6 +183,101 @@ object NewApps {
             canRequestMore = false,
             needsReview = true,
         )
+    }
+
+    // ---- Đồng bộ với server (API-07) -------------------------------------
+
+    /** Giữ lại trong `uploaded` / `applied_decisions` chỉ những gói thỏa [keep]. */
+    private fun forgetSync(context: Context, keep: (String) -> Boolean) {
+        val p = prefs(context)
+        val uploaded = strings(context, KEY_UPLOADED)
+        if (!uploaded.all(keep)) putStrings(context, KEY_UPLOADED, uploaded.filterTo(mutableSetOf(), keep))
+        val applied = runCatching { JSONObject(p.getString(KEY_APPLIED, "{}")) }.getOrDefault(JSONObject())
+        val drop = applied.keys().asSequence().filter { !keep(it) }.toList()
+        if (drop.isNotEmpty()) {
+            drop.forEach { applied.remove(it) }
+            p.edit().putString(KEY_APPLIED, applied.toString()).apply()
+        }
+    }
+
+    /**
+     * Gửi app mới cài lên server rồi kéo quyết định của mẹ về. Chỉ gửi tên app + tên gói (không nội dung) và
+     * chỉ app đang chờ duyệt. Hàng chờ chính là `pending` trừ `uploaded` (SharedPreferences, không mất khi
+     * offline hay kill app). MỌI lỗi (mạng, 4xx/5xx, dữ liệu hỏng) bị nuốt: lượt sau thử lại, không làm hỏng
+     * lượt đồng bộ của [FamilySync]. Không giữ khóa của [NewApps] trong lúc gọi mạng.
+     * Mẹ quyết định: `allowed` → [approve], `blocked` → [reject]; việc chặn vẫn do [verdict] lo, không đụng
+     * `policy.appLock.blocked` / `GuardPrefs.remoteBlocked` nên không lẫn với danh sách khóa của mẹ (API-04/05).
+     * TODO(verify): chạy trên 2 máy thật.
+     */
+    fun syncWithServer(context: Context) {
+        if (!FamilySync.isConfigured(context) || !enabled(context)) return
+        synchronized(netLock) {
+            runCatching {
+                // Còn app chưa gửi được thì chưa kéo quyết định: quyết định cũ của gói cài lại có thể còn trên server.
+                if (uploadPending(context)) pullDecisions(context)
+            }
+        }
+    }
+
+    /** `true` nếu không còn app nào chờ gửi. */
+    private fun uploadPending(context: Context): Boolean {
+        val exempt = TimeLimits.exemptPackages(context)
+        val todo = synchronized(this) {
+            (strings(context, KEY_PENDING) - strings(context, KEY_UPLOADED))
+                .filter { it !in exempt && PACKAGE_RE.matches(it) && it.length <= 200 }
+                .sorted()
+        }
+        for (batch in todo.chunked(UPLOAD_BATCH)) {
+            val apps = JSONArray()
+            batch.forEach { pkg ->
+                apps.put(
+                    JSONObject().put("packageName", pkg).put("label", cleanLabel(label(context, pkg), pkg))
+                        .put("isNew", true),
+                )
+            }
+            val r = FamilySync.request(context, "POST", "/api/devices/me/apps", JSONObject().put("apps", apps))
+            // 400 = server không nhận dữ liệu này: bỏ để không kẹt hàng chờ. 401/429/5xx: giữ, lượt sau thử lại.
+            if (r.code !in 200..299 && r.code != 400) return false
+            synchronized(this) { putStrings(context, KEY_UPLOADED, strings(context, KEY_UPLOADED) + batch) }
+        }
+        return true
+    }
+
+    private fun cleanLabel(label: String, pkg: String): String =
+        label.filter { !it.isISOControl() }.trim().take(MAX_LABEL).ifEmpty { pkg }
+
+    private fun pullDecisions(context: Context) {
+        val r = FamilySync.request(context, "GET", "/api/devices/me/apps/decisions", null)
+        if (r.code != 200) return
+        val array = JSONArray(r.body)
+        val decisions = linkedMapOf<String, String>()
+        for (i in 0 until array.length()) {
+            val item = array.getJSONObject(i)
+            val pkg = item.getString("packageName")
+            val status = item.getString("status")
+            if (PACKAGE_RE.matches(pkg) && (status == "allowed" || status == "blocked")) decisions[pkg] = status
+        }
+        val p = prefs(context)
+        val exempt = TimeLimits.exemptPackages(context)
+        synchronized(this) {
+            val applied = runCatching { JSONObject(p.getString(KEY_APPLIED, "{}")) }.getOrDefault(JSONObject())
+            val installed = launchable(context)
+            for ((pkg, status) in decisions) {
+                // Đã áp rồi thì thôi: phụ huynh sửa tay trên máy con được giữ tới khi mẹ đổi quyết định.
+                if (applied.optString(pkg) == status) continue
+                if (pkg !in exempt) {
+                    if (status == "allowed") {
+                        if (pkg in strings(context, KEY_PENDING) || pkg in strings(context, KEY_REJECTED)) approve(context, pkg)
+                    } else if (pkg in installed) {
+                        reject(context, pkg)
+                    }
+                }
+                applied.put(pkg, status)
+            }
+            // Quyết định biến mất (mẹ/máy con đưa app về chờ duyệt): lần quyết định sau phải áp lại.
+            applied.keys().asSequence().filter { it !in decisions }.toList().forEach { applied.remove(it) }
+            p.edit().putString(KEY_APPLIED, applied.toString()).apply()
+        }
     }
 
     // ---- Yêu cầu mở màn duyệt trong Flutter ------------------------------

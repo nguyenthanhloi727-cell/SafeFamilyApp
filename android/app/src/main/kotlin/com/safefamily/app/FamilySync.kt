@@ -151,7 +151,7 @@ object FamilySync {
 
     // ---- Đồng bộ một lượt --------------------------------------------------
 
-    /** Một lượt: lệnh → luật → hàng rào → gửi vị trí → gửi sự kiện. Gọi ở luồng nền. */
+    /** Một lượt: lệnh → luật → hàng rào → trạng thái → yêu cầu → app mới → gửi vị trí → gửi sự kiện. Gọi ở luồng nền. */
     @Synchronized
     fun syncOnce(context: Context): Boolean {
         if (!isConfigured(context)) return false
@@ -162,6 +162,7 @@ object FamilySync {
             pullGeofences(context)
             pushStatus(context) // lỗi mạng/ máy chủ chỉ bỏ qua lượt này, không làm hỏng các bước còn lại
             syncRequests(context) // gửi yêu cầu chờ + xem kết quả; mọi lỗi chỉ bỏ qua lượt này
+            NewApps.syncWithServer(context) // app mới cài lên + quyết định của mẹ xuống; mọi lỗi chỉ bỏ qua
             flush(context, KEY_LOCATIONS, "locations", "points")
             flush(context, KEY_EVENTS, "geofence-events", "events")
             true
@@ -556,9 +557,9 @@ object FamilySync {
 
     // ---- HTTP --------------------------------------------------------------
 
-    private class Reply(val code: Int, val body: String)
+    internal class Reply(val code: Int, val body: String)
 
-    private fun request(context: Context, method: String, path: String, body: JSONObject?): Reply {
+    internal fun request(context: Context, method: String, path: String, body: JSONObject?): Reply {
         val p = prefs(context)
         val conn = URL(p.getString(KEY_URL, "") + path).openConnection() as HttpURLConnection
         try {

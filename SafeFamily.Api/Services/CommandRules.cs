@@ -77,7 +77,11 @@ public static class CommandRules
         package = "";
         if (!root.TryGetProperty("package", out var p) || p.ValueKind != JsonValueKind.String) return false;
         package = p.GetString() ?? "";
-        return package.Length is > 0 and <= 200 &&
-               System.Text.RegularExpressions.Regex.IsMatch(package, @"^[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z0-9_]+)+$");
+        return IsPackage(package);
     }
+
+    /// <summary>Tên gói Android hợp lệ (dùng chung cho lệnh, trạng thái, danh sách app).</summary>
+    public static bool IsPackage(string? package) =>
+        package is { Length: > 0 and <= 200 } &&
+        System.Text.RegularExpressions.Regex.IsMatch(package, @"^[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z0-9_]+)+$");
 }

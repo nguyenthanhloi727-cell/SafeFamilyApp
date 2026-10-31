@@ -68,12 +68,38 @@ public class DevicesController(AppDb db) : ApiBase
         return ToDto(policy);
     }
 
+    /// <summary>
+    /// App của máy con (API-07), app mới nhất trước, tối đa 200. <c>status</c> = new|allowed|blocked, bỏ trống = tất cả;
+    /// sai → 400. Gia đình khác hoặc máy đã hủy ghép → 404.
+    /// </summary>
     [HttpGet("{id:int}/apps")]
-    public async Task<ActionResult<List<InstalledAppDto>>> Apps(int id)
+    public async Task<ActionResult<List<InstalledAppDto>>> Apps(int id, [FromQuery] string? status = null)
     {
         if (await Own(id) is null) return NotFound();
-        return await db.InstalledApps.Where(a => a.DeviceId == id).OrderBy(a => a.Label)
-            .Select(a => new InstalledAppDto(a.PackageName, a.Label, a.FirstSeenAt)).ToListAsync();
+        if (status is not null && !AppRules.IsStatus(status)) return BadRequest(new { error = "status không hợp lệ." });
+        var q = db.InstalledApps.Where(a => a.DeviceId == id);
+        if (status is not null) q = q.Where(a => a.Status == status);
+        return await q.OrderByDescending(a => a.FirstSeenAt).ThenByDescending(a => a.Id).Take(AppRules.MaxListRows)
+            .Select(a => new InstalledAppDto(a.Id, a.PackageName, a.Label, a.FirstSeenAt, a.Status, a.DecidedAt)).ToListAsync();
+    }
+
+    /// <summary>
+    /// Mẹ cho phép / chặn một app của máy con: body <c>{"status":"allowed"|"blocked"}</c>. Máy con kéo quyết định này ở lượt
+    /// đồng bộ kế (<c>GET devices/me/apps/decisions</c>). Tên gói sai dạng → 400; gia đình khác / máy hủy ghép / app chưa
+    /// từng được máy con báo → 404.
+    /// </summary>
+    [HttpPut("{id:int}/apps/{package}")]
+    public async Task<ActionResult<InstalledAppDto>> PutAppStatus(int id, string package, PutAppStatusRequest req)
+    {
+        if (await Own(id) is null) return NotFound();
+        if (!CommandRules.IsPackage(package)) return BadRequest(new { error = "Tên gói không hợp lệ." });
+        if (!AppRules.IsDecision(req.Status)) return BadRequest(new { error = "status phải là allowed hoặc blocked." });
+        var app = await db.InstalledApps.FirstOrDefaultAsync(a => a.DeviceId == id && a.PackageName == package);
+        if (app is null) return NotFound();
+        app.Status = req.Status;
+        app.DecidedAt = DateTime.UtcNow;
+        await db.SaveChangesAsync();
+        return new InstalledAppDto(app.Id, app.PackageName, app.Label, app.FirstSeenAt, app.Status, app.DecidedAt);
     }
 
     /// <summary>Tạo lệnh tức thời, ví dụ Type = "pause". Máy con nhận khi polling kế tiếp.</summary>
@@ -317,20 +343,52 @@ public class DeviceSelfController(AppDb db) : ApiBase
     internal static ChildRequestDto RequestDto(ChildRequest r) =>
         new(r.Id, r.DeviceId, r.Kind, r.Payload, r.Status, r.CreatedAt, r.DecidedAt);
 
-    /// <summary>Gửi danh sách app đã cài (tên + tên gói). Thêm app mới, cập nhật nhãn, giữ FirstSeenAt.</summary>
+    /// <summary>
+    /// Máy con gửi app (tên + tên gói, không nội dung). <c>isNew</c> = true: app vừa cài, chờ mẹ duyệt (cài lại app đã gỡ
+    /// cũng về chờ duyệt). Không có cờ: ghi nhận app, không ép gì. Thêm app mới, cập nhật nhãn, giữ FirstSeenAt.
+    /// Máy con không thể tự đặt allowed/blocked.
+    /// </summary>
     [HttpPost("apps")]
     public async Task<IActionResult> PostApps(PostAppsRequest req)
     {
         if (!await Touch()) return Unauthorized();
-        if (req.Apps.Count > 2000) return BadRequest(new { error = "Quá nhiều app." });
+        var error = AppRules.Validate(req);
+        if (error is not null) return BadRequest(new { error });
         var existing = await db.InstalledApps.Where(a => a.DeviceId == SubjectId).ToDictionaryAsync(a => a.PackageName);
-        foreach (var item in req.Apps.DistinctBy(a => a.PackageName))
+        var items = req.Apps.DistinctBy(a => a.PackageName).ToList();
+        if (existing.Count + items.Count(a => !existing.ContainsKey(a.PackageName)) > AppRules.MaxAppsPerDevice)
+            return StatusCode(StatusCodes.Status429TooManyRequests, new { error = "Quá nhiều app." });
+        foreach (var item in items)
         {
-            if (existing.TryGetValue(item.PackageName, out var row)) row.Label = item.Label;
-            else db.InstalledApps.Add(new InstalledApp { DeviceId = SubjectId, PackageName = item.PackageName, Label = item.Label });
+            var label = AppRules.CleanLabel(item.Label, item.PackageName);
+            if (existing.TryGetValue(item.PackageName, out var row))
+            {
+                row.Label = label;
+                if (item.IsNew == true && row.Status != AppRules.New)
+                {
+                    row.Status = AppRules.New; // cài lại: phải duyệt lại
+                    row.DecidedAt = null;
+                }
+            }
+            else
+                db.InstalledApps.Add(new InstalledApp
+                {
+                    DeviceId = SubjectId, PackageName = item.PackageName, Label = label,
+                    Status = item.IsNew == true ? AppRules.New : AppRules.Allowed,
+                });
         }
         await db.SaveChangesAsync();
         return NoContent();
+    }
+
+    /// <summary>Quyết định của mẹ (allowed/blocked) để máy con áp dụng. Chỉ tên gói + trạng thái.</summary>
+    [HttpGet("apps/decisions")]
+    public async Task<ActionResult<List<AppDecisionDto>>> AppDecisions()
+    {
+        if (!await Touch()) return Unauthorized();
+        return await db.InstalledApps.Where(a => a.DeviceId == SubjectId && a.DecidedAt != null && a.Status != AppRules.New)
+            .OrderByDescending(a => a.DecidedAt).Take(AppRules.MaxDecisionRows)
+            .Select(a => new AppDecisionDto(a.PackageName, a.Status)).ToListAsync();
     }
 
     /// <summary>Gửi lô vị trí. Bỏ điểm có thời gian ở tương lai quá 5 phút; xóa điểm cũ hơn LocationRetention.</summary>

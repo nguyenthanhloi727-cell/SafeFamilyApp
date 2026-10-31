@@ -173,6 +173,34 @@ class ChildRequestInfo {
   int get approveMinutes => (minutes ?? 0).clamp(1, maxApproveMinutes);
 }
 
+/// Trạng thái duyệt app mới cài (khớp `AppRules` ở server).
+abstract final class AppStatus {
+  static const isNew = 'new';
+  static const allowed = 'allowed';
+  static const blocked = 'blocked';
+}
+
+/// Một app của máy con (`GET /api/devices/{id}/apps`). Chỉ có tên + tên gói + trạng thái duyệt.
+class InstalledAppInfo {
+  const InstalledAppInfo({
+    required this.id,
+    required this.packageName,
+    required this.label,
+    required this.status,
+    this.firstSeenAt,
+    this.decidedAt,
+  });
+
+  final int id;
+  final String packageName;
+  final String label;
+
+  /// `new` | `allowed` | `blocked` (xem [AppStatus]).
+  final String status;
+  final DateTime? firstSeenAt;
+  final DateTime? decidedAt;
+}
+
 class LocationInfo {
   const LocationInfo(this.lat, this.lng, this.accuracy, this.time);
   final double lat;
@@ -224,7 +252,8 @@ class GeofenceEventInfo {
 /// Server trả giờ UTC không kèm `Z`; thiếu thì thêm vào để không bị hiểu là giờ máy.
 DateTime? parseServerTime(Object? value) {
   if (value is! String || value.isEmpty) return null;
-  final hasZone = value.endsWith('Z') || RegExp(r'[+-]\d\d:\d\d$').hasMatch(value);
+  final hasZone =
+      value.endsWith('Z') || RegExp(r'[+-]\d\d:\d\d$').hasMatch(value);
   return DateTime.tryParse(hasZone ? value : '${value}Z');
 }
 
@@ -386,7 +415,10 @@ class ApiClient {
           if (t is Map<String, dynamic> &&
               t['package'] is String &&
               parseServerTime(t['until']) != null)
-            TempUnlockInfo(t['package'] as String, parseServerTime(t['until'])!),
+            TempUnlockInfo(
+              t['package'] as String,
+              parseServerTime(t['until'])!,
+            ),
       ],
     );
   }
@@ -444,6 +476,44 @@ class ApiClient {
         'decision': approve ? 'approved' : 'rejected',
         'minutes': ?minutes,
       }, auth: _Auth.parent);
+
+  /// App của máy con theo trạng thái duyệt (`new` = vừa cài, chờ mẹ), mới nhất trước, tối đa 200.
+  Future<List<InstalledAppInfo>> getDeviceApps(
+    int deviceId, {
+    String? status,
+  }) async {
+    final query = status == null ? '' : '?status=$status';
+    final list = await _send(
+      'GET',
+      '/api/devices/$deviceId/apps$query',
+      null,
+      auth: _Auth.parent,
+    ) as List<dynamic>;
+    return [
+      for (final e in list.cast<Map<String, dynamic>>())
+        InstalledAppInfo(
+          id: (e['id'] as num).toInt(),
+          packageName: e['packageName'] as String,
+          label: e['label'] as String? ?? e['packageName'] as String,
+          status: e['status'] as String,
+          firstSeenAt: parseServerTime(e['firstSeenAt']),
+          decidedAt: parseServerTime(e['decidedAt']),
+        ),
+    ];
+  }
+
+  /// Mẹ cho phép / chặn một app mới của máy con; máy con áp ở lượt đồng bộ kế (tối đa vài phút).
+  /// Nơi gọi phải qua `ParentGate` trước.
+  Future<void> setDeviceAppStatus(
+    int deviceId,
+    String packageName, {
+    required bool allow,
+  }) => _send(
+    'PUT',
+    '/api/devices/$deviceId/apps/${Uri.encodeComponent(packageName)}',
+    {'status': allow ? AppStatus.allowed : AppStatus.blocked},
+    auth: _Auth.parent,
+  );
 
   static int? _requestMinutes(Object? payload) {
     if (payload is! String) return null;
@@ -519,7 +589,8 @@ class ApiClient {
   GeofenceSet _geofenceSet(Object? body) {
     final m = body as Map<String, dynamic>;
     return GeofenceSet(m['version'] as int, [
-      for (final g in (m['geofences'] as List<dynamic>).cast<Map<String, dynamic>>())
+      for (final g
+          in (m['geofences'] as List<dynamic>).cast<Map<String, dynamic>>())
         GeofenceInfo(
           id: g['id'] as int,
           name: g['name'] as String,

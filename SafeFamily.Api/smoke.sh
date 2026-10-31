@@ -85,6 +85,51 @@ curl -s -o /dev/null -w "status get from another family (expect 404) %{http_code
 curl -s -o /dev/null -w "commands get from another family (expect 404) %{http_code}\n" $B/api/devices/$DID/commands -H "Authorization: Bearer $A2"
 echo "commands list (mother) has createdAt/doneAt:"
 curl -s $B/api/devices/$DID/commands -H "Authorization: Bearer $A" | python -c "import sys,json;d=json.load(sys.stdin);print(len(d),sorted(d[0].keys()))"
+# --- Duyệt app mới cài (API-07) ---
+ap() { python -c "import json,sys;print(json.dumps(json.loads(sys.argv[1])))" "$1" | curl -s -o /dev/null -w "$2 (expect $3) %{http_code}\n" -X POST $B/api/devices/me/apps -H "$J" -H "Authorization: Bearer $DT" -d @-; }
+apps() { curl -s "$B/api/devices/$DID/apps$1" -H "Authorization: Bearer $A" | python -c "import sys,json;print(sorted((a['packageName'],a['status']) for a in json.load(sys.stdin)))"; }
+ap '{"apps":[{"packageName":"com.game.vui","label":"Game vui","isNew":true},{"packageName":"com.tiktok.x","label":"TikTok","isNew":true},{"packageName":"com.old.app","label":"App cu"}]}' "apps post ok" 204
+echo "mother lists new (expect game + tiktok):"; apps "?status=new"
+echo "mother lists all (expect 3, com.old.app allowed):"; apps ""
+ap '{"apps":[{"packageName":"khong co cham","label":"x"}]}' "apps bad package" 400
+ap '{"apps":[{"packageName":"com.a.b","label":""}]}' "apps empty label" 400
+ap "{\"apps\":[{\"packageName\":\"com.a.b\",\"label\":\"$(python -c "print('a'*201)")\"}]}" "apps label 201 chars" 400
+ap "{\"apps\":[{\"packageName\":\"com.$(python -c "print('a'*200)").b\",\"label\":\"x\"}]}" "apps package > 200 chars" 400
+ap '{"apps":[{"packageName":"com.a.b","label":"x","isNew":"yes"}]}' "apps isNew string" 400
+ap '{"apps":"abc"}' "apps not a list" 400
+ap '{}' "apps missing" 400
+python -c "import json;print(json.dumps({'apps':[{'packageName':'com.a.p%d'%i,'label':'x'} for i in range(2001)]}))" | curl -s -o /dev/null -w "apps 2001 items (expect 400) %{http_code}
+" -X POST $B/api/devices/me/apps -H "$J" -H "Authorization: Bearer $DT" -d @-
+curl -s -o /dev/null -w "apps post with parent token (expect 403) %{http_code}\n" -X POST $B/api/devices/me/apps -H "$J" -H "Authorization: Bearer $A" -d '{"apps":[]}'
+curl -s -o /dev/null -w "apps post no token (expect 401) %{http_code}\n" -X POST $B/api/devices/me/apps -H "$J" -d '{"apps":[]}'
+curl -s -o /dev/null -w "list bad status (expect 400) %{http_code}\n" "$B/api/devices/$DID/apps?status=abc" -H "Authorization: Bearer $A"
+curl -s -o /dev/null -w "list with device token (expect 403) %{http_code}\n" "$B/api/devices/$DID/apps" -H "Authorization: Bearer $DT"
+curl -s -o /dev/null -w "list from another family (expect 404) %{http_code}\n" "$B/api/devices/$DID/apps?status=new" -H "Authorization: Bearer $A2"
+setapp() { curl -s -o /dev/null -w "$3 (expect $4) %{http_code}\n" -X PUT "$B/api/devices/$DID/apps/$1" -H "$J" -H "Authorization: Bearer $A" -d "$2"; }
+setapp com.game.vui '{"status":"new"}' "set status new (mother cannot)" 400
+setapp com.game.vui '{"status":"maybe"}' "set status invalid" 400
+setapp com.game.vui '{}' "set status missing" 400
+setapp com.game.vui '{"status":5}' "set status number" 400
+setapp khong.co-cham '{"status":"allowed"}' "set bad package" 400
+setapp com.chua.tung.bao '{"status":"allowed"}' "set package never reported" 404
+curl -s -o /dev/null -w "set from another family (expect 404) %{http_code}\n" -X PUT $B/api/devices/$DID/apps/com.game.vui -H "$J" -H "Authorization: Bearer $A2" -d '{"status":"allowed"}'
+curl -s -o /dev/null -w "set with device token (expect 403) %{http_code}\n" -X PUT $B/api/devices/$DID/apps/com.game.vui -H "$J" -H "Authorization: Bearer $DT" -d '{"status":"allowed"}'
+curl -s -o /dev/null -w "set no token (expect 401) %{http_code}\n" -X PUT $B/api/devices/$DID/apps/com.game.vui -H "$J" -d '{"status":"allowed"}'
+curl -s -o /dev/null -w "set unknown device (expect 404) %{http_code}\n" -X PUT $B/api/devices/999999/apps/com.game.vui -H "$J" -H "Authorization: Bearer $A" -d '{"status":"allowed"}'
+echo "still new after bad attempts (expect game + tiktok):"; apps "?status=new"
+dsc() { curl -s $B/api/devices/me/apps/decisions -H "Authorization: Bearer $DT" | python -c "import sys,json;print(sorted((a['packageName'],a['status']) for a in json.load(sys.stdin)))"; }
+echo "child decisions before any decision (expect []):"; dsc
+setapp com.game.vui '{"status":"allowed"}' "allow game" 200
+setapp com.tiktok.x '{"status":"blocked"}' "block tiktok" 200
+echo "child decisions (expect game allowed, tiktok blocked; no com.old.app):"; dsc
+echo "mother new list (expect []):"; apps "?status=new"
+echo "mother blocked list (expect tiktok):"; apps "?status=blocked"
+ap '{"apps":[{"packageName":"com.game.vui","label":"Game vui 2"}]}' "repost without isNew keeps decision" 204
+echo "decisions after plain repost (expect still game allowed + tiktok blocked):"; dsc
+ap '{"apps":[{"packageName":"com.game.vui","label":"Game vui","isNew":true}]}' "reinstall isNew resets" 204
+echo "decisions after reinstall (expect only tiktok blocked), mother new (expect game):"; dsc; apps "?status=new"
+curl -s -o /dev/null -w "decisions with parent token (expect 403) %{http_code}\n" $B/api/devices/me/apps/decisions -H "Authorization: Bearer $A"
+curl -s -o /dev/null -w "decisions no token (expect 401) %{http_code}\n" $B/api/devices/me/apps/decisions
 # --- Yêu cầu của máy con (API-06) ---
 rq() { python -c "import json,sys;print(json.dumps({'kind':sys.argv[1],'payloadJson':sys.argv[2]} if sys.argv[2]!='-' else {'kind':sys.argv[1]}))" "$1" "$2" | curl -s -o /dev/null -w "$3 (expect $4) %{http_code}\n" -X POST $B/api/devices/me/requests -H "$J" -H "Authorization: Bearer $DT" -d @-; }
 rq extra_time '{"minutes":0}' "extra_time minutes 0" 400

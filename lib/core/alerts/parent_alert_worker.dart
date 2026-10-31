@@ -6,6 +6,7 @@ import 'package:workmanager/workmanager.dart';
 import '../network/api_client.dart';
 import '../network/connection_session.dart';
 import 'geofence_alerts.dart';
+import 'new_app_alerts.dart';
 import 'request_alerts.dart';
 
 const _kTask = 'geofence_alert_check';
@@ -24,21 +25,41 @@ void parentAlertDispatcher() {
         return true;
       }
       final api = ApiClient(session: session);
-      // Hai việc độc lập: lỗi mạng ở việc này không được làm mất việc kia.
+      // Ba việc độc lập: lỗi mạng ở việc này không được làm mất việc kia.
       Object? failure;
       try {
-        await _show([
-          for (final a in await GeofenceAlertChecker(api).check())
-            (title: a.title, body: a.body),
-        ], 'geofence_alerts', 'Cảnh báo vị trí của con');
+        await _show(
+          [
+            for (final a in await GeofenceAlertChecker(api).check())
+              (title: a.title, body: a.body),
+          ],
+          'geofence_alerts',
+          'Cảnh báo vị trí của con',
+        );
       } on ApiException catch (e) {
         failure = e;
       }
       try {
-        await _show([
-          for (final a in await ChildRequestAlertChecker(api).check())
-            (title: a.title, body: a.body),
-        ], 'child_requests', 'Yêu cầu của con');
+        await _show(
+          [
+            for (final a in await ChildRequestAlertChecker(api).check())
+              (title: a.title, body: a.body),
+          ],
+          'child_requests',
+          'Yêu cầu của con',
+        );
+      } on ApiException catch (e) {
+        failure ??= e;
+      }
+      try {
+        await _show(
+          [
+            for (final a in await NewAppAlertChecker(api).check())
+              (title: a.title, body: a.body),
+          ],
+          'new_apps',
+          'App mới cài trên máy con',
+        );
       } on ApiException catch (e) {
         failure ??= e;
       }

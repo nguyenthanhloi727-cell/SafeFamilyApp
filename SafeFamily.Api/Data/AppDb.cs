@@ -31,6 +31,8 @@ public class AppDb(DbContextOptions<AppDb> options) : DbContext(options)
         b.Entity<Command>().HasIndex(c => new { c.DeviceId, c.DoneAt });
         b.Entity<InstalledApp>().HasIndex(a => new { a.DeviceId, a.PackageName }).IsUnique();
         b.Entity<InstalledApp>().Property(a => a.PackageName).HasMaxLength(256);
+        b.Entity<InstalledApp>().Property(a => a.Label).HasMaxLength(200);
+        b.Entity<InstalledApp>().Property(a => a.Status).HasMaxLength(10).HasDefaultValue("allowed");
         b.Entity<LocationPoint>().HasIndex(l => new { l.DeviceId, l.Time });
         b.Entity<Geofence>().HasIndex(g => g.DeviceId);
         b.Entity<Geofence>().Property(g => g.Name).HasMaxLength(100);

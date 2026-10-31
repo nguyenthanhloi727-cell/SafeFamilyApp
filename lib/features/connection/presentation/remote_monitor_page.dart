@@ -12,6 +12,7 @@ import '../../../core/network/policy_sync.dart';
 import '../../../core/security/ui/parent_gate.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/widgets/app_snack_bar.dart';
+import '../../new_app/presentation/new_apps_page.dart';
 import 'child_requests_page.dart';
 import 'sent_commands_page.dart';
 
@@ -37,6 +38,7 @@ class RemoteMonitorPage extends StatefulWidget {
 class _RemoteMonitorPageState extends State<RemoteMonitorPage> {
   DeviceStatusInfo? _status;
   int? _pendingRequests;
+  int? _pendingNewApps;
   LocationInfo? _location;
   GeofenceSet? _fences;
   List<GeofenceEventInfo> _events = const [];
@@ -103,6 +105,12 @@ class _RemoteMonitorPageState extends State<RemoteMonitorPage> {
       if (mounted) setState(() => _pendingRequests = list.length);
     } on ApiException {
       // Giữ số cũ; vào màn yêu cầu sẽ báo lỗi rõ hơn.
+    }
+    try {
+      final apps = await api.getDeviceApps(_id, status: AppStatus.isNew);
+      if (mounted) setState(() => _pendingNewApps = apps.length);
+    } on ApiException {
+      // Giữ số cũ; vào màn duyệt app sẽ báo lỗi rõ hơn.
     }
   }
 
@@ -275,6 +283,25 @@ class _RemoteMonitorPageState extends State<RemoteMonitorPage> {
               (_pendingRequests ?? 0) > 0
                   ? 'Yêu cầu của con ($_pendingRequests chờ duyệt)'
                   : 'Yêu cầu của con',
+            ),
+          ),
+          const SizedBox(height: AppSpace.sm),
+          OutlinedButton.icon(
+            key: const Key('new-apps'),
+            onPressed: () async {
+              final api = ApiScope.of(context);
+              await Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => NewAppsPage(remoteDevice: widget.device),
+                ),
+              );
+              if (mounted) unawaited(_loadPendingRequests(api));
+            },
+            icon: const Icon(Icons.new_releases_outlined),
+            label: Text(
+              (_pendingNewApps ?? 0) > 0
+                  ? 'App mới cài ($_pendingNewApps chờ duyệt)'
+                  : 'App mới cài',
             ),
           ),
           const SizedBox(height: AppSpace.sm),

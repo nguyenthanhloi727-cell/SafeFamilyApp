@@ -23,9 +23,14 @@ public record PutPolicyRequest([Required] string Json, int ExpectedVersion);
 public record CreateCommandRequest([Required, MaxLength(50)] string Type, string? PayloadJson);
 public record CommandDto(int Id, string Type, string PayloadJson, DateTime CreatedAt, DateTime? DoneAt);
 
-public record AppItem([Required, MaxLength(256)] string PackageName, [Required, MaxLength(200)] string Label);
+/// <summary>IsNew = true: app vừa cài, chờ mẹ duyệt (API-07). Máy con không thể tự đặt allowed/blocked.</summary>
+public record AppItem([Required, MaxLength(256)] string PackageName, [Required, MaxLength(200)] string Label, bool? IsNew = null);
 public record PostAppsRequest([Required] List<AppItem> Apps);
-public record InstalledAppDto(string PackageName, string Label, DateTime FirstSeenAt);
+public record InstalledAppDto(int Id, string PackageName, string Label, DateTime FirstSeenAt, string Status, DateTime? DecidedAt);
+/// <summary>Mẹ đặt trạng thái một app: <c>allowed</c> hoặc <c>blocked</c> (không đặt lại về <c>new</c>).</summary>
+public record PutAppStatusRequest([Required, MaxLength(10)] string Status);
+/// <summary>Quyết định của mẹ mà máy con kéo về (chỉ tên gói + allowed/blocked).</summary>
+public record AppDecisionDto(string PackageName, string Status);
 
 public record LocationItem([Range(-90.0, 90.0)] double Lat, [Range(-180.0, 180.0)] double Lng, [Range(0.0, 100000.0)] double Accuracy, DateTime Time);
 public record PostLocationsRequest([Required] List<LocationItem> Points);

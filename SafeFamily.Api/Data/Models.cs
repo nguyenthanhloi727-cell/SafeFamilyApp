@@ -75,7 +75,11 @@ public class Command
     public DateTime? DoneAt { get; set; }
 }
 
-/// <summary>Chỉ tên + tên gói, không nội dung.</summary>
+/// <summary>
+/// Chỉ tên + tên gói, không nội dung. <see cref="Status"/> (API-07): <c>new</c> = con vừa cài, chờ mẹ duyệt;
+/// <c>allowed</c>/<c>blocked</c> = mẹ đã quyết (<see cref="DecidedAt"/> có giá trị). Dòng con gửi không kèm cờ app mới là <c>allowed</c>
+/// với <see cref="DecidedAt"/> = null (chưa ai quyết, máy con không bị ép gì).
+/// </summary>
 public class InstalledApp
 {
     public int Id { get; set; }
@@ -83,6 +87,8 @@ public class InstalledApp
     public string PackageName { get; set; } = "";
     public string Label { get; set; } = "";
     public DateTime FirstSeenAt { get; set; } = DateTime.UtcNow;
+    public string Status { get; set; } = "allowed";
+    public DateTime? DecidedAt { get; set; }
 }
 
 /// <summary>Một điểm vị trí máy con gửi lên. Chỉ giữ vài ngày gần nhất.</summary>

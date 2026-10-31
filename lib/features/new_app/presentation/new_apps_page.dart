@@ -1,22 +1,50 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/network/api_client.dart';
+import '../../../core/network/remote_commands.dart';
 import '../../../core/security/parent_guard.dart';
 import '../../../core/security/ui/parent_gate.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/widgets/status_banner.dart';
 import '../data/new_app_platform.dart';
+import 'remote_new_apps_view.dart';
 
 /// Duyệt app mới cài: app lạ bị chặn cho tới khi phụ huynh xác thực và cho phép.
-class NewAppsPage extends StatefulWidget {
-  const NewAppsPage({super.key, this.platform = const MethodChannelNewApp()});
+///
+/// Chế độ "mẹ" đã chọn máy con (hoặc truyền [remoteDevice]): đọc danh sách từ server và cho phép / chặn
+/// từ xa, vẫn qua khóa phụ huynh (API-07). Ngược lại làm việc trên chính máy này như cũ.
+class NewAppsPage extends StatelessWidget {
+  const NewAppsPage({
+    super.key,
+    this.platform = const MethodChannelNewApp(),
+    this.remoteDevice,
+  });
+
+  final NewAppPlatform platform;
+  final DeviceInfo? remoteDevice;
+
+  @override
+  Widget build(BuildContext context) {
+    final targetId = RemoteCommands.targetOf(context);
+    final device =
+        remoteDevice ??
+        (targetId == null ? null : DeviceInfo(targetId, 'máy con', null));
+    if (device != null) return RemoteNewAppsView(device: device);
+    return _LocalNewApps(platform: platform);
+  }
+}
+
+class _LocalNewApps extends StatefulWidget {
+  const _LocalNewApps({required this.platform});
 
   final NewAppPlatform platform;
 
   @override
-  State<NewAppsPage> createState() => _NewAppsPageState();
+  State<_LocalNewApps> createState() => _NewAppsPageState();
 }
 
-class _NewAppsPageState extends State<NewAppsPage> with WidgetsBindingObserver {
+class _NewAppsPageState extends State<_LocalNewApps>
+    with WidgetsBindingObserver {
   bool? _enabled;
   bool _notifications = true;
   List<PendingApp> _pending = const [];
