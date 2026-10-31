@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/network/remote_commands.dart';
 import '../../../core/security/parent_guard.dart';
 import '../../../core/security/ui/parent_gate.dart';
 import '../../../core/widgets/feature_card.dart';
@@ -85,6 +86,52 @@ class _PauseCardState extends State<PauseCard> with WidgetsBindingObserver {
     await _refresh();
   }
 
+  /// Máy mẹ đã chọn máy con: chưa biết trạng thái tạm dừng của máy con (TODO API-09),
+  /// nên thẻ luôn mở hộp chọn kèm mục "tiếp tục".
+  Future<void> _remote(int child) async {
+    final minutes = await showDialog<int>(
+      context: context,
+      builder: (context) => SimpleDialog(
+        title: const Text('Tạm dừng máy của con'),
+        children: [
+          for (final m in pauseChoices)
+            SimpleDialogOption(
+              onPressed: () => Navigator.of(context).pop(m),
+              child: Text(pauseChoiceLabel(m)),
+            ),
+          SimpleDialogOption(
+            onPressed: () => Navigator.of(context).pop(-1),
+            child: const Text('Tiếp tục dùng máy (hết tạm dừng)'),
+          ),
+        ],
+      ),
+    );
+    if (minutes == null || !mounted) return;
+    if (minutes == -1) {
+      if (!await _authenticate('Tiếp tục dùng máy (hết tạm dừng)')) return;
+      if (!mounted) return;
+      await RemoteCommands.send(
+        context,
+        child,
+        'unpause',
+        done: 'Đã gửi lệnh tiếp tục. Máy con nhận ở lần đồng bộ kế.',
+      );
+      return;
+    }
+    final action = minutes == 0
+        ? 'Tạm dừng máy cho tới khi tắt'
+        : 'Tạm dừng máy ${formatMinutes(minutes)}';
+    if (!await _authenticate(action)) return;
+    if (!mounted) return;
+    await RemoteCommands.send(
+      context,
+      child,
+      'pause',
+      payloadJson: RemoteCommands.minutesPayload(minutes),
+      done: 'Đã gửi lệnh tạm dừng. Máy con nhận ở lần đồng bộ kế.',
+    );
+  }
+
   Future<void> _resume() async {
     if (!await _authenticate('Tiếp tục dùng máy (hết tạm dừng)')) return;
     await widget.platform.stopPause();
@@ -102,12 +149,23 @@ class _PauseCardState extends State<PauseCard> with WidgetsBindingObserver {
   }
 
   @override
-  Widget build(BuildContext context) => FeatureCard(
-    icon: _left == 0
-        ? Icons.pause_circle_outline_rounded
-        : Icons.play_circle_outline_rounded,
-    title: _left == 0 ? 'Tạm dừng máy' : 'Tiếp tục dùng máy',
-    subtitle: _subtitle,
-    onTap: _left == 0 ? _pause : _resume,
-  );
+  Widget build(BuildContext context) {
+    final child = RemoteCommands.targetOf(context);
+    if (child != null) {
+      return FeatureCard(
+        icon: Icons.pause_circle_outline_rounded,
+        title: 'Tạm dừng máy con',
+        subtitle: 'Gửi lệnh tạm dừng hoặc tiếp tục tới máy con đã chọn',
+        onTap: () => _remote(child),
+      );
+    }
+    return FeatureCard(
+      icon: _left == 0
+          ? Icons.pause_circle_outline_rounded
+          : Icons.play_circle_outline_rounded,
+      title: _left == 0 ? 'Tạm dừng máy' : 'Tiếp tục dùng máy',
+      subtitle: _subtitle,
+      onTap: _left == 0 ? _pause : _resume,
+    );
+  }
 }

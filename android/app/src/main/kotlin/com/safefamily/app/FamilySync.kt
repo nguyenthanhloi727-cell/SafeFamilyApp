@@ -5,6 +5,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import com.khanhtq.app_blocker.blocking.BlockingServiceManager
+import com.khanhtq.app_blocker.persistence.BlockerPreferences
 import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
@@ -32,6 +33,9 @@ object FamilySync {
     private const val MAX_QUEUE = 500
     private const val TIMEOUT_MS = 15_000
     private const val DEFAULT_LOCK_MINUTES = 60
+
+    /** Khớp CommandRules.MaxUnlockMinutes ở server. */
+    private const val MAX_UNLOCK_MINUTES = 240
 
     /** Bản schema gói luật máy con hiểu (xem lib/core/network/policy_schema.dart). */
     private const val SUPPORTED_SCHEMA = 1
@@ -137,6 +141,7 @@ object FamilySync {
         if (!isConfigured(context)) return false
         return try {
             if (!pullCommands(context)) return false
+            TempRelocks.sweep(context) // chặn lại app mở tạm đã quá hạn
             pullPolicy(context)
             pullGeofences(context)
             flush(context, KEY_LOCATIONS, "locations", "points")
@@ -180,7 +185,58 @@ object FamilySync {
             "enable_limit_today" -> TimeLimits.setTotalLimitDisabledToday(context, false)
             "study_approve" -> StudyBlock.approve(context)
             "study_reject" -> StudyBlock.reject(context)
+            "app_unlock_temp", "app_relock", "app_block", "app_allow" -> return applyAppCommand(context, type, payloadJson)
             else -> return false
+        }
+        return true
+    }
+
+    /**
+     * Lệnh theo app. `false` (không ack) khi payload sai hoặc muốn chặn app miễn trừ.
+     * Làm việc trên [GuardPrefs.remoteBlocked] = danh sách mẹ đang khóa, để lần đồng bộ luật
+     * kế tiếp ([applyRemoteBlocked]) tính đúng phần cần bỏ/giữ.
+     *
+     * Lệnh ghi đè danh sách đó chỉ tới khi mẹ đẩy luật phiên bản mới; luật mới là nguồn sự thật.
+     * Riêng mở tạm thì luật mới không cắt ngang (xem [applyRemoteBlocked]).
+     * TODO(verify): chạy trên máy thật; hạn mở tạm do [TempRelocks.sweep] chặn lại khi cửa sổ đổi,
+     * đồng bộ, hoặc khởi động máy, không có báo thức chính xác.
+     */
+    private fun applyAppCommand(context: Context, type: String, payloadJson: String): Boolean {
+        val json = runCatching { JSONObject(payloadJson) }.getOrNull() ?: return false
+        val pkg = json.optString("package", "")
+        if (!Regex("^[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z0-9_]+)+$").matches(pkg)) return false
+        val exempt = pkg in TimeLimits.exemptPackages(context)
+        val manager = BlockingServiceManager(context.applicationContext)
+        val remote = GuardPrefs.remoteBlocked(context)
+        when (type) {
+            "app_unlock_temp" -> {
+                val minutes = json.optInt("minutes", 0)
+                if (minutes !in 1..MAX_UNLOCK_MINUTES) return false
+                // Chỉ mở app đang bị chặn: ghi hạn cho app chưa chặn thì tới hạn lại bị chặn nhầm.
+                val blocked = BlockerPreferences(context.applicationContext).getBlockedApps()
+                if (exempt || (pkg !in blocked && pkg !in TempRelocks.pending(context))) return true // đang mở tạm: gia hạn
+                // Ghi hạn TRƯỚC khi bỏ chặn: lỗi giữa chừng thì app vẫn bị chặn.
+                TempRelocks.remember(context, pkg, System.currentTimeMillis() + minutes * 60_000L)
+                manager.stopBlockingApps(listOf(pkg))
+            }
+            "app_relock" -> {
+                val wasUnlocked = pkg in TempRelocks.pending(context)
+                TempRelocks.forget(context, pkg)
+                if (!exempt && (wasUnlocked || pkg in remote)) manager.startBlocking(listOf(pkg))
+            }
+            "app_block" -> {
+                if (exempt) return false
+                TempRelocks.forget(context, pkg)
+                manager.startBlocking(listOf(pkg))
+                GuardPrefs.setRemoteBlocked(context, remote + pkg)
+            }
+            "app_allow" -> {
+                TempRelocks.forget(context, pkg)
+                if (pkg in remote) {
+                    manager.stopBlockingApps(listOf(pkg))
+                    GuardPrefs.setRemoteBlocked(context, remote - pkg)
+                }
+            }
         }
         return true
     }
@@ -241,8 +297,13 @@ object FamilySync {
         val previous = GuardPrefs.remoteBlocked(context)
         val manager = BlockingServiceManager(context.applicationContext)
         val release = (previous - wanted).toList()
+        // App mẹ bỏ khỏi danh sách thì hạn "chặn lại" cũ phải bỏ theo, nếu không tới hạn lại bị chặn nhầm.
+        release.forEach { TempRelocks.forget(context, it) }
         if (release.isNotEmpty()) manager.stopBlockingApps(release)
-        if (wanted.isNotEmpty()) manager.startBlocking(wanted.toList())
+        // Đang mở tạm thì giữ nguyên tới hạn, luật mới không cắt ngang.
+        val unlocked = TempRelocks.pending(context)
+        val toBlock = (wanted - unlocked).toList()
+        if (toBlock.isNotEmpty()) manager.startBlocking(toBlock)
         GuardPrefs.setRemoteBlocked(context, wanted)
     }
 

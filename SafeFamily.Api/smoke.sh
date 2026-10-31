@@ -28,3 +28,24 @@ python -c "import json;print(json.dumps({'json':json.dumps({'x':'a'*70000}),'exp
 " -X PUT $B/api/devices/$DID/policy -H "$J" -H "Authorization: Bearer $A" -d @-
 echo "child reads policy (expect version 1, same block):"
 curl -s $B/api/devices/me/policy -H "Authorization: Bearer $DT"; echo
+# --- Lệnh từ xa (API-05): danh sách Type cho phép + kiểm payload ---
+cmd() { python -c "import json,sys;print(json.dumps({'type':sys.argv[1],'payloadJson':sys.argv[2]} if sys.argv[2]!='-' else {'type':sys.argv[1]}))" "$1" "$2" | curl -s -o /dev/null -w "$3 (expect $4) %{http_code}\n" -X POST $B/api/devices/$DID/commands -H "$J" -H "Authorization: Bearer $A" -d @-; }
+cmd app_unlock_temp '{"package":"com.google.android.youtube","minutes":15}' "unlock_temp ok" 200
+cmd app_relock '{"package":"com.google.android.youtube"}' "relock ok" 200
+cmd app_block '{"package":"com.zing.zalo"}' "block ok" 200
+cmd app_allow '{"package":"com.zing.zalo"}' "allow ok" 200
+cmd pause '{"minutes":30}' "pause ok" 200
+cmd unpause - "unpause no payload ok" 200
+cmd abc '{}' "unknown type" 400
+cmd app_unlock_temp '{"package":"com.google.android.youtube"}' "unlock_temp no minutes" 400
+cmd app_unlock_temp '{"package":"com.google.android.youtube","minutes":0}' "unlock_temp minutes 0" 400
+cmd app_unlock_temp '{"package":"com.google.android.youtube","minutes":241}' "unlock_temp minutes 241" 400
+cmd app_unlock_temp '{"package":"com.google.android.youtube","minutes":"15"}' "unlock_temp minutes string" 400
+cmd app_unlock_temp '{"package":"khong co cham","minutes":5}' "unlock_temp bad package" 400
+cmd app_block '{}' "block no package" 400
+cmd app_block 'khong phai json' "payload not json" 400
+cmd app_block '[1]' "payload array" 400
+cmd pause '{"minutes":99999}' "pause minutes too big" 400
+python -c "import json;print(json.dumps({'type':'pause','payloadJson':json.dumps({'minutes':5,'x':'a'*5000})}))" | curl -s -o /dev/null -w "payload too big (expect 400) %{http_code}\n" -X POST $B/api/devices/$DID/commands -H "$J" -H "Authorization: Bearer $A" -d @-
+echo "child pending commands (expect 6 valid ones, ids ascending):"
+curl -s $B/api/devices/me/commands -H "Authorization: Bearer $DT" | python -c "import sys,json;print([c['type'] for c in json.load(sys.stdin)])"

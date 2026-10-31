@@ -81,7 +81,10 @@ public class DevicesController(AppDb db) : ApiBase
     public async Task<ActionResult<CommandDto>> CreateCommand(int id, CreateCommandRequest req)
     {
         if (await Own(id) is null) return NotFound();
-        var cmd = new Command { DeviceId = id, Type = req.Type, PayloadJson = req.PayloadJson ?? "{}" };
+        var payload = req.PayloadJson ?? "{}";
+        var error = CommandRules.Validate(req.Type, payload);
+        if (error is not null) return BadRequest(new { error });
+        var cmd = new Command { DeviceId = id, Type = req.Type, PayloadJson = payload };
         db.Commands.Add(cmd);
         await db.SaveChangesAsync();
         return ToDto(cmd);
@@ -194,7 +197,9 @@ public class DeviceSelfController(AppDb db) : ApiBase
     public async Task<ActionResult<List<CommandDto>>> Pending()
     {
         if (!await Touch()) return Unauthorized();
-        return await db.Commands.Where(c => c.DeviceId == SubjectId && c.DoneAt == null).OrderBy(c => c.Id)
+        // Lệnh quá hạn không giao nữa (lỗi #5): máy con offline lâu không được áp lệnh cũ.
+        var oldest = DateTime.UtcNow - CommandRules.MaxAge;
+        return await db.Commands.Where(c => c.DeviceId == SubjectId && c.DoneAt == null && c.CreatedAt > oldest).OrderBy(c => c.Id)
             .Select(c => new CommandDto(c.Id, c.Type, c.PayloadJson, c.CreatedAt, c.DoneAt)).ToListAsync();
     }
 

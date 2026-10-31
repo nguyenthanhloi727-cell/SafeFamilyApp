@@ -8,6 +8,9 @@ class ApiScope extends InheritedWidget {
 
   final ApiClient client;
 
+  static ApiClient? maybeOf(BuildContext context) =>
+      context.getInheritedWidgetOfExactType<ApiScope>()?.client;
+
   static ApiClient of(BuildContext context) {
     final scope = context.getInheritedWidgetOfExactType<ApiScope>();
     assert(scope != null, 'Thiếu ApiScope trên cây widget');

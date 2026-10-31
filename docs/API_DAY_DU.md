@@ -36,8 +36,8 @@ Gói luật (schema `schemaVersion` 1): `{"schemaVersion":1,"timeLimit":{...},"a
 | 3 | Giới hạn thời gian: ngày, giờ ngủ, theo tuổi (`time_limit/`) | Máy con (Kotlin) | 🟡 `policy.timeLimit` | Mẹ đã đẩy được (có test tự động); chờ test 2 máy thật | API-04 |
 | 4 | Giờ học, "Đã học xong", duyệt (`study_approval`, `StudyBlock.kt`) | Máy con | 🟡 lệnh `study_*` có | Con chưa gửi yêu cầu duyệt lên; mẹ chưa có danh sách yêu cầu | API-06 |
 | 5 | Xin thêm giờ (`extra_time`) | Máy con | ❌ | Endpoint yêu cầu, duyệt/từ chối | API-06 |
-| 6 | Tạm dừng (`pause_card`) | Máy con | 🟡 lệnh `pause/unpause` có | UI mẹ chưa gọi từ xa; chưa trả trạng thái hiện tại về mẹ | API-05, API-09 |
-| 7 | Khóa ứng dụng, lịch chặn, mở tạm (`app_lock/`, `TempRelocks.kt`) | Máy con | 🟡 `policy.appLock.blocked` | Danh sách chặn đã đẩy/ghi được (chờ test máy thật). Còn: lịch chặn riêng từng app, lệnh mở tạm / khóa lại một app | API-05 |
+| 6 | Tạm dừng (`pause_card`) | Máy con | 🟡 lệnh `pause/unpause` có | UI mẹ đã gọi từ xa (chờ test máy thật); chưa trả trạng thái hiện tại về mẹ | API-09 |
+| 7 | Khóa ứng dụng, lịch chặn, mở tạm (`app_lock/`, `TempRelocks.kt`) | Máy con | 🟡 `policy.appLock.blocked` | Danh sách chặn đã đẩy/ghi được (chờ test máy thật). Lệnh `app_unlock_temp/relock/block/allow` đã có, nút mở tạm của mẹ đã nối (chờ test máy thật). Còn: lịch chặn riêng từng app, UI chặn lại / chặn / cho phép từ xa | API-05, API-07 |
 | 8 | App mới cài (`new_app/`, `NewApps.kt`) | Máy con | 🟡 gửi danh sách app | Trạng thái duyệt (cho dùng/chặn) mỗi app; thông báo cho mẹ khi có app mới | API-07 |
 | 9 | Báo cáo sử dụng (`report/`, `UsageReport.kt`) | Máy con | ❌ | Con gửi `DayUsage` theo ngày; mẹ xem theo máy con | API-08 |
 | 10 | Nhật ký mở khóa (`unlock_log`) | Máy con | ➖ | Đã chốt không đưa lên server | – |
@@ -81,11 +81,12 @@ Mỗi task: endpoint/bảng cần thêm, phía Flutter/Kotlin cần nối, đi�
 - Còn lại: "Xong khi" bên dưới cần 2 máy thật + MonsterASP (TASKS/TEST_PLAN.md). Việc lưu từ `FeatureRegistry` ("Đang cản trở" tắt giờ học/giờ ngủ) và nút mở tạm/bỏ chặn từ trang chủ chưa đẩy tự động; mẹ dùng nút "Gửi luật" ở màn máy con.
 - Xong khi: mẹ khóa YouTube trên máy mẹ, máy con chặn YouTube trong ≤5 phút, tắt mạng vẫn chặn.
 
-### API-05 Lệnh từ xa: bổ sung loại lệnh
-- Thêm loại lệnh: `app_unlock_temp` (payload `package`, `minutes`), `app_relock`, `app_block`, `app_allow`. Server kiểm tra `Type` trong danh sách cho phép (hiện chỉ giới hạn độ dài).
-- Kotlin: thêm nhánh trong `FamilySync.apply`.
-- Flutter mẹ: nối `pause_card` và nút mở tạm vào `ApiClient.sendCommand` khi chế độ "mẹ".
-- Xong khi: mẹ bấm mở tạm một app, con mở được rồi tự chặn lại.
+### API-05 Lệnh từ xa: bổ sung loại lệnh — code xong, CHƯA test máy thật
+- Server (xong, đã chạy `smoke.sh`): `Services/CommandRules.cs` là danh sách `Type` cho phép (`pause`, `lock`, `unpause`, `unlock`, `study_*`, `disable/enable_limit_today`, `app_unlock_temp`, `app_relock`, `app_block`, `app_allow`; loại lạ → 400). Payload phải là đối tượng JSON ≤4 KB; `app_*` cần `package` đúng dạng tên gói; `app_unlock_temp` cần `minutes` 1–240. Lệnh chưa giao sau 24h không giao nữa (`GET devices/me/commands` lọc theo `CreatedAt`; lỗi #5 và #10 trong TEST_PLAN).
+- Kotlin con (xong, chưa chạy thật): `FamilySync.applyAppCommand`. Mở tạm = `TempRelocks.remember` rồi `stopBlockingApps`; hết hạn do `TempRelocks.sweep` chặn lại (gọi khi đổi cửa sổ, khởi động máy và mỗi lượt đồng bộ). `app_block` không bao giờ chặn app trong `TimeLimits.exemptPackages`. Payload sai / chặn app miễn trừ → không ack.
+- Nhất quán với `policy.appLock.blocked`: `previous` (`GuardPrefs.remoteBlocked`) không đổi khi mở tạm, nên luật mới không cắt ngang mở tạm (`applyRemoteBlocked` bỏ qua app đang mở tạm) và app mẹ bỏ khỏi danh sách thì hạn chặn lại cũ bị xóa theo. `app_block` / `app_allow` ghi vào `remoteBlocked` nhưng luật phiên bản mới của mẹ vẫn là nguồn sự thật: nếu danh sách trên máy mẹ vẫn có app mà mẹ vừa `app_allow` thì lần đẩy luật kế sẽ chặn lại. Chưa có UI mẹ cho `app_block`/`app_allow`; khi làm (API-07) phải sửa danh sách mẹ cùng lúc.
+- Flutter mẹ (xong, có test tự động `remote_commands_test.dart`): `RemoteCommands` (`lib/core/network/remote_commands.dart`). `app_lock_page` nút mở tạm và `pause_card` gửi lệnh khi chế độ "mẹ" đã chọn máy con; vẫn qua `ParentGate`. Chưa chọn máy con thì làm trên máy này như cũ. Chưa có nút "chặn lại ngay" từ xa (cần biết trạng thái mở tạm của máy con, API-09). `pause_card` ở chế độ mẹ chưa hiện trạng thái tạm dừng của máy con.
+- Xong khi: mẹ bấm mở tạm một app, con mở được rồi tự chặn lại (cần 2 máy thật, xem TASKS/TEST_PLAN.md "Bổ sung API-05").
 
 ### API-06 Yêu cầu của con (xin thêm giờ, "đã học xong")
 - Bảng `ChildRequest` (DeviceId, Kind: `extra_time|study_done`, Payload, Status: `pending|approved|rejected`, CreatedAt, DecidedAt).

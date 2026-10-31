@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/network/policy_sync.dart';
+import '../../../core/network/remote_commands.dart';
 import '../../../core/security/ui/parent_area_guard.dart';
 import '../../../core/security/ui/parent_gate.dart';
 import '../../../core/theme/app_tokens.dart';
@@ -75,6 +76,23 @@ class _AppLockPageState extends State<AppLockPage> {
   ) async {
     final action = 'Mở tạm $tempUnlockMinutes phút: ${app.name}';
     if (!await ParentGate.parentArea(context, action)) return;
+    if (!mounted) return;
+    // Chế độ mẹ + đã chọn máy con: mở tạm trên máy con, không đụng danh sách của máy mẹ.
+    final child = RemoteCommands.targetOf(context);
+    if (child != null) {
+      await RemoteCommands.send(
+        context,
+        child,
+        'app_unlock_temp',
+        payloadJson: RemoteCommands.unlockTempPayload(
+          app.packageName,
+          tempUnlockMinutes,
+        ),
+        done:
+            'Đã gửi lệnh mở tạm ${app.name} $tempUnlockMinutes phút. Máy con nhận ở lần đồng bộ kế.',
+      );
+      return;
+    }
     try {
       final until = await controller.unlockTemporarily(app.packageName);
       if (!mounted) return;

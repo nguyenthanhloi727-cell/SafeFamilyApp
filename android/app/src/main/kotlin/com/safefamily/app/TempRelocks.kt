@@ -52,6 +52,13 @@ object TempRelocks {
         }
     }
 
+    /** App đang mở tạm (còn trong danh sách, chưa được [sweep] chặn lại). */
+    @Synchronized
+    fun pending(context: Context): Set<String> {
+        val keys = load(context).keys()
+        return buildSet { while (keys.hasNext()) add(keys.next()) }
+    }
+
     /** Chặn lại các app đã quá hạn. Trả về `true` nếu có app vừa bị chặn lại. */
     @Synchronized
     fun sweep(context: Context): Boolean {
