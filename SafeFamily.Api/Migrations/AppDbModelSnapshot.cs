@@ -230,6 +230,35 @@ namespace SafeFamily.Api.Migrations
                     b.ToTable("Families");
                 });
 
+            modelBuilder.Entity("SafeFamily.Api.Data.FamilyInvite", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .HasColumnType("nvarchar(8)");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("FamilyId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("UsedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code");
+
+                    b.ToTable("FamilyInvites");
+                });
+
             modelBuilder.Entity("SafeFamily.Api.Data.Geofence", b =>
                 {
                     b.Property<int>("Id")
@@ -419,6 +448,9 @@ namespace SafeFamily.Api.Migrations
 
                     b.Property<int>("FamilyId")
                         .HasColumnType("int");
+
+                    b.Property<bool>("IsOwner")
+                        .HasColumnType("bit");
 
                     b.Property<string>("PasswordHash")
                         .IsRequired()

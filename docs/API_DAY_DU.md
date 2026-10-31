@@ -35,8 +35,8 @@ Gói luật (schema `schemaVersion` 1): `{"schemaVersion":1,"timeLimit":{...},"a
 
 | # | Tính năng (thư mục) | Hiện chạy ở | API | Còn thiếu | Task |
 |---|---|---|---|---|---|
-| 1 | Chọn vai trò, ghép đôi (`connection/`) | Máy + server | ✅ | Đổi tên máy con (`PATCH /api/devices/{id}`) và máy con xem thông tin mình (`GET /api/devices/me`): code xong, server + Flutter đã test tự động, chờ test 2 máy thật. Còn: thêm người giám hộ thứ 2 | API-01, API-02 |
-| 2 | Tài khoản mẹ (`parent_login_page`, `account_pages`) | Server | 🟡 | Đăng xuất thật (thu hồi refresh), đổi mật khẩu, xóa tài khoản, quên/đặt lại mật khẩu: code xong, server + Flutter đã test tự động. Còn: thư thật cần SMTP MyASP.net (chưa có host/port/tài khoản/From), test máy thật; thêm người giám hộ thứ 2 (API-02) | API-03 |
+| 1 | Chọn vai trò, ghép đôi (`connection/`) | Máy + server | ✅ | Đổi tên máy con (`PATCH /api/devices/{id}`) và máy con xem thông tin mình (`GET /api/devices/me`): code xong, server + Flutter đã test tự động, chờ test 2 máy thật. Người giám hộ thứ 2 (`/api/family/*`): server + client Dart xong, đã test tự động; còn màn hình mời/nhập mã và test máy thật | API-01, API-02 |
+| 2 | Tài khoản mẹ (`parent_login_page`, `account_pages`) | Server | 🟡 | Đăng xuất thật (thu hồi refresh), đổi mật khẩu, xóa tài khoản, quên/đặt lại mật khẩu: code xong, server + Flutter đã test tự động. Còn: thư thật cần SMTP MyASP.net (chưa có host/port/tài khoản/From), test máy thật. Xóa tài khoản gia đình chỉ chủ gia đình làm được (API-02) | API-03, API-02 |
 | 3 | Giới hạn thời gian: ngày, giờ ngủ, theo tuổi (`time_limit/`) | Máy con (Kotlin) | 🟡 `policy.timeLimit` | Mẹ đã đẩy được (có test tự động); chờ test 2 máy thật | API-04 |
 | 4 | Giờ học, "Đã học xong", duyệt (`study_approval`, `StudyBlock.kt`) | Máy con | 🟡 lệnh `study_*` có | Code xong, chờ test máy thật: con gửi yêu cầu "đã học xong", mẹ có danh sách duyệt | API-06 |
 | 5 | Xin thêm giờ (`extra_time`) | Máy con + server | 🟡 | Code xong, chờ test máy thật: con xin 5/15/30 phút, mẹ duyệt/từ chối | API-06 |
@@ -71,10 +71,13 @@ Mỗi task: endpoint/bảng cần thêm, phía Flutter/Kotlin cần nối, đi�
 - Flutter: `ApiClient.renameDevice` / `fetchMyInfo`. Nút bút chì "Đổi tên" ở danh sách máy con trong `ConnectionPage` (qua `ParentGate.always`, hộp nhập ≤50 ký tự, xong tải lại danh sách). Máy con hiện "<tên máy> đang được giám sát bởi <tên gia đình>" (lỗi mạng thì giữ dòng "Đã kết nối với máy mẹ"). Không đụng Kotlin.
 - Lưu ý: tên gia đình mặc định "Gia đình" (đặt lúc đăng ký); chưa có chỗ để mẹ đổi tên gia đình.
 
-### API-02 Người giám hộ thứ 2 (bố)
-- API: `POST /api/family/invite`, `POST /api/family/join`, bảng `Parent` nhiều dòng cùng `FamilyId` (đã có `Family`).
-- Quyết định chốt trước: bố có quyền ngang mẹ không. Đang ghi "để sau" trong `API_TIEN_TRINH.md`.
-- Xong khi: hai tài khoản cùng thấy một danh sách máy con.
+### API-02 Người giám hộ thứ 2 (bố) — server + client Dart đã test tự động, CHƯA có màn hình Flutter, CHƯA test máy thật
+- Đã chốt 2026-10-31: bố ngang mẹ (xem/sửa/duyệt/hủy ghép máy con, mọi thao tác vẫn qua `ParentGate`) TRỪ xóa tài khoản gia đình; chỉ chủ gia đình (người đăng ký) mời/xóa người giám hộ; mã mời 8 số hạn 30 phút dùng một lần; tối đa 2 người giám hộ mỗi gia đình.
+- Dữ liệu: `Parent.IsOwner` (tài khoản có sẵn → chủ), bảng `FamilyInvites` (migration `FamilyGuardians`).
+- API (`FamilyController`, `api/family`): `GET /` (tên gia đình, danh sách người giám hộ, `isOwner`, `isMe`); `POST /invite` (chủ; không phải chủ → 403, đã đủ 2 người → 409; mã mới hủy mã cũ); `POST /join` (không cần đăng nhập, body `{code(8 số), email, password(8–128)}`: tạo tài khoản mới vào gia đình của chủ mã, trả `AuthResponse`; mã sai/hết hạn/đã dùng → 400, email trùng → 409, đủ người → 409; chính sách giới hạn tần suất "claim" theo IP như mã ghép); `DELETE /members/{parentId}` (chủ; không phải chủ → 403, tự xóa mình → 400, người nhà khác/không có → 404; xóa refresh token của người bị xóa, access token đã cấp còn dùng tối đa 30 phút); `POST /leave` (người không phải chủ tự rời; chủ → 403). `DELETE /api/auth/account` giờ chỉ chủ gia đình làm được (người khác → 403) và xóa luôn mã mời.
+- Giới hạn dò mã: không đếm "sai 5 lần theo từng mã" được vì mã sai không thuộc mã nào; dùng trần theo IP (`RateLimit__ClaimPer10Min`, mặc định 5/10 phút) cộng không gian 10^8 mã và hạn 30 phút.
+- Flutter: `ApiClient.family/inviteGuardian/joinFamily/removeGuardian/leaveFamily` (+ `FamilyInfo`). Chưa có màn hình mời/nhập mã/danh sách: TODO làm ở task riêng, phải bọc `ParentGate`.
+- Xong khi: hai tài khoản cùng thấy một danh sách máy con — đã kiểm bằng test tự động và smoke (cần test 2 máy thật, xem TASKS/TEST_PLAN.md "Bổ sung API-02").
 
 ### API-03 Hoàn thiện tài khoản — code xong, server + Flutter đã test tự động, CHƯA test thư thật (SMTP) và máy thật
 - API: `POST /api/auth/logout` (thu hồi refresh), `POST /api/auth/change-password`, `POST /api/auth/forgot-password` + `reset-password` (cần SMTP, kiểm tra MyASP.net), `DELETE /api/auth/account` (xóa toàn bộ dữ liệu gia đình).
@@ -201,11 +204,11 @@ Mỗi task: endpoint/bảng cần thêm, phía Flutter/Kotlin cần nối, đi�
 4. **API-08** (báo cáo), **API-10** (cảnh báo) — code xong, chờ test máy thật.
 5. **API-03**, **API-01**, **API-11**, **API-13**.
 6. **API-14**, **API-15** làm xen kẽ; bắt buộc xong trước khi phát hành.
-7. **API-02**, **API-12**: chỉ làm khi người dùng chốt quyết định.
+7. **API-02**: đã chốt và làm xong phần server (2026-10-31); **API-12**: chỉ làm khi người dùng chốt quyết định.
 
 ## 5. Câu hỏi cần chốt
 
-1. Có thêm tài khoản bố ngang quyền mẹ không (API-02)?
+1. ~~Có thêm tài khoản bố ngang quyền mẹ không (API-02)?~~ Đã chốt 2026-10-31: có, ngang mẹ trừ xóa tài khoản gia đình; chỉ chủ mời/xóa; mã 30 phút dùng một lần; tối đa 2 người.
 2. Báo cáo sử dụng giữ bao nhiêu ngày (đề xuất 90)? (Vị trí: đã chốt 7 ngày, 2026-10-31.)
 3. Chấp nhận trễ 15 phút cho thông báo ở máy mẹ, hay đổi quyết định không dùng FCM (API-12)?
 4. ~~Có gửi liên hệ khẩn cấp lên server không (API-13)?~~ Đã chốt 2026-10-31: có, tối đa 3 số, gọi thẳng.

@@ -23,6 +23,14 @@ public record ResetPasswordRequest([Required, EmailAddress, MaxLength(256)] stri
 /// <summary>Confirm bắt buộc và phải là true; thiếu hoặc sai kiểu thì 400.</summary>
 public record DeleteAccountRequest([Required, MaxLength(128)] string Password, [Required] bool? Confirm);
 
+// ---- Người giám hộ thứ 2 (API-02) ----
+/// <summary>Người được mời đăng ký tài khoản mới bằng mã mời: vào gia đình của chủ mã, không tạo gia đình mới.</summary>
+public record JoinFamilyRequest([Required, RegularExpression(@"^\d{8}$")] string Code,
+                                [Required, EmailAddress, MaxLength(256)] string Email,
+                                [Required, MinLength(8), MaxLength(128)] string Password);
+public record FamilyMemberDto(int Id, string Email, bool IsOwner, bool IsMe, DateTime CreatedAt);
+public record FamilyDto(int Id, string Name, bool IsOwner, List<FamilyMemberDto> Members);
+
 public record CreateCodeRequest([MaxLength(100)] string? DeviceName);
 public record CodeResponse(string Code, DateTime ExpiresAt);
 public record ClaimRequest([Required, StringLength(6, MinimumLength = 6)] string Code);

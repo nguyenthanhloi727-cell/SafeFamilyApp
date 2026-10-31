@@ -616,3 +616,35 @@ if [ -n "$SF_SQL_SERVER" ] && [ -n "$SF_SQL_DB" ] && command -v sqlcmd >/dev/nul
 else
   echo "SKIP: leftover-row check needs SF_SQL_SERVER / SF_SQL_DB and sqlcmd"
 fi
+# --- Người giám hộ thứ 2 (API-02): mời bằng mã 8 số, vào cùng gia đình, quyền chủ/khách ---
+OWN=$(reg own); OA=$(echo "$OWN" | py "['accessToken']")
+code "family as owner" 200 $B/api/family -H "Authorization: Bearer $OA"
+echo "owner isOwner (expect True): $(curl -s $B/api/family -H "Authorization: Bearer $OA" | py "['isOwner']")"
+code "family no token" 401 $B/api/family
+FC=$(curl -s -X POST $B/api/pairing/code -H "Authorization: Bearer $OA" -H "$J" -d '{"deviceName":"Con"}' | py "['code']")
+curl -s -o /dev/null -X POST $B/api/pairing/claim -H "$J" -d "{\"code\":\"$FC\"}"
+INV=$(curl -s -X POST $B/api/family/invite -H "Authorization: Bearer $OA" | py "['code']")
+echo "invite code length (expect 8): ${#INV}"
+code "join bad code shape" 400 -X POST $B/api/family/join -H "$J" -d '{"code":"123","email":"d@x.com","password":"password123"}'
+code "join wrong code" 400 -X POST $B/api/family/join -H "$J" -d '{"code":"00000000","email":"dad'$RANDOM'@x.com","password":"password123"}'
+code "join code as number" 400 -X POST $B/api/family/join -H "$J" -d '{"code":12345678,"email":"d@x.com","password":"password123"}'
+code "join short password" 400 -X POST $B/api/family/join -H "$J" -d "{\"code\":\"$INV\",\"email\":\"d@x.com\",\"password\":\"short\"}"
+DADE="dad$RANDOM@x.com"
+DAD=$(curl -s -X POST $B/api/family/join -H "$J" -d "{\"code\":\"$INV\",\"email\":\"$DADE\",\"password\":\"password123\"}"); DA=$(echo "$DAD" | py "['accessToken']")
+echo "dad joins same family (expect True): $(echo "$DAD" | py "['familyId']") = $(echo "$OWN" | py "['familyId']")"
+code "join code reused" 400 -X POST $B/api/family/join -H "$J" -d "{\"code\":\"$INV\",\"email\":\"dad$RANDOM@x.com\",\"password\":\"password123\"}"
+echo "both see the same devices (expect True): $([ "$(curl -s $B/api/devices -H "Authorization: Bearer $OA")" = "$(curl -s $B/api/devices -H "Authorization: Bearer $DA")" ] && echo True || echo False)"
+code "dad invite (not owner)" 403 -X POST $B/api/family/invite -H "Authorization: Bearer $DA"
+code "dad delete family (not owner)" 403 -X DELETE $B/api/auth/account -H "Authorization: Bearer $DA" -H "$J" -d '{"password":"password123","confirm":true}'
+code "owner invite when family is full" 409 -X POST $B/api/family/invite -H "Authorization: Bearer $OA"
+DID=$(curl -s $B/api/devices -H "Authorization: Bearer $DA" | py "[0]['id']")
+code "dad renames device (same power)" 200 -X PATCH $B/api/devices/$DID -H "Authorization: Bearer $DA" -H "$J" -d '{"name":"Bo doi ten"}'
+DADID=$(curl -s $B/api/family -H "Authorization: Bearer $OA" | py "['members'][1]['id']")
+OWNID=$(curl -s $B/api/family -H "Authorization: Bearer $OA" | py "['members'][0]['id']")
+code "dad remove owner" 403 -X DELETE $B/api/family/members/$OWNID -H "Authorization: Bearer $DA"
+code "owner remove self" 400 -X DELETE $B/api/family/members/$OWNID -H "Authorization: Bearer $OA"
+code "owner remove other family member" 404 -X DELETE $B/api/family/members/99999999 -H "Authorization: Bearer $OA"
+code "owner leave" 403 -X POST $B/api/family/leave -H "Authorization: Bearer $OA"
+code "owner removes dad" 204 -X DELETE $B/api/family/members/$DADID -H "Authorization: Bearer $OA"
+code "removed dad login" 401 -X POST $B/api/auth/login -H "$J" -d "{\"email\":\"$DADE\",\"password\":\"password123\"}"
+echo "swagger lists /api/family/join (expect True): $(curl -s $B/swagger/v1/swagger.json | py "['paths'].__contains__('/api/family/join')")"

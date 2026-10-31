@@ -9,7 +9,7 @@ public class Family
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }
 
-/// <summary>Tài khoản mẹ (phụ huynh). Bố thêm sau: nhiều Parent cùng FamilyId.</summary>
+/// <summary>Tài khoản người giám hộ (mẹ, bố). Nhiều Parent cùng FamilyId (API-02), tối đa <see cref="FamilyRules.MaxGuardians"/>.</summary>
 public class Parent
 {
     public int Id { get; set; }
@@ -18,6 +18,18 @@ public class Parent
     public string Email { get; set; } = "";
     public string PasswordHash { get; set; } = "";
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    /// <summary>Chủ gia đình (người đăng ký tạo gia đình): mời/xóa người giám hộ, xóa tài khoản gia đình. Người vào bằng mã mời là false.</summary>
+    public bool IsOwner { get; set; }
+}
+
+/// <summary>Mã mời người giám hộ thứ 2 (API-02): mã 8 số do chủ gia đình tạo, hạn <see cref="FamilyRules.InviteLife"/>, dùng một lần.</summary>
+public class FamilyInvite
+{
+    public int Id { get; set; }
+    public int FamilyId { get; set; }
+    public string Code { get; set; } = "";
+    public DateTime ExpiresAt { get; set; }
+    public DateTime? UsedAt { get; set; }
 }
 
 public class RefreshToken

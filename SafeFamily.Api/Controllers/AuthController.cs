@@ -24,7 +24,7 @@ public class AuthController(AppDb db, TokenService tokens, JwtOptions jwt, IEmai
             return Conflict(new { error = "Email đã được đăng ký." });
 
         var family = new Family { Name = string.IsNullOrWhiteSpace(req.FamilyName) ? "Gia đình" : req.FamilyName.Trim() };
-        var parent = new Parent { Family = family, Email = email, PasswordHash = PasswordHasher.Hash(req.Password) };
+        var parent = new Parent { Family = family, Email = email, PasswordHash = PasswordHasher.Hash(req.Password), IsOwner = true };
         db.Parents.Add(parent);
         await db.SaveChangesAsync();
         return await Issue(parent);
@@ -164,6 +164,8 @@ public class AuthController(AppDb db, TokenService tokens, JwtOptions jwt, IEmai
         if (req.Confirm != true) return BadRequest(new { error = "Cần xác nhận xóa tài khoản." });
         var parent = await db.Parents.FindAsync(SubjectId);
         if (parent is null || parent.FamilyId != FamilyId) return NotFound();
+        if (!parent.IsOwner) // API-02: người giám hộ thứ 2 không xóa được gia đình; muốn rời dùng POST /api/family/leave
+            return StatusCode(StatusCodes.Status403Forbidden, new { error = "Chỉ chủ gia đình mới xóa được tài khoản gia đình." });
         if (!PasswordHasher.Verify(req.Password, parent.PasswordHash))
             return StatusCode(StatusCodes.Status403Forbidden, new { error = "Mật khẩu không đúng." });
 
@@ -183,6 +185,7 @@ public class AuthController(AppDb db, TokenService tokens, JwtOptions jwt, IEmai
         await db.Alerts.Where(x => devices.Contains(x.DeviceId)).ExecuteDeleteAsync();
         await db.Devices.Where(x => x.FamilyId == fam).ExecuteDeleteAsync();
         await db.Pairings.Where(x => x.FamilyId == fam).ExecuteDeleteAsync();
+        await db.FamilyInvites.Where(x => x.FamilyId == fam).ExecuteDeleteAsync();
         var parents = db.Parents.Where(p => p.FamilyId == fam).Select(p => p.Id);
         await db.RefreshTokens.Where(t => parents.Contains(t.ParentId)).ExecuteDeleteAsync();
         await db.PasswordResets.Where(r => parents.Contains(r.ParentId)).ExecuteDeleteAsync();

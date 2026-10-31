@@ -30,6 +30,35 @@ class AuthResult {
   final int familyId;
 }
 
+class FamilyMember {
+  const FamilyMember(this.id, this.email, this.isOwner, this.isMe);
+  final int id;
+  final String email;
+  final bool isOwner;
+  final bool isMe;
+}
+
+class FamilyInfo {
+  const FamilyInfo(this.name, this.isOwner, this.members);
+  final String name;
+  final bool isOwner;
+  final List<FamilyMember> members;
+
+  factory FamilyInfo.fromJson(Map<String, dynamic> m) => FamilyInfo(
+    m['name'] as String,
+    m['isOwner'] as bool,
+    [
+      for (final x in m['members'] as List)
+        FamilyMember(
+          (x as Map<String, dynamic>)['id'] as int,
+          x['email'] as String,
+          x['isOwner'] as bool,
+          x['isMe'] as bool,
+        ),
+    ],
+  );
+}
+
 class PairingCode {
   const PairingCode(this.code, this.expiresAt);
   final String code;
@@ -426,6 +455,49 @@ class ApiClient {
         'code': code,
         'newPassword': newPassword,
       });
+
+  // ---- Người giám hộ thứ 2 (API-02). Chưa có màn hình: TODO(verify) làm UI ở task riêng ----
+
+  Future<FamilyInfo> family() async => FamilyInfo.fromJson(
+    await _send('GET', '/api/family', null, auth: _Auth.parent)
+        as Map<String, dynamic>,
+  );
+
+  /// Chủ tạo mã mời 8 số (30 phút, một lần). Không phải chủ → 403; đã đủ 2 người → 409.
+  /// Nơi gọi phải qua `ParentGate` trước.
+  Future<PairingCode> inviteGuardian() async {
+    final m = await _send('POST', '/api/family/invite', {}, auth: _Auth.parent)
+        as Map<String, dynamic>;
+    return PairingCode(
+      m['code'] as String,
+      DateTime.parse(m['expiresAt'] as String),
+    );
+  }
+
+  /// Người được mời đăng ký tài khoản mới bằng mã và vào gia đình của chủ mã; lưu token như [register].
+  Future<AuthResult> joinFamily(String code, String email, String password) async =>
+      _saveAuth(
+        email,
+        await _send('POST', '/api/family/join', {
+          'code': code,
+          'email': email,
+          'password': password,
+        }),
+      );
+
+  /// Chủ xóa người giám hộ khác. Nơi gọi phải qua `ParentGate` + hộp xác nhận.
+  Future<void> removeGuardian(int parentId) => _send(
+    'DELETE',
+    '/api/family/members/$parentId',
+    null,
+    auth: _Auth.parent,
+  );
+
+  /// Người giám hộ thứ 2 tự rời gia đình, xong thì xóa phiên cục bộ. Nơi gọi phải qua `ParentGate` + hộp xác nhận.
+  Future<void> leaveFamily() async {
+    await _send('POST', '/api/family/leave', {}, auth: _Auth.parent);
+    await session.reset();
+  }
 
   // ---- Ghép đôi ----
 

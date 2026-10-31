@@ -7,6 +7,7 @@ public class AppDb(DbContextOptions<AppDb> options) : DbContext(options)
 {
     public DbSet<Family> Families => Set<Family>();
     public DbSet<Parent> Parents => Set<Parent>();
+    public DbSet<FamilyInvite> FamilyInvites => Set<FamilyInvite>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<PasswordReset> PasswordResets => Set<PasswordReset>();
     public DbSet<Device> Devices => Set<Device>();
@@ -27,6 +28,8 @@ public class AppDb(DbContextOptions<AppDb> options) : DbContext(options)
     {
         b.Entity<Parent>().HasIndex(p => p.Email).IsUnique();
         b.Entity<Parent>().Property(p => p.Email).HasMaxLength(256);
+        b.Entity<FamilyInvite>().HasIndex(i => i.Code);
+        b.Entity<FamilyInvite>().Property(i => i.Code).HasMaxLength(FamilyRules.CodeLength);
         b.Entity<RefreshToken>().HasIndex(t => t.TokenHash).IsUnique();
         b.Entity<RefreshToken>().Property(t => t.TokenHash).HasMaxLength(64);
         b.Entity<PasswordReset>().HasIndex(r => r.ParentId);
