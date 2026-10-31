@@ -69,7 +69,10 @@ object FamilySync {
         val p = prefs(context)
         val changed = p.getString(KEY_TOKEN, null) != token
         p.edit().putString(KEY_URL, baseUrl.trimEnd('/')).putString(KEY_TOKEN, token).apply()
-        if (changed) resetVersions(context)
+        if (changed) {
+            resetVersions(context)
+            UsageReport.forgetSent(context)
+        }
     }
 
     /** Hủy ghép / đổi vai trò: quên token, xóa hàng chờ, gỡ hàng rào đã đăng ký. */
@@ -151,7 +154,7 @@ object FamilySync {
 
     // ---- Đồng bộ một lượt --------------------------------------------------
 
-    /** Một lượt: lệnh → luật → hàng rào → trạng thái → yêu cầu → app mới → gửi vị trí → gửi sự kiện. Gọi ở luồng nền. */
+    /** Một lượt: lệnh → luật → hàng rào → trạng thái → yêu cầu → app mới → báo cáo sử dụng → gửi vị trí → gửi sự kiện. Gọi ở luồng nền. */
     @Synchronized
     fun syncOnce(context: Context): Boolean {
         if (!isConfigured(context)) return false
@@ -163,6 +166,7 @@ object FamilySync {
             pushStatus(context) // lỗi mạng/ máy chủ chỉ bỏ qua lượt này, không làm hỏng các bước còn lại
             syncRequests(context) // gửi yêu cầu chờ + xem kết quả; mọi lỗi chỉ bỏ qua lượt này
             NewApps.syncWithServer(context) // app mới cài lên + quyết định của mẹ xuống; mọi lỗi chỉ bỏ qua
+            UsageReport.syncWithServer(context) // báo cáo phút theo app (API-08); mọi lỗi chỉ bỏ qua
             flush(context, KEY_LOCATIONS, "locations", "points")
             flush(context, KEY_EVENTS, "geofence-events", "events")
             true

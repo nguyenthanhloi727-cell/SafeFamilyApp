@@ -9,7 +9,7 @@ Mã task `API-xx` dùng để tham chiếu. Làm theo "Thứ tự đề xuất" 
 
 ---
 
-## 1. API hiện có (30 endpoint)
+## 1. API hiện có (32 endpoint)
 
 | Nhóm | Endpoint | Ai gọi |
 |---|---|---|
@@ -23,6 +23,7 @@ Mã task `API-xx` dùng để tham chiếu. Làm theo "Thứ tự đề xuất" 
 | Vị trí | `POST /api/devices/me/locations`, `GET /api/devices/{id}/location`, `GET /api/devices/{id}/locations` | Con / Mẹ |
 | Hàng rào | `GET/PUT /api/devices/{id}/geofences`, `GET /api/devices/me/geofences`, `POST /api/devices/me/geofence-events`, `GET /api/devices/{id}/geofence-events` | Mẹ / Con |
 | Yêu cầu của con | `POST /api/devices/me/requests`, `GET /api/devices/me/requests/{id}` (con); `GET /api/devices/{id}/requests?status=`, `PUT /api/requests/{id}` (mẹ) | Con gửi / Mẹ duyệt |
+| Báo cáo sử dụng | `POST /api/devices/me/usage` (con), `GET /api/devices/{id}/usage?from=&to=` (mẹ) | Con gửi / Mẹ xem |
 
 Lệnh máy con đã hiểu (`FamilySync.apply`): `pause`, `lock`, `unpause`, `unlock`, `study_start`, `study_stop`, `disable_limit_today`, `enable_limit_today`, `study_approve`, `study_reject`, `extra_time_grant` (API-06), `app_unlock_temp`, `app_relock`, `app_block`, `app_allow`.
 Gói luật (schema `schemaVersion` 1): `{"schemaVersion":1,"timeLimit":{...},"appLock":{"blocked":[pkg],"schedules":[]}}`.
@@ -41,7 +42,7 @@ Gói luật (schema `schemaVersion` 1): `{"schemaVersion":1,"timeLimit":{...},"a
 | 6 | Tạm dừng (`pause_card`) | Máy con | 🟡 lệnh + trạng thái `isPaused` | UI mẹ gửi lệnh và hiện đúng trạng thái/nút tiếp tục theo `isPaused` (code xong, test tự động đạt; chờ test máy thật) | API-09 |
 | 7 | Khóa ứng dụng, lịch chặn, mở tạm (`app_lock/`, `TempRelocks.kt`) | Máy con | 🟡 `policy.appLock.blocked` | Danh sách chặn đã đẩy/ghi được (chờ test máy thật). Lệnh `app_unlock_temp/relock/block/allow` đã có, nút mở tạm của mẹ đã nối (chờ test máy thật). Còn: lịch chặn riêng từng app, UI chặn lại / chặn / cho phép từ xa | API-05, API-07 |
 | 8 | App mới cài (`new_app/`, `NewApps.kt`) | Máy con | 🟡 báo app mới + trạng thái duyệt | Code xong, chờ test máy thật: con báo app mới cài, mẹ cho phép / chặn từ xa, mẹ được báo khi có app mới | API-07 |
-| 9 | Báo cáo sử dụng (`report/`, `UsageReport.kt`) | Máy con | ❌ | Con gửi `DayUsage` theo ngày; mẹ xem theo máy con | API-08 |
+| 9 | Báo cáo sử dụng (`report/`, `UsageReport.kt`) | Máy con + server | 🟡 báo phút theo app theo ngày | Code xong, chờ test máy thật: con gửi phút theo app, mẹ chọn máy con và xem biểu đồ tuần | API-08 |
 | 10 | Nhật ký mở khóa (`unlock_log`) | Máy con | ➖ | Đã chốt không đưa lên server | – |
 | 11 | Cảnh báo tamper: đổi giờ máy, gỡ app, tắt trợ năng/Device Admin, mất kết nối (`TimeChangeReceiver`, `UninstallGate`, `SettingsGuardService`) | Máy con | ❌ | Con gửi sự kiện cảnh báo; mẹ nhận; server tự cảnh báo "mất kết nối > ngưỡng" | API-10 |
 | 12 | Vị trí (`FamilyService`, `remote_monitor_page`) | Máy con + server | ✅ | Xóa lịch sử; mẹ bật/tắt chia sẻ vị trí; pin còn lại của máy con | API-11 |
@@ -107,13 +108,13 @@ Mỗi task: endpoint/bảng cần thêm, phía Flutter/Kotlin cần nối, đi�
 - Giới hạn đã biết: (1) duyệt tại chỗ trên máy con (cách cũ) không báo lên server nên mẹ vẫn thấy app đó "chờ duyệt" cho tới khi mẹ quyết; mẹ quyết sau thì máy con áp quyết định của mẹ (mẹ quyết định cuối). (2) App chưa duyệt rồi bị gỡ vẫn nằm ở danh sách chờ của mẹ (server không biết đã gỡ); mẹ bấm Cho phép / Chặn là hết. (3) Cài lại một app mẹ đã quyết, nếu lượt `isNew` bị gửi lặp sau khi mẹ vừa quyết thì quyết định đó bị đặt lại về "chờ" (hiếm; mẹ quyết lại). (4) Trễ tối đa vài phút (lượt đồng bộ 5 phút). (5) Chỉ app có biểu tượng mở được (`NewApps.launchable`) mới được báo.
 - Xong khi: cài app mới trên máy con, máy mẹ thấy trong ≤5 phút và chặn được (cần 2 máy thật, xem TASKS/TEST_PLAN.md "Bổ sung API-07").
 
-### API-08 Báo cáo sử dụng
-- Bảng `UsageDay` (DeviceId, Date, TotalMinutes, Blocks) và `UsageApp` (UsageDayId, Package, Minutes). Khóa duy nhất (DeviceId, Date) để gửi lại không trùng.
-- API: `POST /api/devices/me/usage` (lô nhiều ngày, upsert), `GET /api/devices/{id}/usage?from=&to=` (mẹ).
-- Kotlin: `UsageReport.kt` đẩy ngày đã chốt và ngày hiện tại khi polling.
-- Flutter: `report_page` có chọn máy con khi ở chế độ mẹ.
-- Dữ liệu chỉ là phút theo app, đúng quyết định "chỉ thống kê". Dọn dữ liệu quá 90 ngày.
-- Xong khi: mẹ xem được biểu đồ tuần của máy con.
+### API-08 Báo cáo sử dụng — code xong, CHƯA test máy thật
+- Server (xong, đã chạy `smoke.sh`): bảng `UsageDay` (`DeviceId`, `Date`, `TotalMinutes`, `Blocks`) và `UsageApp` (`UsageDayId`, `Package`, `Minutes`), migration `UsageReport`. Khóa duy nhất (`DeviceId`, `Date`) nên gửi lại cùng ngày là ghi đè (xóa app cũ, ghi app mới), không trùng; `UsageApp` xóa theo ngày (cascade). `POST /api/devices/me/usage` (con) nhận `{days:[{date:"yyyy-MM-dd", totalMinutes, blocks, apps:{package:minutes}}]}`: ≤31 ngày/lô, ≤200 app/ngày, phút 0–1440 (tổng và từng app), `blocks` 0–10000, tên gói đúng dạng (≤200), ngày đúng định dạng, không trùng trong lô, không quá 1 ngày ở tương lai (dư cho múi giờ), không cũ hơn 90 ngày; sai kiểu (chuỗi thay số...) → 400; trường thừa bị bỏ qua, không lưu. Lô lỗi thì không ghi gì. Mỗi lần gửi dọn ngày cũ hơn 90 ngày của máy đó. `GET /api/devices/{id}/usage?from=&to=` (mẹ, mặc định 7 ngày gần nhất theo ngày UTC, tối đa 90 ngày, cũ nhất trước; `from`/`to` sai định dạng, `from` > `to`, hoặc quá 90 ngày → 400); gia đình khác hoặc máy đã hủy ghép → 404. Logic ở `Services/UsageRules.cs`.
+- Kotlin con (xong, biên dịch được, chưa chạy máy thật): `UsageReport.syncWithServer`, gọi trong mỗi `FamilySync.syncOnce` (sau `NewApps.syncWithServer`). Lấy 30 ngày từ kho chụp có sẵn (`report(context, 30)`), bỏ app trong `TimeLimits.exemptPackages`, tên gói sai dạng; mỗi ngày có "chữ ký" (tổng|blocks|app=phút) nên ngày đã chốt gửi đúng một lần, hôm nay gửi lại mỗi khi số liệu đổi. Ngày hoàn toàn trống (0 phút, 0 lần chặn) không gửi (mẹ thấy 0 cho ngày thiếu). Mọi lỗi (mạng, 4xx/5xx) bị nuốt, không làm hỏng `syncOnce`; 400 thì bỏ ngày đó để khỏi kẹt; 401/409/429/5xx giữ lại thử lần sau. Đổi token (ghép lại) thì quên các ngày đã gửi (`forgetSent`). Chưa cấp quyền "Truy cập dữ liệu sử dụng" thì không gửi gì.
+- Flutter mẹ (xong, có test tự động `remote_report_test.dart`): `ApiClient.getDeviceUsage`; `ReportPage` tự chuyển sang `RemoteReportView` khi ở chế độ "mẹ" đã chọn máy con (hoặc truyền `remoteDevice`; không thì làm trên máy này như cũ, `_LocalReport` không đổi). Màn hiện hôm nay, biểu đồ 7 ngày (chạm cột xem ngày, chạm app lọc), top 5 app, tổng tuần, số lần con chạm app bị chặn; gia đình có nhiều máy thì có ô chọn máy con. Tên app lấy từ danh sách app máy con đã báo (API-07), không có thì hiện tên gói. Không có hạn mức hôm nay (hạn mức nằm ở luật, chưa kéo về).
+- Quyền riêng tư: chỉ phút theo app theo ngày + số lần chạm app bị chặn; không nội dung, không vị trí, không thời điểm trong ngày.
+- Giới hạn đã biết: (1) trễ tối đa vài phút (lượt đồng bộ 5 phút). (2) Ngày tính theo lịch máy con; mẹ hỏi 7 ngày theo lịch máy mẹ nên khác múi giờ có thể lệch 1 ngày ở mép (TODO(verify)). (3) Máy con lâu ngày không đồng bộ chỉ còn 30 ngày trong kho. (4) Dữ liệu trước khi ghép đôi nằm trong kho chụp sẽ được gửi lên lần đầu (cùng loại số liệu, chỉ phút theo app). (5) Hôm nay phút theo app chỉ tính app ≥1 phút (như báo cáo trên máy con).
+- Xong khi: mẹ xem được biểu đồ tuần của máy con (cần 2 máy thật, xem TASKS/TEST_PLAN.md "Bổ sung API-08").
 
 ### API-09 Trạng thái máy con và lịch sử lệnh — code xong, CHƯA test máy thật
 - Server (xong, đã chạy `smoke.sh`): bảng `DeviceStatus` (migration `DeviceStatus`, mỗi máy một dòng ghi đè). `PUT /api/devices/me/status` (con) nhận đúng: `batteryPercent` 0–100 (tùy chọn), `policyVersion` ≥0, `isPaused`, `studyActive`, `permissionsMissing[]` (≤20 mã dạng `[a-z][a-z0-9_]*` ≤40 ký tự), `appVersion` (≤32, `[0-9A-Za-z.+_-]`), `tempUnlocked[{package, until}]` (≤50, tên gói đúng dạng, `until` bắt buộc và không xa quá 245 phút). Sai kiểu/giới hạn → 400. `GET /api/devices/{id}/status` (mẹ) thêm `lastSeenAt` từ `Device`, `reportedAt` (null = chưa từng báo) và lọc bỏ app mở tạm đã quá hạn. Logic kiểm tra ở `Services/StatusRules.cs`.

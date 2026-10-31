@@ -457,6 +457,64 @@ namespace SafeFamily.Api.Migrations
                     b.ToTable("RefreshTokens");
                 });
 
+            modelBuilder.Entity("SafeFamily.Api.Data.UsageApp", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("Minutes")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Package")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<int>("UsageDayId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UsageDayId", "Package")
+                        .IsUnique();
+
+                    b.ToTable("UsageApps");
+                });
+
+            modelBuilder.Entity("SafeFamily.Api.Data.UsageDay", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("Blocks")
+                        .HasColumnType("int");
+
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("date");
+
+                    b.Property<int>("DeviceId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("TotalMinutes")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DeviceId", "Date")
+                        .IsUnique();
+
+                    b.ToTable("UsageDays");
+                });
+
             modelBuilder.Entity("SafeFamily.Api.Data.Parent", b =>
                 {
                     b.HasOne("SafeFamily.Api.Data.Family", "Family")
@@ -466,6 +524,20 @@ namespace SafeFamily.Api.Migrations
                         .IsRequired();
 
                     b.Navigation("Family");
+                });
+
+            modelBuilder.Entity("SafeFamily.Api.Data.UsageApp", b =>
+                {
+                    b.HasOne("SafeFamily.Api.Data.UsageDay", null)
+                        .WithMany("Apps")
+                        .HasForeignKey("UsageDayId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("SafeFamily.Api.Data.UsageDay", b =>
+                {
+                    b.Navigation("Apps");
                 });
 #pragma warning restore 612, 618
         }

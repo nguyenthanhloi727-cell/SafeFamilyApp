@@ -159,6 +159,26 @@ public class DevicesController(AppDb db) : ApiBase
             .ToListAsync();
     }
 
+    /// <summary>
+    /// Báo cáo sử dụng của máy con (API-08): <c>from</c>/<c>to</c> dạng yyyy-MM-dd (mặc định 7 ngày gần nhất theo ngày UTC),
+    /// tối đa 90 ngày, cũ nhất trước. Sai định dạng / from &gt; to / quá 90 ngày → 400. Gia đình khác hoặc máy hủy ghép → 404.
+    /// </summary>
+    [HttpGet("{id:int}/usage")]
+    public async Task<ActionResult<List<UsageDayDto>>> Usage(int id, [FromQuery] string? from = null, [FromQuery] string? to = null)
+    {
+        if (await Own(id) is null) return NotFound();
+        var end = DateOnly.FromDateTime(DateTime.UtcNow);
+        if (to is not null && !UsageRules.TryParseDate(to, out end)) return BadRequest(new { error = "to không hợp lệ." });
+        var start = end.AddDays(-6);
+        if (from is not null && !UsageRules.TryParseDate(from, out start)) return BadRequest(new { error = "from không hợp lệ." });
+        if (start > end) return BadRequest(new { error = "from phải không sau to." });
+        if (end.DayNumber - start.DayNumber + 1 > UsageRules.MaxRangeDays) return BadRequest(new { error = "Khoảng ngày quá dài." });
+        var rows = await db.UsageDays.Where(u => u.DeviceId == id && u.Date >= start && u.Date <= end)
+            .OrderBy(u => u.Date).Include(u => u.Apps).AsNoTracking().ToListAsync();
+        return rows.Select(u => new UsageDayDto(UsageRules.Format(u.Date), u.TotalMinutes, u.Blocks,
+            u.Apps.ToDictionary(a => a.Package, a => a.Minutes))).ToList();
+    }
+
     /// <summary>Vị trí mới nhất của máy con (204 nếu chưa có).</summary>
     [HttpGet("{id:int}/location")]
     public async Task<ActionResult<LocationDto>> LastLocation(int id)
@@ -406,6 +426,41 @@ public class DeviceSelfController(AppDb db) : ApiBase
         var cutoff = now - LocationRetention;
         await db.LocationPoints.Where(l => l.DeviceId == SubjectId && l.Time < cutoff).ExecuteDeleteAsync();
         await db.SaveChangesAsync();
+        return NoContent();
+    }
+
+    /// <summary>
+    /// Máy con gửi báo cáo sử dụng theo ngày (API-08, lô ≤31 ngày, upsert theo (máy, ngày)). Chỉ phút theo app.
+    /// Dọn dữ liệu cũ hơn 90 ngày của máy này mỗi lần gửi.
+    /// </summary>
+    [HttpPost("usage")]
+    public async Task<IActionResult> PostUsage(PostUsageRequest req)
+    {
+        if (!await Touch()) return Unauthorized();
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var error = UsageRules.Validate(req, today);
+        if (error is not null) return BadRequest(new { error });
+
+        var dates = req.Days.Select(d => { UsageRules.TryParseDate(d.Date, out var x); return x; }).ToList();
+        var existing = await db.UsageDays.Where(u => u.DeviceId == SubjectId && dates.Contains(u.Date))
+            .Include(u => u.Apps).ToDictionaryAsync(u => u.Date);
+        var now = DateTime.UtcNow;
+        for (var i = 0; i < req.Days.Count; i++)
+        {
+            var item = req.Days[i];
+            if (!existing.TryGetValue(dates[i], out var row))
+                db.UsageDays.Add(row = new UsageDay { DeviceId = SubjectId, Date = dates[i] });
+            else
+                db.UsageApps.RemoveRange(row.Apps);
+            row.TotalMinutes = item.TotalMinutes;
+            row.Blocks = item.Blocks;
+            row.UpdatedAt = now;
+            row.Apps = item.Apps.Select(kv => new UsageApp { Package = kv.Key, Minutes = kv.Value }).ToList();
+        }
+        try { await db.SaveChangesAsync(); }
+        catch (DbUpdateException) { return Conflict(new { error = "Đang gửi trùng, thử lại sau." }); } // hai lô cùng lúc vi phạm khóa duy nhất
+        var cutoff = today.AddDays(-UsageRules.RetentionDays);
+        await db.UsageDays.Where(u => u.DeviceId == SubjectId && u.Date < cutoff).ExecuteDeleteAsync();
         return NoContent();
     }
 

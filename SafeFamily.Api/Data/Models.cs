@@ -163,3 +163,29 @@ public class ChildRequest
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? DecidedAt { get; set; }
 }
+
+/// <summary>
+/// Báo cáo sử dụng một ngày của máy con (API-08). Chỉ phút theo app, không nội dung, không vị trí.
+/// Khóa duy nhất (DeviceId, Date): máy con gửi lại cùng ngày thì ghi đè, không trùng.
+/// </summary>
+public class UsageDay
+{
+    public int Id { get; set; }
+    public int DeviceId { get; set; }
+    /// <summary>Ngày theo lịch trên máy con (không kèm giờ).</summary>
+    public DateOnly Date { get; set; }
+    public int TotalMinutes { get; set; }
+    /// <summary>Số lần màn chặn hiện lên trong ngày.</summary>
+    public int Blocks { get; set; }
+    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+    public List<UsageApp> Apps { get; set; } = [];
+}
+
+/// <summary>Phút dùng một app trong một ngày (<see cref="UsageDay"/>).</summary>
+public class UsageApp
+{
+    public int Id { get; set; }
+    public int UsageDayId { get; set; }
+    public string Package { get; set; } = "";
+    public int Minutes { get; set; }
+}

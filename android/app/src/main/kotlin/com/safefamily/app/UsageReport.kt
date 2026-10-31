@@ -4,6 +4,7 @@ import android.app.usage.UsageEvents
 import android.app.usage.UsageStatsManager
 import android.content.Context
 import android.content.pm.PackageManager
+import org.json.JSONArray
 import org.json.JSONObject
 import java.util.Calendar
 
@@ -149,6 +150,74 @@ object UsageReport {
             prefs(context).edit().putString(KEY_DAYS, days.toString()).apply()
         }
         return out
+    }
+
+    // ---- Đẩy lên server (API-08) -------------------------------------------
+
+    private const val KEY_SENT = "sent_days"
+
+    /** Khớp UsageRules ở server. */
+    private const val MAX_APPS_PER_DAY = 200
+    private const val MAX_MINUTES = 24 * 60
+    private const val MAX_BLOCKS = 10_000
+    private const val MAX_DAYS_PER_BATCH = 31
+    private val PACKAGE_RE = Regex("^[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z0-9_]+)+$")
+    private val netLock = Any()
+
+    /** Quên các ngày đã gửi: gọi khi máy con ghép với tài khoản/máy chủ khác để gửi lại từ đầu. */
+    fun forgetSent(context: Context) {
+        prefs(context).edit().remove(KEY_SENT).apply()
+    }
+
+    /**
+     * Gửi báo cáo lên server (`POST /api/devices/me/usage`): ngày đã chốt gửi một lần, hôm nay gửi lại mỗi khi số liệu
+     * đổi. Chỉ phút theo app (không nội dung, không vị trí), bỏ app trong [TimeLimits.exemptPackages]. Ngày hoàn toàn
+     * trống (0 phút, 0 lần chặn) không gửi, nên mẹ thấy 0 cho ngày thiếu. Gọi trong [FamilySync.syncOnce]; mọi lỗi
+     * (mạng, 4xx/5xx, đọc số liệu) bị nuốt, lượt sau gửi lại. Chưa có quyền truy cập dữ liệu sử dụng thì không làm gì.
+     * Server trả 400 (không nhận dữ liệu này) thì bỏ ngày đó để khỏi kẹt.
+     */
+    fun syncWithServer(context: Context) {
+        if (!FamilySync.isConfigured(context)) return
+        synchronized(netLock) {
+            runCatching { push(context) }
+        }
+    }
+
+    private fun push(context: Context) {
+        val days = report(context, KEEP_DAYS) ?: return // null = chưa có quyền truy cập dữ liệu sử dụng
+        val exempt = TimeLimits.exemptPackages(context)
+        val sent = runCatching { JSONObject(prefs(context).getString(KEY_SENT, "{}") ?: "{}") }.getOrDefault(JSONObject())
+        val todo = ArrayList<Pair<String, String>>() // ngày -> chữ ký
+        val items = JSONArray()
+        for (d in days) {
+            val date = d["date"] as String
+            @Suppress("UNCHECKED_CAST")
+            val apps = d["apps"] as Map<String, Int>
+            val kept = apps.filter { (pkg, m) -> pkg !in exempt && PACKAGE_RE.matches(pkg) && pkg.length <= 200 && m in 1..MAX_MINUTES }
+                .entries.sortedWith(compareByDescending<Map.Entry<String, Int>> { it.value }.thenBy { it.key })
+                .take(MAX_APPS_PER_DAY)
+            val exemptMinutes = apps.filter { it.key in exempt }.values.sum()
+            val total = ((d["totalMinutes"] as Int) - exemptMinutes).coerceIn(0, MAX_MINUTES)
+            val blocks = (d["blocks"] as Int).coerceIn(0, MAX_BLOCKS)
+            if (total == 0 && blocks == 0 && kept.isEmpty()) continue
+            val signature = "$total|$blocks|" + kept.joinToString(",") { "${it.key}=${it.value}" }
+            if (sent.optString(date) == signature) continue
+            val appsJson = JSONObject()
+            kept.forEach { appsJson.put(it.key, it.value) }
+            items.put(JSONObject().put("date", date).put("totalMinutes", total).put("blocks", blocks).put("apps", appsJson))
+            todo.add(date to signature)
+        }
+        for (start in 0 until items.length() step MAX_DAYS_PER_BATCH) {
+            val end = minOf(start + MAX_DAYS_PER_BATCH, items.length())
+            val batch = JSONArray().also { out -> for (i in start until end) out.put(items.get(i)) }
+            val r = FamilySync.request(context, "POST", "/api/devices/me/usage", JSONObject().put("days", batch))
+            if (r.code !in 200..299 && r.code != 400) break // 401/409/429/5xx: giữ, lượt sau thử lại
+            for (i in start until end) sent.put(todo[i].first, todo[i].second)
+        }
+        // Chỉ nhớ các ngày còn trong kho, để dữ liệu nhớ không phình ra.
+        val live = days.map { it["date"] as String }.toSet()
+        sent.keys().asSequence().toList().filter { it !in live }.forEach { sent.remove(it) }
+        prefs(context).edit().putString(KEY_SENT, sent.toString()).apply()
     }
 
     /** Tên hiển thị của các gói (nhãn app trong PackageManager). */

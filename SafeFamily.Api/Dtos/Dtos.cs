@@ -61,4 +61,10 @@ public record CreateChildRequest([Required, MaxLength(20)] string Kind, string? 
 public record ChildRequestDto(int Id, int DeviceId, string Kind, string Payload, string Status,
                               DateTime CreatedAt, DateTime? DecidedAt);
 /// <summary>Decision = "approved" | "rejected". Minutes chỉ dùng khi duyệt extra_time (bỏ trống = số phút con xin).</summary>
+// ---- Báo cáo sử dụng (API-08). Chỉ phút theo app theo ngày. ----
+/// <summary>Date = "yyyy-MM-dd"; Apps = tên gói → phút.</summary>
+public record UsageDayItem([Required] string Date, int TotalMinutes, int Blocks, [Required] Dictionary<string, int> Apps);
+public record PostUsageRequest([Required] List<UsageDayItem> Days);
+public record UsageDayDto(string Date, int TotalMinutes, int Blocks, Dictionary<string, int> Apps);
+
 public record DecideRequest([Required, MaxLength(10)] string Decision, int? Minutes);

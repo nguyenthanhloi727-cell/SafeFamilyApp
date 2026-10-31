@@ -191,8 +191,63 @@ dec $RID4 '{"decision":"rejected"}' "reject extra_time" 200
 N1=$(curl -s $B/api/devices/me/commands -H "Authorization: Bearer $DT" | python -c "import sys,json;print(len(json.load(sys.stdin)))")
 echo "commands before/after reject extra_time (expect equal): $N0 $N1"
 echo "child sees rejected:"; curl -s $B/api/devices/me/requests/$RID4 -H "Authorization: Bearer $DT" | py "['status']"
+# --- Báo cáo sử dụng (API-08): phút theo app theo ngày, upsert, kiểm từng trường, cô lập gia đình ---
+dt() { python -c "import datetime as d,sys;print((d.datetime.utcnow()+d.timedelta(days=int(sys.argv[1]))).strftime('%Y-%m-%d'))" "$1"; }
+D0=$(dt 0); D1=$(dt -1); D2=$(dt -2); DF=$(dt 5); DOLD=$(dt -100)
+up() { # $1 = JSON, $2 = nhãn, $3 = mã mong đợi
+  python -c "import json,sys;print(json.dumps(json.loads(sys.argv[1])))" "$1" | curl -s -o /dev/null -w "$2 (expect $3) %{http_code}\n" -X POST $B/api/devices/me/usage -H "$J" -H "Authorization: Bearer $DT" -d @-
+}
+up "{\"days\":[{\"date\":\"$D1\",\"totalMinutes\":90,\"blocks\":2,\"apps\":{\"com.google.android.youtube\":60,\"com.zing.zalo\":30}},{\"date\":\"$D0\",\"totalMinutes\":40,\"blocks\":0,\"apps\":{\"com.google.android.youtube\":40}}]}" "usage post 2 days" 204
+echo "mother reads usage (expect 2 days, ascending, youtube 60 then 40):"
+curl -s "$B/api/devices/$DID/usage?from=$D2&to=$D0" -H "Authorization: Bearer $A" | python -c "import sys,json;print([(d['date'],d['totalMinutes'],d['blocks'],d['apps']) for d in json.load(sys.stdin)])"
+up "{\"days\":[{\"date\":\"$D0\",\"totalMinutes\":55,\"blocks\":1,\"apps\":{\"com.zing.zalo\":55}}]}" "usage resend same day (upsert)" 204
+echo "after upsert (expect D0 total 55 only zalo, D1 unchanged, still 2 rows):"
+curl -s "$B/api/devices/$DID/usage?from=$D2&to=$D0" -H "Authorization: Bearer $A" | python -c "import sys,json;d=json.load(sys.stdin);print(len(d),[(x['totalMinutes'],x['apps']) for x in d])"
+echo "default range (no from/to) returns 7-day window:"; curl -s "$B/api/devices/$DID/usage" -H "Authorization: Bearer $A" | python -c "import sys,json;print(len(json.load(sys.stdin)))"
+up '{"days":[]}' "usage empty batch" 400
+up '{}' "usage missing days" 400
+up '{"days":"x"}' "usage days wrong type" 400
+up "{\"days\":[{\"date\":\"$D0\",\"totalMinutes\":\"abc\",\"blocks\":0,\"apps\":{}}]}" "usage minutes string" 400
+up "{\"days\":[{\"date\":\"$D0\",\"totalMinutes\":1441,\"blocks\":0,\"apps\":{}}]}" "usage total 1441" 400
+up "{\"days\":[{\"date\":\"$D0\",\"totalMinutes\":-1,\"blocks\":0,\"apps\":{}}]}" "usage total -1" 400
+up "{\"days\":[{\"date\":\"$D0\",\"totalMinutes\":10,\"blocks\":-1,\"apps\":{}}]}" "usage blocks -1" 400
+up "{\"days\":[{\"date\":\"$D0\",\"totalMinutes\":10,\"blocks\":10001,\"apps\":{}}]}" "usage blocks 10001" 400
+up "{\"days\":[{\"date\":\"$D0\",\"totalMinutes\":10,\"blocks\":0,\"apps\":{\"com.a.b\":1441}}]}" "usage app minutes 1441" 400
+up "{\"days\":[{\"date\":\"$D0\",\"totalMinutes\":10,\"blocks\":0,\"apps\":{\"com.a.b\":-5}}]}" "usage app minutes -5" 400
+up "{\"days\":[{\"date\":\"$D0\",\"totalMinutes\":10,\"blocks\":0,\"apps\":{\"khong co cham\":5}}]}" "usage bad package" 400
+up "{\"days\":[{\"date\":\"$D0\",\"totalMinutes\":10,\"blocks\":0,\"apps\":{\"com.a.b<script>\":5}}]}" "usage package with chars" 400
+up "{\"days\":[{\"date\":\"$D0\",\"totalMinutes\":10,\"blocks\":0,\"apps\":{\"com.$(python -c "print('a'*201)")\":5}}]}" "usage package 201+ chars" 400
+up "{\"days\":[{\"date\":\"$D0\",\"totalMinutes\":10,\"blocks\":0,\"apps\":$(python -c "import json;print(json.dumps({'com.a.p%d'%i:1 for i in range(201)}))")}]}" "usage 201 apps in a day" 400
+up "{\"days\":[{\"date\":\"$D0\",\"totalMinutes\":10,\"blocks\":0,\"apps\":$(python -c "import json;print(json.dumps({'com.a.p%d'%i:1 for i in range(200)}))")}]}" "usage exactly 200 apps" 204
+up "{\"days\":[{\"date\":\"$DF\",\"totalMinutes\":10,\"blocks\":0,\"apps\":{}}]}" "usage date 5 days ahead" 400
+up "{\"days\":[{\"date\":\"$DOLD\",\"totalMinutes\":10,\"blocks\":0,\"apps\":{}}]}" "usage date 100 days old" 400
+up '{"days":[{"date":"2026-13-45","totalMinutes":10,"blocks":0,"apps":{}}]}' "usage date invalid" 400
+up '{"days":[{"date":"31/10/2026","totalMinutes":10,"blocks":0,"apps":{}}]}' "usage date wrong format" 400
+up "{\"days\":[{\"date\":\"$D0\",\"totalMinutes\":10,\"blocks\":0,\"apps\":{}},{\"date\":\"$D0\",\"totalMinutes\":20,\"blocks\":0,\"apps\":{}}]}" "usage duplicate date in batch" 400
+up "{\"days\":$(python -c "import json,datetime as d;print(json.dumps([{'date':(d.date.today()-d.timedelta(days=i)).isoformat(),'totalMinutes':1,'blocks':0,'apps':{}} for i in range(32)]))")}" "usage 32 days" 400
+up "{\"days\":$(python -c "import json,datetime as d;print(json.dumps([{'date':(d.date.today()-d.timedelta(days=i)).isoformat(),'totalMinutes':1,'blocks':0,'apps':{}} for i in range(31)]))")}" "usage exactly 31 days" 204
+echo "D0 after the 31-day batch overwrote it (expect 1 0 = total 1, no apps):"
+curl -s "$B/api/devices/$DID/usage?from=$D0&to=$D0" -H "Authorization: Bearer $A" | python -c "import sys,json;d=json.load(sys.stdin)[0];print(d['totalMinutes'],len(d['apps']))"
+python -c "import json;print(json.dumps({'days':[{'date':'$D0','totalMinutes':1,'blocks':0,'apps':{'com.a.b':1},'x':'a'*1000}]}))" | curl -s -o /dev/null -w "usage extra field ignored (expect 204) %{http_code}\n" -X POST $B/api/devices/me/usage -H "$J" -H "Authorization: Bearer $DT" -d @-
+curl -s -o /dev/null -w "usage bad from (expect 400) %{http_code}\n" "$B/api/devices/$DID/usage?from=abc" -H "Authorization: Bearer $A"
+curl -s -o /dev/null -w "usage bad to (expect 400) %{http_code}\n" "$B/api/devices/$DID/usage?to=2026-02-30" -H "Authorization: Bearer $A"
+curl -s -o /dev/null -w "usage from > to (expect 400) %{http_code}\n" "$B/api/devices/$DID/usage?from=$D0&to=$D2" -H "Authorization: Bearer $A"
+curl -s -o /dev/null -w "usage range 91 days (expect 400) %{http_code}\n" "$B/api/devices/$DID/usage?from=$(dt -90)&to=$D0" -H "Authorization: Bearer $A"
+curl -s -o /dev/null -w "usage range 90 days (expect 200) %{http_code}\n" "$B/api/devices/$DID/usage?from=$(dt -89)&to=$D0" -H "Authorization: Bearer $A"
+curl -s -o /dev/null -w "other family reads usage (expect 404) %{http_code}\n" "$B/api/devices/$DID/usage" -H "Authorization: Bearer $A2"
+curl -s -o /dev/null -w "other family unknown device (expect 404) %{http_code}\n" "$B/api/devices/999999/usage" -H "Authorization: Bearer $A"
+curl -s -o /dev/null -w "usage get with device token (expect 403) %{http_code}\n" "$B/api/devices/$DID/usage" -H "Authorization: Bearer $DT"
+curl -s -o /dev/null -w "usage post with parent token (expect 403) %{http_code}\n" -X POST $B/api/devices/me/usage -H "$J" -H "Authorization: Bearer $A" -d '{"days":[]}'
+curl -s -o /dev/null -w "usage post no token (expect 401) %{http_code}\n" -X POST $B/api/devices/me/usage -H "$J" -d '{"days":[]}'
+curl -s -o /dev/null -w "usage get no token (expect 401) %{http_code}\n" "$B/api/devices/$DID/usage"
+echo "other child same date is a separate row; next line expect child1 D0 still 1:"
+up2() { curl -s -o /dev/null -w "$1 (expect $2) %{http_code}\n" -X POST $B/api/devices/me/usage -H "$J" -H "Authorization: Bearer $DT2" -d "$3"; }
+up2 "child2 posts same date (own row, no clash)" 204 "{\"days\":[{\"date\":\"$D0\",\"totalMinutes\":7,\"blocks\":0,\"apps\":{\"com.a.b\":7}}]}"
+curl -s "$B/api/devices/$DID/usage?from=$D0&to=$D0" -H "Authorization: Bearer $A" | python -c "import sys,json;d=json.load(sys.stdin)[0];print('child1 D0 still',d['totalMinutes'])"
 R3=$(curl -s -X POST $B/api/devices/me/requests -H "$J" -H "Authorization: Bearer $DT" -d '{"kind":"study_done"}'); RID3=$(echo $R3 | py "['id']")
 curl -s -o /dev/null -w "unpair (expect 204) %{http_code}\n" -X DELETE $B/api/devices/$DID -H "Authorization: Bearer $A"
 dec $RID3 '{"decision":"approved"}' "approve after unpair" 404
 curl -s -o /dev/null -w "list after unpair (expect 404) %{http_code}\n" "$B/api/devices/$DID/requests" -H "Authorization: Bearer $A"
 curl -s -o /dev/null -w "child request after unpair (expect 401) %{http_code}\n" -X POST $B/api/devices/me/requests -H "$J" -H "Authorization: Bearer $DT" -d '{"kind":"study_done"}'
+curl -s -o /dev/null -w "usage get after unpair (expect 404) %{http_code}\n" "$B/api/devices/$DID/usage" -H "Authorization: Bearer $A"
+curl -s -o /dev/null -w "usage post after unpair (expect 401) %{http_code}\n" -X POST $B/api/devices/me/usage -H "$J" -H "Authorization: Bearer $DT" -d '{"days":[]}'

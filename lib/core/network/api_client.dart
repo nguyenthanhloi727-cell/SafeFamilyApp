@@ -201,6 +201,24 @@ class InstalledAppInfo {
   final DateTime? decidedAt;
 }
 
+/// Phút dùng máy của một ngày do máy con báo (`GET /api/devices/{id}/usage`, API-08). Chỉ phút theo app.
+class UsageDayInfo {
+  const UsageDayInfo({
+    required this.date,
+    required this.totalMinutes,
+    this.blocks = 0,
+    this.apps = const {},
+  });
+
+  /// Ngày theo lịch máy con (00:00).
+  final DateTime date;
+  final int totalMinutes;
+  final int blocks;
+
+  /// `packageName -> phút`.
+  final Map<String, int> apps;
+}
+
 class LocationInfo {
   const LocationInfo(this.lat, this.lng, this.accuracy, this.time);
   final double lat;
@@ -500,6 +518,46 @@ class ApiClient {
           decidedAt: parseServerTime(e['decidedAt']),
         ),
     ];
+  }
+
+  /// Báo cáo sử dụng của máy con từ [from] đến [to] (gồm cả hai đầu, tối đa 90 ngày), cũ nhất trước. Ngày máy con
+  /// chưa báo thì không có trong kết quả. Dòng hỏng bị bỏ qua.
+  Future<List<UsageDayInfo>> getDeviceUsage(
+    int deviceId, {
+    required DateTime from,
+    required DateTime to,
+  }) async {
+    String ymd(DateTime d) =>
+        '${d.year.toString().padLeft(4, '0')}-'
+        '${d.month.toString().padLeft(2, '0')}-'
+        '${d.day.toString().padLeft(2, '0')}';
+    final list = await _send(
+      'GET',
+      '/api/devices/$deviceId/usage?from=${ymd(from)}&to=${ymd(to)}',
+      null,
+      auth: _Auth.parent,
+    ) as List<dynamic>;
+    final out = <UsageDayInfo>[];
+    for (final e in list) {
+      try {
+        final m = e as Map<String, dynamic>;
+        final p = (m['date'] as String).split('-').map(int.parse).toList();
+        out.add(
+          UsageDayInfo(
+            date: DateTime(p[0], p[1], p[2]),
+            totalMinutes: (m['totalMinutes'] as num).toInt(),
+            blocks: (m['blocks'] as num?)?.toInt() ?? 0,
+            apps: {
+              for (final a in ((m['apps'] as Map?) ?? const {}).entries)
+                a.key as String: (a.value as num).toInt(),
+            },
+          ),
+        );
+      } catch (_) {
+        // Dòng hỏng: bỏ qua, không làm hỏng cả báo cáo.
+      }
+    }
+    return out;
   }
 
   /// Mẹ cho phép / chặn một app mới của máy con; máy con áp ở lượt đồng bộ kế (tối đa vài phút).

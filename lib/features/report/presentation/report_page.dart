@@ -1,6 +1,8 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 
+import '../../../core/network/api_client.dart';
+import '../../../core/network/remote_commands.dart';
 import '../../../core/security/parent_guard.dart';
 import '../../../core/security/ui/parent_area_guard.dart';
 import '../../../core/security/unlock_log.dart';
@@ -10,6 +12,7 @@ import '../../app_lock/data/app_lock_platform.dart';
 import '../../time_limit/data/time_limit_platform.dart';
 import '../../time_limit/domain/time_limit_config.dart';
 import '../domain/usage_report.dart';
+import 'remote_report_view.dart';
 
 const reportDays = 7;
 
@@ -32,12 +35,16 @@ const reportDays = 7;
 
 /// Báo cáo thời gian dùng: hôm nay so với hạn mức, top 5 app, biểu đồ 7 ngày,
 /// số lần chạm app bị chặn và số lần mở khóa trong tuần.
-class ReportPage extends StatefulWidget {
+///
+/// Chế độ "mẹ" đã chọn máy con (hoặc truyền [remoteDevice]): đọc số liệu máy con từ server (API-08) và cho chọn
+/// máy con. Ngược lại làm việc trên chính máy này như cũ.
+class ReportPage extends StatelessWidget {
   const ReportPage({
     super.key,
     this.platform = const MethodChannelTimeLimit(),
     this.loadApps,
     this.now,
+    this.remoteDevice,
   });
 
   final TimeLimitPlatform platform;
@@ -48,11 +55,28 @@ class ReportPage extends StatefulWidget {
   /// Giờ hiện tại (test).
   final DateTime Function()? now;
 
+  final DeviceInfo? remoteDevice;
+
   @override
-  State<ReportPage> createState() => _ReportPageState();
+  Widget build(BuildContext context) {
+    final id = remoteDevice?.id ?? RemoteCommands.targetOf(context);
+    if (id != null) return RemoteReportView(deviceId: id, now: now);
+    return _LocalReport(platform: platform, loadApps: loadApps, now: now);
+  }
 }
 
-class _ReportPageState extends State<ReportPage> with WidgetsBindingObserver {
+class _LocalReport extends StatefulWidget {
+  const _LocalReport({required this.platform, this.loadApps, this.now});
+
+  final TimeLimitPlatform platform;
+  final Future<List<InstalledApp>> Function()? loadApps;
+  final DateTime Function()? now;
+
+  @override
+  State<_LocalReport> createState() => _ReportPageState();
+}
+
+class _ReportPageState extends State<_LocalReport> with WidgetsBindingObserver {
   List<DayUsage>? _days;
   bool _loaded = false;
   TimeLimitConfig _config = TimeLimitConfig();
