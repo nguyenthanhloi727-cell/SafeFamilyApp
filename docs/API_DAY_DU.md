@@ -47,7 +47,7 @@ Gói luật (schema `schemaVersion` 1): `{"schemaVersion":1,"timeLimit":{...},"a
 | 10 | Nhật ký mở khóa (`unlock_log`) | Máy con | ➖ | Đã chốt không đưa lên server | – |
 | 11 | Cảnh báo tamper: đổi giờ máy, gỡ app, tắt trợ năng/Device Admin, mất kết nối (`TimeChangeReceiver`, `UninstallGate`, `SettingsGuardService`, `TamperAlerts.kt`) | Máy con + server | 🟡 báo loại sự kiện + mất kết nối do server tự phát hiện | Code xong, chờ test máy thật: con báo tamper (xếp hàng khi offline), server tự báo "mất kết nối > 24h", mẹ xem danh sách và được thông báo. Chưa có: mẹ chỉnh ngưỡng mất kết nối (hiện cấu hình server) | API-10 |
 | 12 | Vị trí (`FamilyService`, `remote_monitor_page`) | Máy con + server | ✅ | Xóa lịch sử và công tắc chia sẻ vị trí: code xong, chờ test máy thật (giữ 7 ngày, con không xem lịch sử: đã chốt) | API-11 |
-| 13 | Hàng rào địa lý (`Geofences.kt`) | Máy con + server | ✅ | Thông báo máy mẹ trễ 15 phút (WorkManager), cân nhắc đẩy | API-12 |
+| 13 | Hàng rào địa lý (`Geofences.kt`) | Máy con + server | ✅ | Thông báo máy mẹ trễ tối thiểu 15 phút (WorkManager): đã chốt giữ nguyên, không đẩy | API-12 |
 | 14 | Lệnh từ xa (khóa/mở, tắt giới hạn hôm nay…) | Server | ✅ | Màn "Lệnh đã gửi" (đang chờ / đã thực thi / quá hạn 24h) đã có, chờ test máy thật | API-09 |
 | 15 | Hồ sơ, liên hệ gia đình, SOS (`profile/`) | Máy | 🟡 `policy.contacts` | Code xong, chờ test máy thật: mẹ chọn tối đa 3 số SOS, chỉ nhãn + số lên server (không gửi danh bạ), màn chặn của con gọi thẳng | API-13 |
 | 16 | Quyền ứng dụng, Setup Wizard, Đang cản trở (`PermissionRegistry`, `setup/`, `home/`) | Máy | ➖ | Chỉ cần báo mẹ khi con thiếu quyền (xem API-10) | – |
@@ -160,8 +160,10 @@ Mỗi task: endpoint/bảng cần thêm, phía Flutter/Kotlin cần nối, đi�
 - Quyền riêng tư: chỉ đổi cờ và xóa, không thêm dữ liệu nào mới lên server.
 - Xong khi: tắt chia sẻ thì con dừng gửi vị trí, mẹ xóa được lịch sử (cần 2 máy thật, xem TASKS/TEST_PLAN.md "Bổ sung API-11").
 
-### API-12 Thông báo nhanh hơn (tùy chọn)
-- Hiện trễ tối thiểu 15 phút ở máy mẹ. Phương án: SignalR (cần app mở) hoặc FCM (đã chốt không dùng). Chỉ làm khi người dùng chấp nhận đổi quyết định.
+### API-12 Thông báo nhanh hơn — ĐÃ CHỐT GIỮ NGUYÊN, không code
+- Đã chốt (2026-10-31, người dùng trả lời): chấp nhận máy mẹ nhận thông báo trễ tối thiểu 15 phút (WorkManager, polling), vẫn KHÔNG dùng FCM, không làm SignalR.
+- Không đổi code, server, migration hay smoke.sh.
+- Nếu sau này muốn nhanh hơn thì mở lại quyết định: SignalR (cần app mở, TODO(verify) MyASP.net có hỗ trợ WebSocket không) hoặc FCM (cần tài khoản Firebase, `google-services.json` cho app mẹ, service account key cho server).
 
 ### API-13 Đồng bộ liên hệ khẩn cấp — code xong, server + Flutter đã test tự động, CHƯA test 2 máy thật
 - Đã chốt (2026-10-31, người dùng trả lời): (1) ĐƯỢC gửi nhãn + số SOS lên server; (2) tối đa **3** số SOS; (3) màn chặn của con **gọi thẳng**, không hỏi xác nhận (quyền `CALL_PHONE`).
@@ -204,12 +206,12 @@ Mỗi task: endpoint/bảng cần thêm, phía Flutter/Kotlin cần nối, đi�
 4. **API-08** (báo cáo), **API-10** (cảnh báo) — code xong, chờ test máy thật.
 5. **API-03**, **API-01**, **API-11**, **API-13**.
 6. **API-14**, **API-15** làm xen kẽ; bắt buộc xong trước khi phát hành.
-7. **API-02**: đã chốt và làm xong phần server (2026-10-31); **API-12**: chỉ làm khi người dùng chốt quyết định.
+7. **API-02**: đã chốt và làm xong phần server (2026-10-31); **API-12**: đã chốt giữ 15 phút, không làm (2026-10-31).
 
 ## 5. Câu hỏi cần chốt
 
 1. ~~Có thêm tài khoản bố ngang quyền mẹ không (API-02)?~~ Đã chốt 2026-10-31: có, ngang mẹ trừ xóa tài khoản gia đình; chỉ chủ mời/xóa; mã 30 phút dùng một lần; tối đa 2 người.
 2. Báo cáo sử dụng giữ bao nhiêu ngày (đề xuất 90)? (Vị trí: đã chốt 7 ngày, 2026-10-31.)
-3. Chấp nhận trễ 15 phút cho thông báo ở máy mẹ, hay đổi quyết định không dùng FCM (API-12)?
+3. ~~Chấp nhận trễ 15 phút cho thông báo ở máy mẹ, hay đổi quyết định không dùng FCM (API-12)?~~ Đã chốt 2026-10-31: giữ 15 phút, không FCM.
 4. ~~Có gửi liên hệ khẩn cấp lên server không (API-13)?~~ Đã chốt 2026-10-31: có, tối đa 3 số, gọi thẳng.
 5. MyASP.net có SMTP để làm quên mật khẩu không (API-03)? — Đã trả lời "có", hạn mã 30 phút; còn thiếu host, port, tài khoản gửi, địa chỉ From thật (xem `API_TIEN_TRINH.md`, mục Cấu hình).
