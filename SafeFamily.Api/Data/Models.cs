@@ -30,6 +30,19 @@ public class RefreshToken
     public DateTime? RevokedAt { get; set; }
 }
 
+/// <summary>Mã đặt lại mật khẩu (API-03). Chỉ lưu băm HMAC của mã 6 số; mỗi mẹ chỉ có một mã còn hiệu lực.</summary>
+public class PasswordReset
+{
+    public int Id { get; set; }
+    public int ParentId { get; set; }
+    public string CodeHash { get; set; } = "";
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime ExpiresAt { get; set; }
+    public DateTime? UsedAt { get; set; }
+    /// <summary>Số lần nhập sai; đủ <see cref="PasswordResetRules.MaxAttempts"/> thì mã vô hiệu.</summary>
+    public int Attempts { get; set; }
+}
+
 /// <summary>Máy con. Thuộc đúng một gia đình; hủy ghép thì Revoked = true.</summary>
 public class Device
 {

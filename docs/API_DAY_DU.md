@@ -36,7 +36,7 @@ Gói luật (schema `schemaVersion` 1): `{"schemaVersion":1,"timeLimit":{...},"a
 | # | Tính năng (thư mục) | Hiện chạy ở | API | Còn thiếu | Task |
 |---|---|---|---|---|---|
 | 1 | Chọn vai trò, ghép đôi (`connection/`) | Máy + server | ✅ | Đổi tên máy con (`PATCH /api/devices/{id}`) và máy con xem thông tin mình (`GET /api/devices/me`): code xong, server + Flutter đã test tự động, chờ test 2 máy thật. Còn: thêm người giám hộ thứ 2 | API-01, API-02 |
-| 2 | Tài khoản mẹ (`parent_login_page`) | Server | 🟡 | Đăng xuất (thu hồi refresh), đổi mật khẩu, quên mật khẩu, xóa tài khoản | API-03 |
+| 2 | Tài khoản mẹ (`parent_login_page`, `account_pages`) | Server | 🟡 | Đăng xuất thật (thu hồi refresh), đổi mật khẩu, xóa tài khoản, quên/đặt lại mật khẩu: code xong, server + Flutter đã test tự động. Còn: thư thật cần SMTP MyASP.net (chưa có host/port/tài khoản/From), test máy thật; thêm người giám hộ thứ 2 (API-02) | API-03 |
 | 3 | Giới hạn thời gian: ngày, giờ ngủ, theo tuổi (`time_limit/`) | Máy con (Kotlin) | 🟡 `policy.timeLimit` | Mẹ đã đẩy được (có test tự động); chờ test 2 máy thật | API-04 |
 | 4 | Giờ học, "Đã học xong", duyệt (`study_approval`, `StudyBlock.kt`) | Máy con | 🟡 lệnh `study_*` có | Code xong, chờ test máy thật: con gửi yêu cầu "đã học xong", mẹ có danh sách duyệt | API-06 |
 | 5 | Xin thêm giờ (`extra_time`) | Máy con + server | 🟡 | Code xong, chờ test máy thật: con xin 5/15/30 phút, mẹ duyệt/từ chối | API-06 |
@@ -76,10 +76,21 @@ Mỗi task: endpoint/bảng cần thêm, phía Flutter/Kotlin cần nối, đi�
 - Quyết định chốt trước: bố có quyền ngang mẹ không. Đang ghi "để sau" trong `API_TIEN_TRINH.md`.
 - Xong khi: hai tài khoản cùng thấy một danh sách máy con.
 
-### API-03 Hoàn thiện tài khoản
+### API-03 Hoàn thiện tài khoản — code xong, server + Flutter đã test tự động, CHƯA test thư thật (SMTP) và máy thật
 - API: `POST /api/auth/logout` (thu hồi refresh), `POST /api/auth/change-password`, `POST /api/auth/forgot-password` + `reset-password` (cần SMTP, kiểm tra MyASP.net), `DELETE /api/auth/account` (xóa toàn bộ dữ liệu gia đình).
-- Flutter: nút đăng xuất thật (hiện `reset()` chỉ xóa token cục bộ), màn quên mật khẩu.
+- Flutter: nút đăng xuất thật (hiện `reset()` chỉ xóa token cục bộ), màn đổi mật khẩu, xóa tài khoản, quên mật khẩu.
 - Xong khi: sau đăng xuất, refresh token cũ bị 401.
+- Đã làm (server, `AuthController`):
+  - `POST /api/auth/logout` body `{"refreshToken"}` (bắt buộc, ≤200 ký tự, sai → 400): thu hồi đúng token đó, không cần access token (access token hết hạn sau 30 phút). Gọi lại hoặc token lạ vẫn 204. Sau đó `/refresh` với token cũ → 401. Access token đã cấp còn dùng được tối đa 30 phút (JWT không trạng thái).
+  - `POST /api/auth/change-password` (mẹ) body `{currentPassword,newPassword,refreshToken?}`: mật khẩu cũ sai → 403, mới <8 hoặc >128 ký tự → 400, mới trùng cũ → 400. Thu hồi mọi refresh token khác; `refreshToken` gửi kèm (phiên đang dùng) được giữ, bỏ trống thì thu hồi hết.
+  - `DELETE /api/auth/account` (mẹ) body `{password,confirm:true}`: thiếu/sai kiểu `confirm` hoặc không phải `true` → 400, sai mật khẩu → 403, mẹ đã bị xóa → 404. Một giao dịch xóa máy con, luật, lệnh, app, vị trí, hàng rào, sự kiện, trạng thái, yêu cầu, báo cáo, cảnh báo, mã ghép, token, mã đặt lại, mẹ và gia đình. Sau đó token máy con → 401, email đăng ký lại được.
+  - `POST /api/auth/forgot-password` `{email}`: LUÔN 204 (email lạ cũng 204, không lộ tài khoản); email sai định dạng → 400. Có tài khoản thì tạo mã 6 số (hạn **30 phút**, dùng một lần, chỉ lưu băm HMAC, xin lại trong 60 giây thì bỏ qua) và gửi thư nền qua SMTP.
+  - `POST /api/auth/reset-password` `{email,code,newPassword}`: mã sai / hết hạn / đã dùng / email lạ đều 400 cùng một thông báo; nhập sai 5 lần thì mã bị hủy; đúng thì đổi mật khẩu và thu hồi mọi refresh token. Mã phải đúng 6 chữ số, mật khẩu mới 8–128 ký tự (sai → 400).
+  - Bảng mới `PasswordResets` (migration `PasswordReset`). Thư qua `IEmailSender`/`SmtpEmailSender` (`Services/PasswordResetRules.cs`), cấu hình `Smtp:*` (xem `API_TIEN_TRINH.md`, mục Cấu hình); mật khẩu SMTP không nằm trong git. Không cấu hình SMTP thì chỉ ghi cảnh báo vào log, không lộ mã.
+  - Trần giới hạn `/api/auth` đọc từ cấu hình `RateLimit:AuthPerMinute` (mặc định 10/phút/IP, giữ nguyên khi chạy thật); `smoke.sh` nâng lên khi chạy.
+- Flutter: `ApiClient.logout` (thu hồi trên server rồi `session.reset()`; mất mạng vẫn đăng xuất cục bộ nhưng báo "chưa báo được cho máy chủ"), `changePassword`, `deleteAccount`, `forgotPassword`, `resetPassword`. `account_pages.dart`: `ChangePasswordPage`, `ForgotPasswordPage` (email → mã 6 số → mật khẩu mới), hộp xóa tài khoản (nhập lại mật khẩu). `ConnectionPage` (máy mẹ): "Đăng xuất máy mẹ", "Đổi mật khẩu", "Xóa tài khoản" đều qua `ParentGate.always`; `ParentLoginPage` có "Quên mật khẩu?". Không đụng Kotlin.
+- Tự động đã đạt: `flutter test` (có `test/features/connection/account_test.dart`, 13 ca), `smoke.sh` (77 kiểm tra API-03 trong 391 kiểm tra, 0 lệch).
+- Còn lại / TODO(verify): MyASP.net có SMTP, nhưng host/port/tài khoản gửi/địa chỉ From thật CHƯA được cung cấp, nên chưa gửi thư thật lần nào (smoke dùng thư mục nhận thư `Smtp:PickupDirectory`). `SmtpClient` của .NET chỉ hỗ trợ STARTTLS (cổng 587), không hỗ trợ SSL ngầm định ở cổng 465. Chưa có tài khoản "đặt lại mật khẩu" cho máy con (máy con không có mật khẩu). Mã đặt lại gửi qua email thường: ai đọc được hộp thư của mẹ thì đặt lại được mật khẩu.
 
 ### API-04 Chốt schema `policy` và đẩy từ Flutter mẹ — code xong, CHƯA test máy thật
 - Schema đã chốt: `{"schemaVersion":1,"timeLimit":{...},"appLock":{"blocked":[pkg],"schedules":[]}}`. `study` chưa có; `contacts` đã thêm ở API-13 (`schemaVersion` 2; máy con bỏ qua trường lạ, gặp `schemaVersion` lớn hơn mình hiểu thì giữ luật cũ). Server vẫn lưu nguyên khối, chỉ kiểm tra là đối tượng JSON hợp lệ và ≤64 KB.
@@ -198,4 +209,4 @@ Mỗi task: endpoint/bảng cần thêm, phía Flutter/Kotlin cần nối, đi�
 2. Báo cáo sử dụng giữ bao nhiêu ngày (đề xuất 90)? (Vị trí: đã chốt 7 ngày, 2026-10-31.)
 3. Chấp nhận trễ 15 phút cho thông báo ở máy mẹ, hay đổi quyết định không dùng FCM (API-12)?
 4. ~~Có gửi liên hệ khẩn cấp lên server không (API-13)?~~ Đã chốt 2026-10-31: có, tối đa 3 số, gọi thẳng.
-5. MyASP.net có SMTP để làm quên mật khẩu không (API-03)?
+5. MyASP.net có SMTP để làm quên mật khẩu không (API-03)? — Đã trả lời "có", hạn mã 30 phút; còn thiếu host, port, tài khoản gửi, địa chỉ From thật (xem `API_TIEN_TRINH.md`, mục Cấu hình).

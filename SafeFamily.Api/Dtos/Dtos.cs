@@ -9,6 +9,20 @@ public record LoginRequest([Required] string Email, [Required] string Password);
 public record RefreshRequest([Required] string RefreshToken);
 public record AuthResponse(string AccessToken, string RefreshToken, int FamilyId);
 
+// ---- Hoàn thiện tài khoản (API-03) ----
+/// <summary>Đăng xuất: thu hồi đúng refresh token này (không cần access token, vì access token hết hạn sau 30 phút).</summary>
+public record LogoutRequest([Required, MaxLength(200)] string RefreshToken);
+/// <summary>RefreshToken (tùy chọn) = phiên đang dùng, được giữ lại; bỏ trống thì mọi phiên đều bị thu hồi.</summary>
+public record ChangePasswordRequest([Required, MaxLength(128)] string CurrentPassword,
+                                    [Required, MinLength(8), MaxLength(128)] string NewPassword,
+                                    [MaxLength(200)] string? RefreshToken);
+public record ForgotPasswordRequest([Required, EmailAddress, MaxLength(256)] string Email);
+public record ResetPasswordRequest([Required, EmailAddress, MaxLength(256)] string Email,
+                                   [Required, RegularExpression(@"^\d{6}$")] string Code,
+                                   [Required, MinLength(8), MaxLength(128)] string NewPassword);
+/// <summary>Confirm bắt buộc và phải là true; thiếu hoặc sai kiểu thì 400.</summary>
+public record DeleteAccountRequest([Required, MaxLength(128)] string Password, [Required] bool? Confirm);
+
 public record CreateCodeRequest([MaxLength(100)] string? DeviceName);
 public record CodeResponse(string Code, DateTime ExpiresAt);
 public record ClaimRequest([Required, StringLength(6, MinimumLength = 6)] string Code);

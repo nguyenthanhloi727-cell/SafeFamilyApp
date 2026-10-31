@@ -374,6 +374,59 @@ class ApiClient {
     return r;
   }
 
+  /// Đăng xuất thật (API-03): thu hồi refresh token trên server rồi xóa phiên cục bộ ([ConnectionSession.reset]).
+  /// Không tới được server (mất mạng) thì VẪN xóa phiên cục bộ và trả `false`: refresh token cũ còn hiệu lực
+  /// trên server đến khi hết hạn 60 ngày, nơi gọi nên báo cho mẹ biết. Nơi gọi phải qua `ParentGate` trước.
+  Future<bool> logout() async {
+    final refresh = session.refreshToken;
+    var revoked = refresh == null;
+    if (refresh != null) {
+      try {
+        await _send('POST', '/api/auth/logout', {'refreshToken': refresh});
+        revoked = true;
+      } on ApiException {
+        revoked = false;
+      }
+    }
+    await session.reset();
+    return revoked;
+  }
+
+  /// Đổi mật khẩu (API-03). Sai mật khẩu cũ → [ApiException.isForbidden]. Phiên này được giữ, các phiên khác bị đăng xuất.
+  /// Nơi gọi phải qua `ParentGate` trước.
+  Future<void> changePassword(String current, String next) => _send(
+    'POST',
+    '/api/auth/change-password',
+    {
+      'currentPassword': current,
+      'newPassword': next,
+      'refreshToken': session.refreshToken,
+    },
+    auth: _Auth.parent,
+  );
+
+  /// Xóa vĩnh viễn tài khoản và mọi dữ liệu gia đình (API-03), xong thì xóa phiên cục bộ.
+  /// Sai mật khẩu → [ApiException.isForbidden]. Nơi gọi phải qua `ParentGate` + hộp xác nhận.
+  Future<void> deleteAccount(String password) async {
+    await _send('DELETE', '/api/auth/account', {
+      'password': password,
+      'confirm': true,
+    }, auth: _Auth.parent);
+    await session.reset();
+  }
+
+  /// Xin mã đặt lại mật khẩu qua email (API-03). Server luôn trả thành công dù email có tồn tại hay không.
+  Future<void> forgotPassword(String email) =>
+      _send('POST', '/api/auth/forgot-password', {'email': email});
+
+  /// Đặt mật khẩu mới bằng mã 6 số trong thư. Mã sai/hết hạn → [ApiException] 400.
+  Future<void> resetPassword(String email, String code, String newPassword) =>
+      _send('POST', '/api/auth/reset-password', {
+        'email': email,
+        'code': code,
+        'newPassword': newPassword,
+      });
+
   // ---- Ghép đôi ----
 
   Future<PairingCode> createPairingCode({String? deviceName}) async {

@@ -4,6 +4,7 @@ import '../../../core/network/api_client.dart';
 import '../../../core/network/api_scope.dart';
 import '../../../core/network/connection_session.dart';
 import '../../../core/theme/app_tokens.dart';
+import 'account_pages.dart';
 import 'server_address_field.dart';
 
 /// Máy mẹ: đăng nhập hoặc đăng ký (email + mật khẩu). Thành công thì máy này
@@ -121,6 +122,19 @@ class _ParentLoginPageState extends State<ParentLoginPage> {
                   )
                 : Text(_register ? 'Đăng ký' : 'Đăng nhập'),
           ),
+          if (!_register)
+            TextButton(
+              key: const Key('forgot-password'),
+              onPressed: _busy
+                  ? null
+                  : () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) =>
+                            ForgotPasswordPage(initialEmail: _email.text.trim()),
+                      ),
+                    ),
+              child: const Text('Quên mật khẩu?'),
+            ),
           TextButton(
             onPressed: _busy
                 ? null

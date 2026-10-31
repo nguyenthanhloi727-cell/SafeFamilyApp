@@ -476,3 +476,143 @@ code "revoked device POST locations" 401 -X POST $B/api/devices/me/locations -H 
 code "revoked device POST ack" 401 -X POST $B/api/devices/me/commands/1/ack -H "Authorization: Bearer $K15"
 # Swagger: mọi endpoint phải hiện (test tích hợp SafeFamily.Api.Tests so khớp từng action; ở đây chỉ in số đường dẫn)
 echo "swagger path count (info): $(curl -s $B/swagger/v1/swagger.json | py "['paths'].__len__()")"
+# --- Hoàn thiện tài khoản (API-03): đăng xuất, đổi mật khẩu, quên/đặt lại mật khẩu, xóa tài khoản ---
+# Cần chạy API với RateLimit__AuthPerMinute=1000 (smoke gọi /api/auth nhiều hơn 10 lần/phút) và RateLimit__ClaimPer10Min=1000
+# (smoke ghép đôi quá 5 lần/10 phút; không thì bước ghép máy thất bại với 429). Phần quên mật khẩu cần
+# Smtp__PickupDirectory=<thư mục> + Smtp__From=a@b.c khi chạy API và SF_MAIL_DIR=<cùng thư mục> khi chạy smoke.
+PW=password123; PW2=matkhaumoi456
+EA="acc$RANDOM@x.com"
+authj() { curl -s -X POST $B/api/auth/$1 -H "$J" -d "$2"; }
+S1=$(authj register "{\"email\":\"$EA\",\"password\":\"$PW\"}"); AA=$(echo $S1 | py "['accessToken']"); RT1=$(echo $S1 | py "['refreshToken']")
+S2=$(authj login "{\"email\":\"$EA\",\"password\":\"$PW\"}"); AA2=$(echo $S2 | py "['accessToken']"); RT2=$(echo $S2 | py "['refreshToken']")
+S3=$(authj login "{\"email\":\"$EA\",\"password\":\"$PW\"}"); RT3=$(echo $S3 | py "['refreshToken']")
+rf() { curl -s -o /dev/null -w "%{http_code}" -X POST $B/api/auth/refresh -H "$J" -d "{\"refreshToken\":\"$1\"}"; }
+# Logout
+code "logout missing body field" 400 -X POST $B/api/auth/logout -H "$J" -d '{}'
+code "logout wrong type" 400 -X POST $B/api/auth/logout -H "$J" -d '{"refreshToken":5}'
+code "logout token 201 chars" 400 -X POST $B/api/auth/logout -H "$J" -d "{\"refreshToken\":\"$(python -c "print('a'*201)")\"}"
+code "logout unknown token (idempotent)" 204 -X POST $B/api/auth/logout -H "$J" -d '{"refreshToken":"khong-co-token-nay"}'
+code "logout session 1" 204 -X POST $B/api/auth/logout -H "$J" -d "{\"refreshToken\":\"$RT1\"}"
+echo "refresh with logged-out token (expect 401): $(rf $RT1)"
+code "logout session 1 again" 204 -X POST $B/api/auth/logout -H "$J" -d "{\"refreshToken\":\"$RT1\"}"
+echo "other sessions untouched by logout, S3 refresh (expect 200): $(rf $RT3)"
+RT3=$(authj login "{\"email\":\"$EA\",\"password\":\"$PW\"}" | py "['refreshToken']")
+# Đổi mật khẩu
+cpw() { curl -s -o /dev/null -w "$1 (expect $2) %{http_code}\n" -X POST $B/api/auth/change-password -H "$J" ${5:+-H "Authorization: Bearer $5"} -d "$3"; }
+cpw "change-pw no token" 401 "{\"currentPassword\":\"$PW\",\"newPassword\":\"$PW2\"}"
+cpw "change-pw device token" 403 "{\"currentPassword\":\"$PW\",\"newPassword\":\"$PW2\"}" "" "$DT"
+cpw "change-pw missing fields" 400 '{}' "" "$AA2"
+cpw "change-pw wrong type" 400 '{"currentPassword":5,"newPassword":6}' "" "$AA2"
+cpw "change-pw new too short" 400 "{\"currentPassword\":\"$PW\",\"newPassword\":\"abc\"}" "" "$AA2"
+cpw "change-pw new 129 chars" 400 "{\"currentPassword\":\"$PW\",\"newPassword\":\"$(python -c "print('a'*129)")\"}" "" "$AA2"
+cpw "change-pw refreshToken wrong type" 400 "{\"currentPassword\":\"$PW\",\"newPassword\":\"$PW2\",\"refreshToken\":5}" "" "$AA2"
+cpw "change-pw wrong current password" 403 "{\"currentPassword\":\"sai-roi-nhe\",\"newPassword\":\"$PW2\"}" "" "$AA2"
+cpw "change-pw new equals old" 400 "{\"currentPassword\":\"$PW\",\"newPassword\":\"$PW\"}" "" "$AA2"
+code "old password still works after bad attempts" 200 -X POST $B/api/auth/login -H "$J" -d "{\"email\":\"$EA\",\"password\":\"$PW\"}"
+echo "S2 and S3 still valid before change (expect 200 200): $(rf $RT2) $(rf $RT3)"
+S2=$(authj login "{\"email\":\"$EA\",\"password\":\"$PW\"}"); AA2=$(echo $S2 | py "['accessToken']"); RT2=$(echo $S2 | py "['refreshToken']")
+S3=$(authj login "{\"email\":\"$EA\",\"password\":\"$PW\"}"); RT3=$(echo $S3 | py "['refreshToken']")
+cpw "change-pw ok (keeps session 2)" 204 "{\"currentPassword\":\"$PW\",\"newPassword\":\"$PW2\",\"refreshToken\":\"$RT2\"}" "" "$AA2"
+code "login old password" 401 -X POST $B/api/auth/login -H "$J" -d "{\"email\":\"$EA\",\"password\":\"$PW\"}"
+code "login new password" 200 -X POST $B/api/auth/login -H "$J" -d "{\"email\":\"$EA\",\"password\":\"$PW2\"}"
+echo "after change: other session refresh (expect 401): $(rf $RT3)   current session refresh (expect 200): $(rf $RT2)"
+# Quên / đặt lại mật khẩu
+fp() { curl -s -o /dev/null -w "$1 (expect $2) %{http_code}\n" -X POST $B/api/auth/forgot-password -H "$J" -d "$3"; }
+rp() { curl -s -o /dev/null -w "$1 (expect $2) %{http_code}\n" -X POST $B/api/auth/reset-password -H "$J" -d "$3"; }
+fp "forgot unknown email (no leak)" 204 '{"email":"khong.ton.tai@x.com"}'
+fp "forgot not an email" 400 '{"email":"abc"}'
+fp "forgot missing email" 400 '{}'
+fp "forgot email wrong type" 400 '{"email":5}'
+rp "reset code too short" 400 "{\"email\":\"$EA\",\"code\":\"12345\",\"newPassword\":\"$PW\"}"
+rp "reset code letters" 400 "{\"email\":\"$EA\",\"code\":\"abcdef\",\"newPassword\":\"$PW\"}"
+rp "reset code number type" 400 "{\"email\":\"$EA\",\"code\":123456,\"newPassword\":\"$PW\"}"
+rp "reset new password too short" 400 "{\"email\":\"$EA\",\"code\":\"123456\",\"newPassword\":\"abc\"}"
+rp "reset missing fields" 400 '{}'
+rp "reset unknown email" 400 "{\"email\":\"khong.ton.tai@x.com\",\"code\":\"123456\",\"newPassword\":\"$PW\"}"
+rp "reset without a pending code" 400 "{\"email\":\"$EA\",\"code\":\"123456\",\"newPassword\":\"$PW\"}"
+mailcode() { # $1 = email người nhận: in ra mã 6 số trong thư mới nhất gửi tới email đó
+  python -c "
+import sys,glob,os,email
+want=sys.argv[2].lower(); best=None
+for f in sorted(glob.glob(os.path.join(sys.argv[1],'*.eml')),key=os.path.getmtime,reverse=True):
+    m=email.message_from_binary_file(open(f,'rb'))
+    if want in (m['To'] or '').lower():
+        import re
+        body=m.get_payload(decode=True).decode('utf-8','replace')
+        r=re.search(r'\b(\d{6})\b',body)
+        if r: best=r.group(1); break
+print(best or '')
+" "$SF_MAIL_DIR" "$1"; }
+wrongcode() { python -c "import sys;print('%06d'%((int(sys.argv[1])+1)%1000000))" "$1"; }
+if [ -n "$SF_MAIL_DIR" ]; then
+  fp "forgot known email" 204 "{\"email\":\"$EA\"}"
+  sleep 2
+  RC=$(mailcode "$EA")
+  echo "mail has a 6-digit code (expect 6): ${#RC}"
+  fp "forgot again within 60s (ignored, same code stays valid)" 204 "{\"email\":\"$EA\"}"
+  sleep 1
+  echo "mail files for this account (expect 1): $(grep -l -i "$EA" "$SF_MAIL_DIR"/*.eml 2>/dev/null | wc -l)"
+  rp "reset wrong code" 400 "{\"email\":\"$EA\",\"code\":\"$(wrongcode $RC)\",\"newPassword\":\"$PW\"}"
+  code "password unchanged after wrong code" 200 -X POST $B/api/auth/login -H "$J" -d "{\"email\":\"$EA\",\"password\":\"$PW2\"}"
+  rp "reset right code, new password too short" 400 "{\"email\":\"$EA\",\"code\":\"$RC\",\"newPassword\":\"abc\"}"
+  rp "reset right code" 204 "{\"email\":\"$EA\",\"code\":\"$RC\",\"newPassword\":\"$PW\"}"
+  rp "reset same code again (used)" 400 "{\"email\":\"$EA\",\"code\":\"$RC\",\"newPassword\":\"$PW\"}"
+  code "login after reset (old password restored)" 200 -X POST $B/api/auth/login -H "$J" -d "{\"email\":\"$EA\",\"password\":\"$PW\"}"
+  code "login with password before reset" 401 -X POST $B/api/auth/login -H "$J" -d "{\"email\":\"$EA\",\"password\":\"$PW2\"}"
+  echo "reset revoked old sessions, S2 refresh (expect 401): $(rf $RT2)"
+  # Nhập sai 5 lần thì mã bị hủy, kể cả khi sau đó nhập đúng
+  EL="lock$RANDOM@x.com"; authj register "{\"email\":\"$EL\",\"password\":\"$PW\"}" >/dev/null
+  fp "forgot (lockout account)" 204 "{\"email\":\"$EL\"}"; sleep 2
+  RL=$(mailcode "$EL"); WL=$(wrongcode $RL)
+  for i in 1 2 3 4 5; do rp "  wrong attempt $i" 400 "{\"email\":\"$EL\",\"code\":\"$WL\",\"newPassword\":\"$PW2\"}"; done
+  rp "right code after 5 wrong attempts (locked)" 400 "{\"email\":\"$EL\",\"code\":\"$RL\",\"newPassword\":\"$PW2\"}"
+  code "password unchanged after lockout" 200 -X POST $B/api/auth/login -H "$J" -d "{\"email\":\"$EL\",\"password\":\"$PW\"}"
+  if [ -n "$SF_SQL_SERVER" ] && [ -n "$SF_SQL_DB" ] && command -v sqlcmd >/dev/null; then
+    EX="exp$RANDOM@x.com"; authj register "{\"email\":\"$EX\",\"password\":\"$PW\"}" >/dev/null
+    fp "forgot (expiry account)" 204 "{\"email\":\"$EX\"}"; sleep 2
+    RX=$(mailcode "$EX")
+    sqlcmd -S "$SF_SQL_SERVER" -d "$SF_SQL_DB" -E -Q "UPDATE PasswordResets SET ExpiresAt=DATEADD(minute,-1,SYSUTCDATETIME()) WHERE ParentId=(SELECT Id FROM Parents WHERE Email='$EX')" >/dev/null
+    rp "reset with expired code" 400 "{\"email\":\"$EX\",\"code\":\"$RX\",\"newPassword\":\"$PW2\"}"
+  else
+    echo "SKIP: expired reset code needs SF_SQL_SERVER / SF_SQL_DB and sqlcmd"
+  fi
+else
+  echo "SKIP: forgot/reset with a real code needs SF_MAIL_DIR (API started with Smtp__PickupDirectory=<same dir> and Smtp__From)"
+fi
+# Xóa tài khoản: một gia đình có máy con và dữ liệu; gia đình khác không bị ảnh hưởng
+EDEL="del$RANDOM@x.com"
+SD=$(authj register "{\"email\":\"$EDEL\",\"password\":\"$PW\"}"); AD=$(echo $SD | py "['accessToken']"); RTD=$(echo $SD | py "['refreshToken']")
+CODED=$(curl -s -X POST $B/api/pairing/code -H "$J" -H "Authorization: Bearer $AD" -d '{"deviceName":"Con xoa"}' | py "['code']")
+CLD=$(curl -s -X POST $B/api/pairing/claim -H "$J" -d "{\"code\":\"$CODED\"}"); DTD=$(echo $CLD | py "['deviceToken']"); DIDD=$(echo $CLD | py "['deviceId']")
+curl -s -o /dev/null -X POST $B/api/devices/me/locations -H "$J" -H "Authorization: Bearer $DTD" -d "{\"points\":[{\"lat\":10.77,\"lng\":106.7,\"accuracy\":12,\"time\":\"$NOW\"}]}"
+curl -s -o /dev/null -X POST $B/api/devices/me/alerts -H "$J" -H "Authorization: Bearer $DTD" -d '{"kind":"accessibility_off"}'
+curl -s -o /dev/null -X POST $B/api/devices/me/usage -H "$J" -H "Authorization: Bearer $DTD" -d "{\"days\":[{\"date\":\"$(dt 0)\",\"totalMinutes\":5,\"blocks\":0,\"apps\":{\"com.a.b\":5}}]}"
+curl -s -o /dev/null -X PUT $B/api/devices/$DIDD/policy -H "$J" -H "Authorization: Bearer $AD" -d "$(pj '{"schemaVersion":1}' 0)"
+curl -s -o /dev/null -X POST $B/api/pairing/code -H "$J" -H "Authorization: Bearer $AD" -d '{"deviceName":"Ma chua dung"}'
+dl() { curl -s -o /dev/null -w "$1 (expect $2) %{http_code}\n" -X DELETE $B/api/auth/account -H "$J" ${5:+-H "Authorization: Bearer $5"} -d "$3"; }
+dl "delete account no token" 401 "{\"password\":\"$PW\",\"confirm\":true}"
+dl "delete account device token" 403 "{\"password\":\"$PW\",\"confirm\":true}" "" "$DTD"
+dl "delete account empty body" 400 '{}' "" "$AD"
+dl "delete account missing password" 400 '{"confirm":true}' "" "$AD"
+dl "delete account missing confirm" 400 "{\"password\":\"$PW\"}" "" "$AD"
+dl "delete account confirm false" 400 "{\"password\":\"$PW\",\"confirm\":false}" "" "$AD"
+dl "delete account confirm string" 400 "{\"password\":\"$PW\",\"confirm\":\"yes\"}" "" "$AD"
+dl "delete account password wrong type" 400 '{"password":5,"confirm":true}' "" "$AD"
+dl "delete account wrong password" 403 '{"password":"sai-roi-nhe","confirm":true}' "" "$AD"
+echo "family intact after bad attempts (expect 1 device, login 200): $(curl -s $B/api/devices -H "Authorization: Bearer $AD" | python -c "import sys,json;print(len(json.load(sys.stdin)))") $(curl -s -o /dev/null -w "%{http_code}" -X POST $B/api/auth/login -H "$J" -d "{\"email\":\"$EDEL\",\"password\":\"$PW\"}")"
+dl "delete account ok" 204 "{\"password\":\"$PW\",\"confirm\":true}" "" "$AD"
+code "login after delete" 401 -X POST $B/api/auth/login -H "$J" -d "{\"email\":\"$EDEL\",\"password\":\"$PW\"}"
+echo "refresh after delete (expect 401): $(rf $RTD)"
+code "child token after delete" 401 $B/api/devices/me/policy -H "Authorization: Bearer $DTD"
+code "child post after delete" 401 -X POST $B/api/devices/me/alerts -H "$J" -H "Authorization: Bearer $DTD" -d '{"kind":"accessibility_off"}'
+code "claim the leftover pairing code after delete" 400 -X POST $B/api/pairing/claim -H "$J" -d "{\"code\":\"$CODED\"}"
+echo "old access token sees no devices (expect 0): $(curl -s $B/api/devices -H "Authorization: Bearer $AD" | python -c "import sys,json;print(len(json.load(sys.stdin)))")"
+dl "delete account twice (parent gone)" 404 "{\"password\":\"$PW\",\"confirm\":true}" "" "$AD"
+code "register the same email again" 200 -X POST $B/api/auth/register -H "$J" -d "{\"email\":\"$EDEL\",\"password\":\"$PW\"}"
+echo "other family untouched (expect 1 device): $(curl -s $B/api/devices -H "Authorization: Bearer $A2" | python -c "import sys,json;print(len(json.load(sys.stdin)))")"
+if [ -n "$SF_SQL_SERVER" ] && [ -n "$SF_SQL_DB" ] && command -v sqlcmd >/dev/null; then
+  sq3() { sqlcmd -S "$SF_SQL_SERVER" -d "$SF_SQL_DB" -E -h -1 -W -Q "SET NOCOUNT ON; $1" | tr -d '\r' | head -1; }
+  echo "SQL leftover rows of the deleted device (expect 0 for each): devices=$(sq3 "SELECT COUNT(*) FROM Devices WHERE Id=$DIDD") locations=$(sq3 "SELECT COUNT(*) FROM LocationPoints WHERE DeviceId=$DIDD") alerts=$(sq3 "SELECT COUNT(*) FROM Alerts WHERE DeviceId=$DIDD") usage=$(sq3 "SELECT COUNT(*) FROM UsageDays WHERE DeviceId=$DIDD") usageapps=$(sq3 "SELECT COUNT(*) FROM UsageApps WHERE UsageDayId NOT IN (SELECT Id FROM UsageDays)") policies=$(sq3 "SELECT COUNT(*) FROM Policies WHERE DeviceId=$DIDD") pairings=$(sq3 "SELECT COUNT(*) FROM Pairings WHERE Code='$CODED'") parents=$(sq3 "SELECT COUNT(*) FROM Parents WHERE Email='$EDEL'") (1 = the re-registered account)"
+else
+  echo "SKIP: leftover-row check needs SF_SQL_SERVER / SF_SQL_DB and sqlcmd"
+fi

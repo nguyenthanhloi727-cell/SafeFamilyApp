@@ -7,6 +7,7 @@ import '../../../core/security/ui/parent_gate.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/widgets/app_snack_bar.dart';
 import '../data/family_platform.dart';
+import 'account_pages.dart';
 import 'remote_monitor_page.dart';
 
 /// "Kết nối gia đình": máy mẹ tạo mã ghép đôi, xem/hủy ghép máy con;
@@ -111,9 +112,41 @@ class _ConnectionPageState extends State<ConnectionPage> {
 
   Future<void> _disconnect() async {
     final session = ConnectionScope.of(context);
+    final api = ApiScope.of(context);
     final navigator = Navigator.of(context);
-    if (!await ParentGate.always(context, 'Ngắt kết nối gia đình')) return;
-    await session.reset();
+    final messenger = ScaffoldMessenger.of(context);
+    final isParent = session.mode == ConnectionMode.parent;
+    if (!await ParentGate.always(
+      context,
+      isParent ? 'Đăng xuất máy mẹ' : 'Ngắt kết nối gia đình',
+    )) {
+      return;
+    }
+    if (isParent) {
+      // API-03: thu hồi refresh token trên server rồi mới xóa phiên cục bộ.
+      final revoked = await api.logout();
+      if (!revoked) {
+        messenger.showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Đã đăng xuất trên máy này, nhưng chưa báo được cho máy chủ '
+              '(không có mạng).',
+            ),
+          ),
+        );
+      }
+    } else {
+      await session.reset();
+    }
+    if (navigator.canPop()) navigator.pop();
+  }
+
+  /// API-03: xóa tài khoản + toàn bộ dữ liệu gia đình. Khóa phụ huynh, rồi hộp xác nhận nhập lại mật khẩu.
+  Future<void> _deleteAccount() async {
+    final navigator = Navigator.of(context);
+    if (!await ParentGate.always(context, 'Xóa tài khoản')) return;
+    if (!mounted) return;
+    if (!await showDeleteAccountDialog(context)) return;
     if (navigator.canPop()) navigator.pop();
   }
 
@@ -234,6 +267,25 @@ class _ConnectionPageState extends State<ConnectionPage> {
             ],
           ),
         ),
+      const SizedBox(height: AppSpace.lg),
+      ListTile(
+        key: const Key('change-password'),
+        leading: const Icon(Icons.password_rounded),
+        title: const Text('Đổi mật khẩu'),
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute<void>(builder: (_) => const ChangePasswordPage()),
+        ),
+      ),
+      ListTile(
+        key: const Key('delete-account'),
+        leading: Icon(
+          Icons.delete_forever_rounded,
+          color: Theme.of(context).colorScheme.error,
+        ),
+        title: const Text('Xóa tài khoản'),
+        subtitle: const Text('Xóa vĩnh viễn mọi dữ liệu gia đình trên máy chủ.'),
+        onTap: _deleteAccount,
+      ),
       _disconnectButton(label: 'Đăng xuất máy mẹ'),
     ];
   }

@@ -23,6 +23,8 @@ if (jwt.Key.Length < 32)
 builder.Services.AddDbContext<AppDb>(o => o.UseSqlServer(connection));
 builder.Services.AddSingleton(jwt);
 builder.Services.AddSingleton<TokenService>();
+builder.Services.AddSingleton(builder.Configuration.GetSection("Smtp").Get<SmtpOptions>() ?? new SmtpOptions());
+builder.Services.AddSingleton<IEmailSender, SmtpEmailSender>();
 builder.Services.AddControllers();
 builder.Services.AddHostedService<OfflineAlertService>(); // API-10: cảnh báo mẹ khi máy con mất kết nối
 
