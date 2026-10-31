@@ -35,7 +35,7 @@ Gói luật (schema `schemaVersion` 1): `{"schemaVersion":1,"timeLimit":{...},"a
 
 | # | Tính năng (thư mục) | Hiện chạy ở | API | Còn thiếu | Task |
 |---|---|---|---|---|---|
-| 1 | Chọn vai trò, ghép đôi (`connection/`) | Máy + server | ✅ | Đổi tên máy con; xem thông tin máy con (`/me`); thêm người giám hộ thứ 2 | API-01, API-02 |
+| 1 | Chọn vai trò, ghép đôi (`connection/`) | Máy + server | ✅ | Đổi tên máy con (`PATCH /api/devices/{id}`) và máy con xem thông tin mình (`GET /api/devices/me`): code xong, server + Flutter đã test tự động, chờ test 2 máy thật. Còn: thêm người giám hộ thứ 2 | API-01, API-02 |
 | 2 | Tài khoản mẹ (`parent_login_page`) | Server | 🟡 | Đăng xuất (thu hồi refresh), đổi mật khẩu, quên mật khẩu, xóa tài khoản | API-03 |
 | 3 | Giới hạn thời gian: ngày, giờ ngủ, theo tuổi (`time_limit/`) | Máy con (Kotlin) | 🟡 `policy.timeLimit` | Mẹ đã đẩy được (có test tự động); chờ test 2 máy thật | API-04 |
 | 4 | Giờ học, "Đã học xong", duyệt (`study_approval`, `StudyBlock.kt`) | Máy con | 🟡 lệnh `study_*` có | Code xong, chờ test máy thật: con gửi yêu cầu "đã học xong", mẹ có danh sách duyệt | API-06 |
@@ -62,10 +62,13 @@ Gói luật (schema `schemaVersion` 1): `{"schemaVersion":1,"timeLimit":{...},"a
 
 Mỗi task: endpoint/bảng cần thêm, phía Flutter/Kotlin cần nối, điều kiện xong. Nên mở context riêng cho mỗi task (theo `TASKS/TASKS.md`).
 
-### API-01 Đổi tên máy con, xem thông tin máy mình
+### API-01 Đổi tên máy con, xem thông tin máy mình — code xong, server + Flutter đã test tự động, CHƯA test 2 máy thật
 - API: `PATCH /api/devices/{id}` (mẹ, đổi `Name`), `GET /api/devices/me` (con: tên, mẹ, phiên bản luật).
 - Flutter: sửa tên trong `device_management_page`; con hiện "đang được giám sát bởi…".
 - Xong khi: đổi tên trên máy mẹ thì danh sách đổi theo.
+- Đã làm: `PATCH /api/devices/{id}` (mẹ, body `{"name":"..."}` bắt buộc; cắt khoảng trắng hai đầu, 1–50 ký tự, không có ký tự điều khiển; sai → 400; gia đình khác / máy hủy ghép → 404; trả `DeviceDto` mới). `GET /api/devices/me` (con) trả `{id,name,familyName,pairedAt,policyVersion}`, KHÔNG có email mẹ; token mẹ → 403, hủy ghép → 401. Logic tên ở `Services/DeviceRules.cs`.
+- Flutter: `ApiClient.renameDevice` / `fetchMyInfo`. Nút bút chì "Đổi tên" ở danh sách máy con trong `ConnectionPage` (qua `ParentGate.always`, hộp nhập ≤50 ký tự, xong tải lại danh sách). Máy con hiện "<tên máy> đang được giám sát bởi <tên gia đình>" (lỗi mạng thì giữ dòng "Đã kết nối với máy mẹ"). Không đụng Kotlin.
+- Lưu ý: tên gia đình mặc định "Gia đình" (đặt lúc đăng ký); chưa có chỗ để mẹ đổi tên gia đình.
 
 ### API-02 Người giám hộ thứ 2 (bố)
 - API: `POST /api/family/invite`, `POST /api/family/join`, bảng `Parent` nhiều dòng cùng `FamilyId` (đã có `Family`).
@@ -73,7 +76,7 @@ Mỗi task: endpoint/bảng cần thêm, phía Flutter/Kotlin cần nối, đi�
 - Xong khi: hai tài khoản cùng thấy một danh sách máy con.
 
 ### API-03 Hoàn thiện tài khoản
-- API: `POST /api/auth/logout` (thu hồi refresh), `POST /api/auth/change-password`, `POST /api/auth/forgot-password` + `reset-password` (cần SMTP, kiểm tra MonsterASP), `DELETE /api/auth/account` (xóa toàn bộ dữ liệu gia đình).
+- API: `POST /api/auth/logout` (thu hồi refresh), `POST /api/auth/change-password`, `POST /api/auth/forgot-password` + `reset-password` (cần SMTP, kiểm tra MyASP.net), `DELETE /api/auth/account` (xóa toàn bộ dữ liệu gia đình).
 - Flutter: nút đăng xuất thật (hiện `reset()` chỉ xóa token cục bộ), màn quên mật khẩu.
 - Xong khi: sau đăng xuất, refresh token cũ bị 401.
 
@@ -82,7 +85,7 @@ Mỗi task: endpoint/bảng cần thêm, phía Flutter/Kotlin cần nối, đi�
 - Flutter mẹ (xong): `PolicySync` đẩy sau khi lưu ở `time_limit_page` và `app_lock_page` (`block_schedules` chỉ hiển thị, không lưu gì nên không cần). Chỉ chạy khi chế độ "mẹ" và đã chọn máy con. 409 → tải lại → khác thì hỏi mẹ; giống thì bỏ qua.
 - Kotlin con (xong, chưa chạy thật): `pullPolicy` kiểm tra hết rồi mới ghi `timeLimit` + `appLock.blocked`; lỗi thì giữ luật cũ.
 - Tự động đã đạt: `flutter test` (có `policy_sync_test.dart`), `smoke.sh` (policy 200/409/400).
-- Còn lại: "Xong khi" bên dưới cần 2 máy thật + MonsterASP (TASKS/TEST_PLAN.md). Việc lưu từ `FeatureRegistry` ("Đang cản trở" tắt giờ học/giờ ngủ) và nút mở tạm/bỏ chặn từ trang chủ chưa đẩy tự động; mẹ dùng nút "Gửi luật" ở màn máy con.
+- Còn lại: "Xong khi" bên dưới cần 2 máy thật + MyASP.net (TASKS/TEST_PLAN.md). Việc lưu từ `FeatureRegistry` ("Đang cản trở" tắt giờ học/giờ ngủ) và nút mở tạm/bỏ chặn từ trang chủ chưa đẩy tự động; mẹ dùng nút "Gửi luật" ở màn máy con.
 - Xong khi: mẹ khóa YouTube trên máy mẹ, máy con chặn YouTube trong ≤5 phút, tắt mạng vẫn chặn.
 
 ### API-05 Lệnh từ xa: bổ sung loại lệnh — code xong, CHƯA test máy thật
@@ -126,7 +129,7 @@ Mỗi task: endpoint/bảng cần thêm, phía Flutter/Kotlin cần nối, đi�
 
 ### API-10 Cảnh báo cho mẹ (tamper và mất kết nối) — code xong, CHƯA test máy thật
 - Server (xong, đã chạy `smoke.sh`): bảng `Alert` (`DeviceId`, `Kind`, `Detail`, `CreatedAt`, `ReadAt`; migration `Alerts`). Loại: `time_changed`, `app_uninstall_attempt`, `accessibility_off`, `device_admin_off`, `permission_missing`, `offline`. `POST /api/devices/me/alerts` (con) nhận `{kind, detail?, occurredAt?}`: `kind` ≤30 ký tự và phải thuộc danh sách (con KHÔNG được tự gửi `offline`, do server tạo); `detail` ≤32 ký tự và chỉ là mã/số ngắn (`^-?[a-z0-9_]{1,31}$`, nên không lọt chữ có dấu, khoảng trắng, tên gói hay văn bản); `occurredAt` không ở tương lai quá 5 phút, không cũ quá 7 ngày (để con gửi bù lúc offline vẫn giữ giờ xảy ra thật); sai kiểu → 400. Chống trùng: cùng `Kind` trong ±10 phút quanh thời điểm xảy ra → 409 kèm `id` (máy con coi như đã gửi). Tối đa 200 dòng/máy: vượt thì XÓA dòng cũ nhất (không từ chối, để cảnh báo tamper mới không bao giờ bị bỏ vì mẹ chưa đọc); dòng quá 30 ngày bị dọn mỗi lần con gửi. `GET /api/devices/{id}/alerts?afterId=` (mẹ): cũ trước, ≤100 (không có `afterId` thì 100 cảnh báo MỚI nhất; có thì 100 kế sau mốc), `afterId` sai kiểu → 400; gia đình khác hoặc máy đã hủy ghép → 404. `POST /api/alerts/{id}/read` (mẹ): đặt `ReadAt` (gọi lại giữ giờ đầu), gia đình khác / không có → 404. Logic ở `Services/AlertRules.cs`.
-- Mất kết nối: `OfflineAlertService` (hosted service) chạy mỗi `Alerts:CheckIntervalSeconds` (mặc định 900 giây), tạo MỘT cảnh báo `offline` (Detail = số giờ) cho máy chưa hủy ghép có `LastSeenAt` (hoặc `PairedAt` nếu chưa từng kết nối) cũ hơn `Alerts:OfflineHours` (mặc định 24). Chỉ tạo lại khi máy đã kết nối lại rồi mất lần nữa (không có cảnh báo `offline` nào sau lần thấy cuối), nên không tạo trùng liên tục. Đã kiểm bằng SQL (đổi `LastSeenAt`) với `Alerts__CheckIntervalSeconds=3`: 25 giờ → đúng 1 cảnh báo, các lượt sau không thêm, online lại rồi im lặng tiếp → cảnh báo thứ 2, máy hủy ghép không có cảnh báo. TODO(verify): trên MonsterASP, IIS có thể dừng tiến trình khi không có truy cập (khi đó tác vụ nền không chạy); máy mẹ polling 15 phút giữ tiến trình sống phần nào. Ngưỡng mẹ tự chỉnh trong cài đặt gia đình CHƯA làm (hiện chỉ cấu hình server).
+- Mất kết nối: `OfflineAlertService` (hosted service) chạy mỗi `Alerts:CheckIntervalSeconds` (mặc định 900 giây), tạo MỘT cảnh báo `offline` (Detail = số giờ) cho máy chưa hủy ghép có `LastSeenAt` (hoặc `PairedAt` nếu chưa từng kết nối) cũ hơn `Alerts:OfflineHours` (mặc định 24). Chỉ tạo lại khi máy đã kết nối lại rồi mất lần nữa (không có cảnh báo `offline` nào sau lần thấy cuối), nên không tạo trùng liên tục. Đã kiểm bằng SQL (đổi `LastSeenAt`) với `Alerts__CheckIntervalSeconds=3`: 25 giờ → đúng 1 cảnh báo, các lượt sau không thêm, online lại rồi im lặng tiếp → cảnh báo thứ 2, máy hủy ghép không có cảnh báo. TODO(verify): trên MyASP.net, IIS có thể dừng tiến trình khi không có truy cập (khi đó tác vụ nền không chạy); máy mẹ polling 15 phút giữ tiến trình sống phần nào. Ngưỡng mẹ tự chỉnh trong cài đặt gia đình CHƯA làm (hiện chỉ cấu hình server).
 - Kotlin con (xong, biên dịch được, chưa chạy máy thật): `TamperAlerts.kt`. Hàng chờ SharedPreferences (`safefamily_alerts`, ≤30 mục, bỏ mục quá ~7 ngày), lưu bằng `commit()` để không mất khi bị kill ngay; gửi ngay ở luồng nền, gửi bù mỗi `FamilySync.syncOnce`; 200/409/400/404 → bỏ khỏi hàng, 401/429/5xx/mất mạng → giữ; mọi lỗi bị nuốt, không làm hỏng `syncOnce`. Nguồn sự kiện: `TimeChangeReceiver` (nhật ký lệch giờ của `TimeLimits` có lần mới → `time_changed`, Detail = số phút lệch có dấu, có `goAsync`); `UninstallGate.begin` → `app_uninstall_attempt` (`authorized`, sau khi qua PIN + sinh trắc, vì gỡ xong thì không còn app để báo); `SettingsGuardService.challenge` (có người mở màn Cài đặt của SafeFamily khi chưa qua khóa) → `app_uninstall_attempt` (`guard`); `SettingsGuardService.onUnbind` → chờ 15 giây rồi kiểm lại, dịch vụ còn tắt thì `accessibility_off` (tránh báo nhầm khi cập nhật app); `SafeFamilyAdminReceiver.onDisabled` → `device_admin_off` (bỏ qua khi cửa gỡ app hợp lệ đang mở). Phát hiện bù ở mỗi lượt đồng bộ: so `PermissionStatus.missing` với mốc, quyền MỚI thiếu → `accessibility_off` (Trợ năng / dịch vụ chặn), `device_admin_off`, hoặc `permission_missing` (Detail = id quyền); chỉ báo khi mất đi (cạnh xuống), mất lần nữa sau khi cấp lại mới báo lại. Mốc quyền và giờ lấy lúc ghép đôi (`FamilySync.configure` khi đổi token) nên quyền chưa cấp xong lúc cài đặt không báo; máy nâng cấp từ bản cũ chưa có mốc thì lần đồng bộ đầu chỉ ghi mốc. Trùng loại trong 10 phút thì bỏ (khớp server). Quyền micro không bao giờ báo (như API-09). TODO(verify): tắt Trợ năng trên Xiaomi T11 Pro có gọi `onUnbind` không; dịch vụ Trợ năng của `app_blocker` (plugin) không hook được nên chỉ bắt qua lượt đồng bộ ≤5 phút.
 - Flutter mẹ (xong, có test tự động `tamper_alerts_test.dart`, `device_alerts_page_test.dart`): `ApiClient.getAlerts/markAlertRead`, `alertLabel` (`child_status_text.dart`); `TamperAlertChecker` (`lib/core/alerts/tamper_alerts.dart`) chạy trong `parent_alert_worker` cùng WorkManager 15 phút, mốc theo id cảnh báo mỗi máy, cảnh báo đã đọc không báo lại (mốc vẫn đi qua), tối đa 5 thông báo/máy/lượt; màn `DeviceAlertsPage` ("Cảnh báo (N chưa đọc)" ở màn máy con): mới nhất trước, chạm để đánh dấu đã đọc, "Đã đọc hết". Đánh dấu đã đọc KHÔNG qua khóa phụ huynh vì chỉ đổi cờ đọc (cảnh báo vẫn nằm trong danh sách), không mở/tắt/duyệt gì; nếu muốn chặt hơn thì bọc bằng `ParentGate.always` ở `_markRead`. TODO(verify): thông báo nền trên máy mẹ thật (Android 13+ cần quyền thông báo; trễ tối thiểu 15 phút).
 - Quyền riêng tư: chỉ loại sự kiện, mã/số ngắn (phút lệch giờ, id quyền, số giờ mất kết nối, `authorized`/`guard`) và thời điểm; không nội dung, không vị trí, không tên app.
@@ -150,13 +153,13 @@ Mỗi task: endpoint/bảng cần thêm, phía Flutter/Kotlin cần nối, đi�
 - Xong khi: mẹ đặt số SOS, màn chặn của con gọi đúng số.
 
 ### API-14 Nền tảng và vận hành server
-- `GET /health` cho MonsterASP.
+- `GET /health` cho MyASP.net.
 - HTTPS bắt buộc, CORS, rà soát JWT và băm mật khẩu.
 - Ghi log lỗi phía server (Serilog ra file), trả lỗi dạng `ProblemDetails` thống nhất.
 - Giới hạn tần suất cho các endpoint con (polling), giới hạn kích thước body.
 - Tác vụ dọn dữ liệu định kỳ (vị trí, báo cáo, lệnh cũ, mã ghép hết hạn).
 - Versioning: tiền tố `/api/v1` hoặc header `X-App-Version`, để bản app cũ không làm hỏng server mới.
-- Publish MonsterASP, chạy `smoke.sh` trên máy chủ thật.
+- Publish MyASP.net, chạy `smoke.sh` trên máy chủ thật.
 
 ### API-15 Kiểm thử
 - Test tích hợp cho `SafeFamily.Api` (xUnit + `WebApplicationFactory`): phân quyền chéo gia đình (mẹ A không đọc máy con của mẹ B), 409 lệch phiên bản, mã ghép dùng lại, token bị thu hồi.
@@ -181,4 +184,4 @@ Mỗi task: endpoint/bảng cần thêm, phía Flutter/Kotlin cần nối, đi�
 2. Báo cáo sử dụng giữ bao nhiêu ngày (đề xuất 90)? (Vị trí: đã chốt 7 ngày, 2026-10-31.)
 3. Chấp nhận trễ 15 phút cho thông báo ở máy mẹ, hay đổi quyết định không dùng FCM (API-12)?
 4. Có gửi liên hệ khẩn cấp lên server không (API-13)?
-5. MonsterASP có SMTP để làm quên mật khẩu không (API-03)?
+5. MyASP.net có SMTP để làm quên mật khẩu không (API-03)?

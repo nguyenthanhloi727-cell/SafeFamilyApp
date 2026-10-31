@@ -22,6 +22,7 @@ class ConnectionPage extends StatefulWidget {
 
 class _ConnectionPageState extends State<ConnectionPage> {
   List<DeviceInfo>? _devices;
+  DeviceSelfInfo? _me;
   PairingCode? _code;
   String? _error;
   bool _busy = false;
@@ -32,6 +33,19 @@ class _ConnectionPageState extends State<ConnectionPage> {
     if (_devices == null &&
         ConnectionScope.of(context).mode == ConnectionMode.parent) {
       _reload();
+    }
+    if (_me == null && ConnectionScope.of(context).mode == ConnectionMode.child) {
+      _loadMe();
+    }
+  }
+
+  /// Máy con hỏi tên gia đình đang giám sát mình. Lỗi mạng thì để dòng mặc định, không báo lỗi.
+  Future<void> _loadMe() async {
+    try {
+      final me = await ApiScope.of(context).fetchMyInfo();
+      if (mounted) setState(() => _me = me);
+    } on ApiException {
+      // TODO(verify): chưa có chỗ báo lỗi cho dòng thông tin này; lần mở trang sau sẽ thử lại.
     }
   }
 
@@ -78,6 +92,23 @@ class _ConnectionPageState extends State<ConnectionPage> {
     }
   }
 
+  Future<void> _rename(DeviceInfo d) async {
+    final api = ApiScope.of(context);
+    if (!await ParentGate.always(context, 'Đổi tên ${d.name}')) return;
+    if (!mounted) return;
+    final name = await showDialog<String>(
+      context: context,
+      builder: (_) => _RenameDialog(initial: d.name),
+    );
+    if (name == null || name == d.name) return;
+    try {
+      await api.renameDevice(d.id, name);
+      await _reload();
+    } on ApiException catch (e) {
+      if (mounted) showAppSnackBar(context, e.message);
+    }
+  }
+
   Future<void> _disconnect() async {
     final session = ConnectionScope.of(context);
     final navigator = Navigator.of(context);
@@ -96,10 +127,15 @@ class _ConnectionPageState extends State<ConnectionPage> {
         children: switch (session.mode) {
           ConnectionMode.parent => _parentBody(session),
           ConnectionMode.child => [
-            const ListTile(
-              leading: Icon(Icons.link_rounded),
-              title: Text('Đã kết nối với máy mẹ'),
-              subtitle: Text(
+            ListTile(
+              key: const Key('child-info'),
+              leading: const Icon(Icons.link_rounded),
+              title: Text(
+                _me == null
+                    ? 'Đã kết nối với máy mẹ'
+                    : '${_me!.name} đang được giám sát bởi ${_me!.familyName}',
+              ),
+              subtitle: const Text(
                 'Máy mẹ đặt luật, máy này tự chặn theo luật đã tải về.',
               ),
             ),
@@ -181,10 +217,21 @@ class _ConnectionPageState extends State<ConnectionPage> {
                 ? 'Chưa thấy hoạt động'
                 : 'Hoạt động lần cuối: ${d.lastSeenAt!.toLocal()} · chạm để xem vị trí / điều khiển',
           ),
-          trailing: IconButton(
-            tooltip: 'Hủy ghép',
-            icon: const Icon(Icons.link_off_rounded),
-            onPressed: () => _unpair(d),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(
+                key: Key('rename-${d.id}'),
+                tooltip: 'Đổi tên',
+                icon: const Icon(Icons.edit_rounded),
+                onPressed: () => _rename(d),
+              ),
+              IconButton(
+                tooltip: 'Hủy ghép',
+                icon: const Icon(Icons.link_off_rounded),
+                onPressed: () => _unpair(d),
+              ),
+            ],
           ),
         ),
       _disconnectButton(label: 'Đăng xuất máy mẹ'),
@@ -267,6 +314,54 @@ class _LocationPermissionTileState extends State<LocationPermissionTile>
               onPressed: _ask,
               child: const Text('Cấp quyền'),
             ),
+    );
+  }
+}
+
+/// Hộp nhập tên mới cho máy con: 1–50 ký tự (server kiểm lại và là nơi quyết định).
+class _RenameDialog extends StatefulWidget {
+  const _RenameDialog({required this.initial});
+
+  final String initial;
+
+  @override
+  State<_RenameDialog> createState() => _RenameDialogState();
+}
+
+class _RenameDialogState extends State<_RenameDialog> {
+  late final _controller = TextEditingController(text: widget.initial);
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final name = _controller.text.trim();
+    return AlertDialog(
+      title: const Text('Đổi tên máy con'),
+      content: TextField(
+        key: const Key('rename-field'),
+        controller: _controller,
+        autofocus: true,
+        maxLength: 50,
+        onChanged: (_) => setState(() {}),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Hủy'),
+        ),
+        FilledButton(
+          key: const Key('rename-save'),
+          onPressed: name.isEmpty
+              ? null
+              : () => Navigator.of(context).pop(_controller.text.trim()),
+          child: const Text('Lưu'),
+        ),
+      ],
     );
   }
 }

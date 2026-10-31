@@ -348,6 +348,23 @@ else
   echo "SKIP: retention + offline detection need SF_SQL_SERVER / SF_SQL_DB and sqlcmd (see docs/API_TIEN_TRINH.md)"
 fi
 R3=$(curl -s -X POST $B/api/devices/me/requests -H "$J" -H "Authorization: Bearer $DT" -d '{"kind":"study_done"}'); RID3=$(echo $R3 | py "['id']")
+# --- Đổi tên máy, xem thông tin máy mình (API-01) ---
+code "rename ok" 200 -X PATCH $B/api/devices/$DID -H "$J" -H "Authorization: Bearer $A" -d '{"name":"  Be Bin  "}'
+echo "list shows trimmed name (expect Be Bin): $(curl -s $B/api/devices -H "Authorization: Bearer $A" | py "[0]['name']")"
+echo "me name (expect Be Bin): $(curl -s $B/api/devices/me -H "Authorization: Bearer $DT" | py "['name']")"
+echo "me family (expect Gia đình): $(curl -s $B/api/devices/me -H "Authorization: Bearer $DT" | py "['familyName']")"
+echo "me has no email (expect 0): $(curl -s $B/api/devices/me -H "Authorization: Bearer $DT" | grep -c '@')"
+code "rename empty" 400 -X PATCH $B/api/devices/$DID -H "$J" -H "Authorization: Bearer $A" -d '{"name":"   "}'
+code "rename missing field" 400 -X PATCH $B/api/devices/$DID -H "$J" -H "Authorization: Bearer $A" -d '{}'
+code "rename wrong type" 400 -X PATCH $B/api/devices/$DID -H "$J" -H "Authorization: Bearer $A" -d '{"name":5}'
+code "rename too long" 400 -X PATCH $B/api/devices/$DID -H "$J" -H "Authorization: Bearer $A" -d "{\"name\":\"$(printf 'a%.0s' $(seq 1 51))\"}"
+code "rename control char" 400 -X PATCH $B/api/devices/$DID -H "$J" -H "Authorization: Bearer $A" -d '{"name":"a
+b"}'
+echo "name unchanged after bad renames (expect Be Bin): $(curl -s $B/api/devices -H "Authorization: Bearer $A" | py "[0]['name']")"
+code "rename other family" 404 -X PATCH $B/api/devices/$DID -H "$J" -H "Authorization: Bearer $EB" -d '{"name":"X"}'
+code "rename by device token" 403 -X PATCH $B/api/devices/$DID -H "$J" -H "Authorization: Bearer $DT" -d '{"name":"X"}'
+code "me by parent token" 403 $B/api/devices/me -H "Authorization: Bearer $A"
+code "me no token" 401 $B/api/devices/me
 curl -s -o /dev/null -w "unpair (expect 204) %{http_code}\n" -X DELETE $B/api/devices/$DID -H "Authorization: Bearer $A"
 dec $RID3 '{"decision":"approved"}' "approve after unpair" 404
 curl -s -o /dev/null -w "list after unpair (expect 404) %{http_code}\n" "$B/api/devices/$DID/requests" -H "Authorization: Bearer $A"
@@ -363,3 +380,5 @@ if [ -n "$SF_SQL_SERVER" ] && [ -n "$SF_SQL_DB" ] && command -v sqlcmd >/dev/nul
   sleep 8
   echo "revoked device never gets an offline alert (expect still 2): $(sq "SELECT COUNT(*) FROM Alerts WHERE DeviceId=$DID AND Kind='offline'")"
 fi
+code "rename after unpair" 404 -X PATCH $B/api/devices/$DID -H "$J" -H "Authorization: Bearer $A" -d '{"name":"X"}'
+code "me after unpair" 401 $B/api/devices/me -H "Authorization: Bearer $DT"

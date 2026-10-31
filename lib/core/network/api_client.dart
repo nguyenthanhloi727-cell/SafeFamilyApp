@@ -50,6 +50,14 @@ class DeviceInfo {
   final DateTime? lastSeenAt;
 }
 
+/// Thông tin máy con tự xem (`GET /api/devices/me`, API-01). Không có email mẹ.
+class DeviceSelfInfo {
+  const DeviceSelfInfo(this.name, this.familyName, this.policyVersion);
+  final String name;
+  final String familyName;
+  final int policyVersion;
+}
+
 class PolicyInfo {
   const PolicyInfo(this.version, this.json);
   final int version;
@@ -411,6 +419,17 @@ class ApiClient {
     ];
   }
 
+  /// Mẹ đổi tên máy con (API-01). Nơi gọi phải qua `ParentGate` trước. Trả về tên server đã lưu (đã cắt khoảng trắng).
+  Future<String> renameDevice(int id, String name) async {
+    final m = await _send(
+      'PATCH',
+      '/api/devices/$id',
+      {'name': name},
+      auth: _Auth.parent,
+    );
+    return m is Map<String, dynamic> ? m['name'] as String : name.trim();
+  }
+
   Future<void> unpairDevice(int id) =>
       _send('DELETE', '/api/devices/$id', null, auth: _Auth.parent);
 
@@ -759,6 +778,17 @@ class ApiClient {
   }
 
   // ---- Máy con (polling) ----
+
+  /// Máy con xem tên máy, tên gia đình, phiên bản luật (API-01).
+  Future<DeviceSelfInfo> fetchMyInfo() async {
+    final m = await _send('GET', '/api/devices/me', null, auth: _Auth.device)
+        as Map<String, dynamic>;
+    return DeviceSelfInfo(
+      m['name'] as String,
+      m['familyName'] as String,
+      m['policyVersion'] as int,
+    );
+  }
 
   Future<PolicyInfo> fetchMyPolicy() async => _policy(
     await _send('GET', '/api/devices/me/policy', null, auth: _Auth.device),

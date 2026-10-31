@@ -20,6 +20,22 @@ public class DevicesController(AppDb db) : ApiBase
         await db.Devices.Where(d => d.FamilyId == FamilyId && !d.Revoked)
             .Select(d => new DeviceDto(d.Id, d.Name, d.PairedAt, d.LastSeenAt)).ToListAsync();
 
+    /// <summary>
+    /// Mẹ đổi tên máy con (API-01): body <c>{"name":"..."}</c>, 1–50 ký tự sau khi cắt khoảng trắng, không có ký tự điều khiển;
+    /// sai → 400. Gia đình khác hoặc máy đã hủy ghép → 404.
+    /// </summary>
+    [HttpPatch("{id:int}")]
+    public async Task<ActionResult<DeviceDto>> Rename(int id, RenameDeviceRequest req)
+    {
+        var device = await Own(id);
+        if (device is null) return NotFound();
+        var name = DeviceRules.CleanName(req.Name);
+        if (name is null) return BadRequest(new { error = "Tên máy phải dài 1–50 ký tự và không có ký tự điều khiển." });
+        device.Name = name;
+        await db.SaveChangesAsync();
+        return new DeviceDto(device.Id, device.Name, device.PairedAt, device.LastSeenAt);
+    }
+
     /// <summary>Hủy ghép: token của máy con hết tác dụng ngay.</summary>
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> Unpair(int id)
@@ -317,6 +333,17 @@ public class DevicesController(AppDb db) : ApiBase
 [Authorize(Roles = Roles.Device)]
 public class DeviceSelfController(AppDb db) : ApiBase
 {
+    /// <summary>Máy con xem tên máy, tên gia đình và phiên bản luật hiện có trên server (API-01). Không lộ email mẹ.</summary>
+    [HttpGet]
+    public async Task<ActionResult<DeviceMeDto>> Me()
+    {
+        if (!await Touch()) return Unauthorized();
+        var device = await db.Devices.AsNoTracking().FirstAsync(d => d.Id == SubjectId);
+        var family = await db.Families.AsNoTracking().Where(f => f.Id == device.FamilyId).Select(f => f.Name).FirstOrDefaultAsync();
+        var version = await db.Policies.Where(p => p.DeviceId == device.Id).Select(p => p.Version).FirstOrDefaultAsync();
+        return new DeviceMeDto(device.Id, device.Name, family ?? "", device.PairedAt, version);
+    }
+
     /// <summary>Cài đặt do mẹ đặt mà máy con cần biết (API-11: chia sẻ vị trí). Mỗi lượt đồng bộ kéo một lần.</summary>
     [HttpGet("settings")]
     public async Task<ActionResult<DeviceSettingsDto>> Settings()

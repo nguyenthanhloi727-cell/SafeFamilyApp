@@ -2,7 +2,7 @@
 
 Mục tiêu: máy mẹ quản lý máy con từ xa qua server. Máy con vẫn tự chặn bằng code Kotlin hiện có; API chỉ chuyển luật/lệnh qua lại.
 
-Cập nhật lần cuối: 2026-10-31 (API-11) · Trạng thái chung: **Đợt 1, 2, 5 xong code; test tự động đạt trên LocalDB; chưa publish MonsterASP, chưa test 2 máy thật (TASKS/TEST_PLAN.md)**
+Cập nhật lần cuối: 2026-10-31 (API-01) · Trạng thái chung: **Đợt 1, 2, 5 xong code; test tự động đạt trên LocalDB; chưa publish MyASP.net, chưa test 2 máy thật (TASKS/TEST_PLAN.md)**
 
 Ký hiệu: `[ ]` chưa làm · `[~]` đang làm · `[x]` xong
 
@@ -12,7 +12,7 @@ Ký hiệu: `[ ]` chưa làm · `[~]` đang làm · `[x]` xong
 
 - [x] Backend: ASP.NET Core Web API, mở bằng Visual Studio, có Swagger (Swashbuckle)
 - [x] CSDL: SQL Server
-- [x] Hosting: MonsterASP.NET
+- [x] Hosting: MyASP.net
 - [x] Đồng bộ: máy con hỏi server định kỳ (polling) ở bản đầu, chưa dùng FCM
 - [x] Mô hình: server lưu luật/lệnh, máy con tải về và tự thi hành; offline vẫn chặn theo luật đã lưu
 - [x] PIN và mã khôi phục chỉ lưu hash trên máy, không gửi lên server
@@ -38,7 +38,7 @@ Ký hiệu: `[ ]` chưa làm · `[~]` đang làm · `[x]` xong
 ## Đợt 0 – Chuẩn bị
 
 - [ ] Kiểm tra máy: Visual Studio có workload "ASP.NET and web development", .NET SDK bản mới
-- [ ] Kiểm tra gói MonsterASP: dung lượng SQL Server, số kết nối, có HTTPS, có cho publish từ Visual Studio (Web Deploy/FTP)
+- [ ] Kiểm tra gói MyASP.net: dung lượng SQL Server, số kết nối, có HTTPS, có cho publish từ Visual Studio (Web Deploy/FTP)
 - [ ] Chốt địa chỉ API (domain) dùng cho app
 - [ ] Chốt các câu hỏi mở bên dưới
 
@@ -54,7 +54,7 @@ Thư mục: `SafeFamily.Api/` trong repo
 - [x] Giới hạn số lần thử mã ghép đôi (5 lần/10 phút/IP), đăng nhập/đăng ký (10 lần/phút/IP)
 - [x] Swagger có ô nhập token để test endpoint cần đăng nhập (nút Authorize)
 - [x] Cấu hình chuỗi kết nối qua cấu hình server, không để trong git (xem mục Cấu hình)
-- [ ] Publish thử lên MonsterASP, mở được Swagger trên mạng
+- [ ] Publish thử lên MyASP.net, mở được Swagger trên mạng
 
 ## Đợt 2 – Điều khiển từ xa (luật xuống máy con)
 
@@ -77,7 +77,7 @@ Flutter/Android (con):
 - [~] Ghi luật tải về chỉ khi tải thành công và hợp lệ; lỗi thì giữ bản cũ (`FamilySync.pullPolicy` đọc cả `timeLimit` và `appLock`; đã biên dịch, CHƯA test trên máy thật: xem TASKS/TEST_PLAN.md)
 - [ ] Kiểm tra: tắt mạng máy con, luật vẫn chặn đúng
 
-Cột mốc đợt 2: mẹ đặt giới hạn cho 1 app trên máy mẹ, máy con tải về và chặn đúng, chạy trên 2 máy thật với MonsterASP.
+Cột mốc đợt 2: mẹ đặt giới hạn cho 1 app trên máy mẹ, máy con tải về và chặn đúng, chạy trên 2 máy thật với MyASP.net.
 
 ## Đợt 3 – Hai chiều
 
@@ -112,11 +112,12 @@ Task Flutter/Android tương ứng: `TASKS/TASKS.md` mục 13–15. Không dùng
 - [ ] Chốt lại quyết định "chỉ gửi thống kê dùng": vị trí là dữ liệu nhạy cảm mới
 - [x] Quyền riêng tư vị trí (API-11, chốt 2026-10-31: giữ **7 ngày**, con **không** xem lịch sử vị trí của mình): cờ `Device.LocationSharing` (mặc định bật, migration `LocationSharing`); `GET/PUT /api/devices/{id}/location-sharing` (mẹ, body `{"enabled":bool}` bắt buộc, sai kiểu → 400, gia đình khác / máy hủy ghép → 404); `DELETE /api/devices/{id}/locations` xóa toàn bộ lịch sử (204); `GET devices/me/settings` (con kéo `{"locationSharing":bool}`); cờ tắt thì `POST devices/me/locations` trả **403** và KHÔNG lưu, `GET .../location` và `.../locations` của mẹ trả **403** `{"error":"Đã tắt chia sẻ vị trí.","locationSharing":false}`. Smoke test đạt (LocalDB tạm, đã xóa); Flutter mẹ có công tắc "Chia sẻ vị trí" + nút "Xóa lịch sử vị trí" (qua khóa phụ huynh, xóa có hộp xác nhận), test widget đạt
 - [~] Kotlin máy con theo cờ `locationSharing` (kéo trong `syncOnce`, tắt thì dừng thu thập, xóa `pending_locations`, bật lại thì thu thập tiếp, thông báo thường trực đổi chữ): biên dịch được (`flutter build apk --debug`), CHƯA chạy máy thật nên chưa tick (xem `TASKS/TEST_PLAN.md` "Bổ sung API-11")
+- [x] Đổi tên máy con, máy con xem thông tin mình (API-01): `PATCH /api/devices/{id}` (mẹ, body `{"name"}`, cắt khoảng trắng, 1–50 ký tự, không ký tự điều khiển, sai → 400, gia đình khác / máy hủy ghép → 404) và `GET /api/devices/me` (con: `id`, `name`, `familyName`, `pairedAt`, `policyVersion`; không có email mẹ). Smoke test đạt (LocalDB tạm); Flutter: nút "Đổi tên" qua `ParentGate` ở `ConnectionPage`, máy con hiện "đang được giám sát bởi…", test widget đạt
 
 
 Ghi chú 2026-10-31 (thêm): máy mẹ nhận thông báo vào/ra vùng khi app đóng bằng WorkManager 15 phút (`lib/core/alerts/`), chỉ gọi `GET /api/devices` + `GET .../geofence-events?afterId=`; không đổi API. Chưa test máy thật.
 
-Ghi chú 2026-10-31: migration `LocationGeofence`; smoke test `SafeFamily.Api/smoke.sh`; máy con gọi qua Kotlin (`FamilySync`), mẹ qua `ApiClient`. Chưa test trên MonsterASP và 2 máy thật: xem `TASKS/TEST_PLAN.md`.
+Ghi chú 2026-10-31: migration `LocationGeofence`; smoke test `SafeFamily.Api/smoke.sh`; máy con gọi qua Kotlin (`FamilySync`), mẹ qua `ApiClient`. Chưa test trên MyASP.net và 2 máy thật: xem `TASKS/TEST_PLAN.md`.
 
 ---
 
@@ -131,7 +132,7 @@ Bí mật không nằm trong git. Đặt bằng biến môi trường hoặc `Sa
 }
 ```
 
-Trên MonsterASP đặt hai giá trị này trong cấu hình/biến môi trường của site (`ConnectionStrings__Default`, `Jwt__Key`). Thiếu thì app báo lỗi rõ khi khởi động.
+Trên MyASP.net đặt hai giá trị này trong cấu hình/biến môi trường của site (`ConnectionStrings__Default`, `Jwt__Key`). Thiếu thì app báo lỗi rõ khi khởi động.
 
 ```bash
 cd SafeFamily.Api
@@ -141,7 +142,7 @@ dotnet run                     # Swagger: <địa chỉ>/swagger
 
 Cảnh báo mất kết nối (API-10) chạy nền trong API, cấu hình tùy chọn (biến môi trường dạng `Alerts__OfflineHours`): `Alerts:OfflineHours` (mặc định 24, số giờ không liên lạc thì báo `offline`) và `Alerts:CheckIntervalSeconds` (mặc định 900). Để `smoke.sh` kiểm phần retention + offline, đặt `Alerts__CheckIntervalSeconds=3` khi chạy API và `SF_SQL_SERVER` / `SF_SQL_DB` (cần `sqlcmd`) khi chạy smoke; thiếu thì phần đó in `SKIP`. Bộ giới hạn `claim` (5 lần/10 phút/IP) làm chạy `smoke.sh` liên tiếp bị lỗi: khởi động lại API giữa các lần.
 
-Emulator Android gọi máy tính qua `http://10.0.2.2:<cổng>`; app mặc định `ConnectionSession.defaultBaseUrl`, sửa được trên màn kết nối. Bản release chặn HTTP thường (cleartext), dùng HTTPS khi lên MonsterASP.
+Emulator Android gọi máy tính qua `http://10.0.2.2:<cổng>`; app mặc định `ConnectionSession.defaultBaseUrl`, sửa được trên màn kết nối. Bản release chặn HTTP thường (cleartext), dùng HTTPS khi lên MyASP.net.
 
 ## Danh sách API dự kiến (sẽ hiện trong Swagger)
 
@@ -169,20 +170,20 @@ Sáu câu ban đầu đã chốt (xem mục 0). Còn lại:
 
 Đã chốt: gửi danh sách app đã cài (tên + tên gói, không nội dung); một máy con thuộc đúng một mẹ, đổi mẹ thì hủy ghép rồi ghép lại.
 
-Còn lại: quên mật khẩu khôi phục qua email, cần kiểm tra MonsterASP có hỗ trợ SMTP không (làm ở Đợt 4).
+Còn lại: quên mật khẩu khôi phục qua email, cần kiểm tra MyASP.net có hỗ trợ SMTP không (làm ở Đợt 4).
 
 ## Rủi ro đã biết
 
 - Android có thể hạn chế tiến trình nền khi tiết kiệm pin → test máy thật
 - Chính sách Google Play với quyền Accessibility / Device Admin
-- Giới hạn gói MonsterASP chưa kiểm tra
+- Giới hạn gói MyASP.net chưa kiểm tra
 - Dữ liệu trẻ em nhạy cảm về pháp lý và quyền riêng tư
 
 ## Nhật ký
 
-- 2026-10-30: Lập kế hoạch, chốt SQL Server + MonsterASP + polling. Chưa viết code.
+- 2026-10-30: Lập kế hoạch, chốt SQL Server + MyASP.net + polling. Chưa viết code.
 - 2026-10-30: Chốt 1 mẹ nhiều con, email + mật khẩu, ngưỡng offline mẹ tự chỉnh (mặc định 24h), chỉ gửi thống kê dùng theo app, APK nội bộ, polling 5 phút.
-- 2026-10-31: Task 12 (T4.0): viết `SafeFamily.Api` (Auth, Pairing, Devices, Policy, Commands, Apps) + migration `Initial`. Test tay bằng curl trên LocalDB: đăng ký, tạo mã, claim (mã dùng lại bị 400), PUT luật (lệch phiên bản 409), con đọc luật/lệnh, ack, đẩy app, hủy ghép (con bị 401), con gọi endpoint của mẹ bị 403, Swagger 200. Flutter: `lib/core/network/`, `RolePage`, đăng nhập mẹ, nhập mã con, `ConnectionPage`. Chưa làm: publish MonsterASP, test 2 máy thật, polling nền của máy con (WorkManager), đẩy luật thật từ `time_limit`/`app_lock`/`pause_card`.
+- 2026-10-31: Task 12 (T4.0): viết `SafeFamily.Api` (Auth, Pairing, Devices, Policy, Commands, Apps) + migration `Initial`. Test tay bằng curl trên LocalDB: đăng ký, tạo mã, claim (mã dùng lại bị 400), PUT luật (lệch phiên bản 409), con đọc luật/lệnh, ack, đẩy app, hủy ghép (con bị 401), con gọi endpoint của mẹ bị 403, Swagger 200. Flutter: `lib/core/network/`, `RolePage`, đăng nhập mẹ, nhập mã con, `ConnectionPage`. Chưa làm: publish MyASP.net, test 2 máy thật, polling nền của máy con (WorkManager), đẩy luật thật từ `time_limit`/`app_lock`/`pause_card`.
 - 2026-10-31: API-04. Chốt schema policy `schemaVersion` 1 (`lib/core/network/policy_schema.dart`). Flutter mẹ: `PolicySync` (`lib/core/network/policy_sync.dart`) gom các lần sửa 2 giây rồi `putPolicy`; máy con mẹ chọn lưu ở `ConnectionSession.selectedChildId` (tự chọn khi chỉ có 1 máy, chạm máy trong "Kết nối gia đình" để chọn); phiên bản luật mẹ biết lưu theo từng máy con; 409 thì tải luật server, nếu khác thì hỏi "Giữ luật trên máy chủ / Ghi đè" (ghi đè qua `ParentGate.always`). Kotlin: `FamilySync.pullPolicy` kiểm tra hết rồi mới ghi, đọc thêm `appLock.blocked` (khóa qua `BlockingServiceManager` của app_blocker, bỏ qua app hệ thống, nhớ danh sách mẹ khóa trong `GuardPrefs.remoteBlocked`). Server: kiểm tra kích thước theo byte + gốc phải là đối tượng JSON. Test: analyze sạch, `flutter test` 299 đạt, APK debug build được, `dotnet build` 0 lỗi, `smoke.sh` trên LocalDB đạt (kể cả 409/400 của policy). Chưa có project `dotnet test`. CHƯA test 2 máy thật.
 - 2026-10-31: API-05. Server: `CommandRules` (danh sách Type + kiểm payload JSON ≤4 KB, `app_unlock_temp` minutes 1–240), lệnh quá 24h không giao nữa. Kotlin con: `FamilySync.applyAppCommand` (`app_unlock_temp/relock/block/allow`, tái dùng `TempRelocks`, `BlockingServiceManager`, `GuardPrefs.remoteBlocked`; không chặn app miễn trừ; sai thì không ack), luật mới không cắt ngang mở tạm. Flutter mẹ: `RemoteCommands`, nối `app_lock_page` (mở tạm) và `pause_card` (pause/unpause) khi chế độ mẹ đã chọn máy con. Đã đạt: `flutter analyze`, `flutter test` (303), `flutter build apk --debug`, `dotnet build`, `smoke.sh` (+17 ca lệnh, hạn 24h kiểm tay qua SQL) trên LocalDB tạm đã xóa. Kotlin chưa chạy trên máy thật; chưa có dotnet test.
 - 2026-10-31: API-09. Server: bảng `DeviceStatus` (migration `DeviceStatus`), `PUT /api/devices/me/status` (kiểm kiểu/độ dài/số lượng từng trường, `Services/StatusRules.cs`), `GET /api/devices/{id}/status` (lọc app mở tạm quá hạn). Kotlin con: `FamilySync.pushStatus` trong mỗi `syncOnce` (lỗi bị nuốt), `PermissionStatus` dùng chung với `MainActivity`, `TempRelocks.pendingUntil`. Flutter mẹ: trạng thái ở `remote_monitor_page`, `pause_card` theo `isPaused`, màn "Lệnh đã gửi", nút "Chặn lại ngay" từ xa ở `app_lock_page`. Đã đạt: `flutter analyze`, `flutter test` (313), `flutter build apk --debug`, `dotnet build` 0 lỗi, `smoke.sh` (+~28 ca status, tất cả khớp mã mong đợi) trên LocalDB tạm đã xóa. Chưa có dotnet test; Kotlin chưa chạy trên máy thật; CHƯA test 2 máy thật.
@@ -190,3 +191,4 @@ Còn lại: quên mật khẩu khôi phục qua email, cần kiểm tra MonsterA
 - 2026-10-31: API-07. Server: `InstalledApp` thêm `Status` (`new|allowed|blocked`) + `DecidedAt` (migration `InstalledAppStatus`, dòng cũ thành `allowed`, nhãn giới hạn 200). `POST devices/me/apps` nhận cờ `isNew` (con chỉ báo app chờ duyệt, không tự đặt allowed/blocked; kiểm tên gói, nhãn, tối đa 2000 app/máy); `GET devices/{id}/apps?status=` (mẹ, ≤200); `PUT devices/{id}/apps/{package}` (mẹ, `allowed|blocked`; gia đình khác / app lạ → 404); `GET devices/me/apps/decisions` (con kéo quyết định). Logic ở `Services/AppRules.cs`, `CommandRules.IsPackage` dùng chung. Quyết định áp bằng `NewApps.approve/reject` có sẵn của máy con, KHÔNG đi qua `appLock.blocked` hay lệnh `app_block/app_allow` nên không lẫn với danh sách khóa của mẹ (API-05). Kotlin: `NewApps.syncWithServer` (gọi cuối nhánh app trong `syncOnce` và ngay khi quét thấy app mới), hàng chờ = `pending` trừ `uploaded` trong SharedPreferences, lỗi nuốt hết. Flutter mẹ: `NewAppsPage` đọc server khi ở chế độ mẹ (`RemoteNewAppsView`), cho phép / chặn qua `ParentGate.always`; nút "App mới cài" ở màn máy con; `NewAppAlertChecker` trong `parent_alert_worker`. Tự động đạt: `smoke.sh` (120 kiểm tra, 0 lệch), `flutter analyze`, `flutter test` (329), `flutter build apk --debug`, `dotnet build`. CHƯA test máy thật.
 - 2026-10-31: API-08. Server: bảng `UsageDay` (`DeviceId`, `Date`, `TotalMinutes`, `Blocks`) + `UsageApp` (migration `UsageReport`, khóa duy nhất (`DeviceId`, `Date`) để gửi lại không trùng, xóa app theo ngày bằng cascade), `POST devices/me/usage` (lô ≤31 ngày, upsert, kiểm kiểu/độ dài/số lượng từng trường: ≤200 app/ngày, phút 0–1440, tên gói đúng dạng, ngày không quá 1 ngày tương lai và không cũ hơn 90 ngày) và `GET devices/{id}/usage?from=&to=` (mẹ, tối đa 90 ngày; gia đình khác / máy hủy ghép → 404), dọn dữ liệu quá 90 ngày mỗi lần gửi (đã kiểm bằng SQL: ngày 95 ngày tuổi và `UsageApp` của nó bị xóa). Logic ở `Services/UsageRules.cs`. Kotlin: `UsageReport.syncWithServer` trong `FamilySync.syncOnce` (ngày chốt gửi một lần theo chữ ký, hôm nay gửi khi đổi, bỏ app miễn trừ, lỗi nuốt hết). Flutter mẹ: `ReportPage` đọc server khi ở chế độ mẹ (`RemoteReportView`: hôm nay, biểu đồ 7 ngày, top app, chọn máy con); chế độ máy con giữ nguyên. Tự động đạt: `flutter analyze` (0 lỗi), `flutter test` (337), `flutter build apk --debug`, `dotnet build` (0 lỗi), `smoke.sh` (159 kiểm tra mã trả về, 0 lệch, gồm ~38 ca usage) trên LocalDB tạm đã xóa. Chưa có `dotnet test`. Kotlin chưa chạy trên máy thật; CHƯA test 2 máy thật.
 - 2026-10-31: API-10. Server: bảng `Alert` (migration `Alerts`), `POST devices/me/alerts` (kiểm kiểu/độ dài/số lượng: loại thuộc danh sách, `offline` chỉ server tạo, `detail` chỉ mã/số ngắn, `occurredAt` trong 7 ngày; chống trùng ±10 phút → 409; ≤200 dòng/máy, vượt thì xóa dòng cũ nhất; dọn >30 ngày), `GET devices/{id}/alerts?afterId=` (mẹ), `POST alerts/{id}/read` (mẹ; gia đình khác → 404), `OfflineAlertService` (hosted service, ngưỡng `Alerts:OfflineHours` mặc định 24, một cảnh báo mỗi đợt mất kết nối; `Services/AlertRules.cs`). Kotlin con: `TamperAlerts.kt` (hàng chờ SharedPreferences + gửi bù trong `syncOnce`, lỗi nuốt hết) nối `TimeChangeReceiver`, `UninstallGate`, `SettingsGuardService` (challenge + `onUnbind` chờ 15 giây kiểm lại), `SafeFamilyAdminReceiver.onDisabled`, và phát hiện quyền mới thiếu mỗi lượt đồng bộ. Flutter mẹ: `TamperAlertChecker` trong `parent_alert_worker`, `DeviceAlertsPage` + nút "Cảnh báo (N chưa đọc)" ở màn máy con. Đã đạt: `flutter analyze` sạch, `flutter test` (346), `flutter build apk --debug`, `dotnet build` 0 lỗi, `smoke.sh` (195 kiểm tra mã trả về, 0 lệch; thêm ca cap 200 dòng, retention 30 ngày, offline 25h không lặp / đợt mới / máy hủy ghép) trên LocalDB tạm đã xóa. Chưa có `dotnet test`; Kotlin chưa chạy trên máy thật; CHƯA test 2 máy thật. Chưa làm: mẹ chỉnh ngưỡng mất kết nối trong cài đặt gia đình.
+- 2026-10-31: API-01. Server: `PATCH /api/devices/{id}` và `GET /api/devices/me` trong `DevicesController` (`Services/DeviceRules.cs`: tên 1–50 ký tự sau khi cắt khoảng trắng, không ký tự điều khiển; DTO `RenameDeviceRequest`, `DeviceMeDto`), không đổi schema DB nên không có migration. Flutter: `ApiClient.renameDevice` / `fetchMyInfo`, `ConnectionPage` có nút "Đổi tên" (qua `ParentGate.always`) và dòng "đang được giám sát bởi" cho máy con; test `test/features/connection/device_rename_test.dart`. Đã đạt: `flutter analyze` sạch, `flutter test` 352, `flutter build apk --debug`, `dotnet build` 0 lỗi, `smoke.sh` (221 kiểm tra mã trả về, 0 lệch, gồm ~15 ca API-01) trên LocalDB tạm. Chưa có `dotnet test`; CHƯA test 2 máy thật.

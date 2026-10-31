@@ -41,6 +41,11 @@ public record LocationSharingDto(bool Enabled);
 /// <summary>Cài đặt máy con kéo về mỗi lượt đồng bộ (GET devices/me/settings).</summary>
 public record DeviceSettingsDto(bool LocationSharing);
 
+public record RenameDeviceRequest([Required, MaxLength(50)] string Name);
+
+/// <summary>Máy con xem thông tin của chính nó (API-01). Chỉ tên gia đình, không lộ email mẹ.</summary>
+public record DeviceMeDto(int Id, string Name, string FamilyName, DateTime PairedAt, int PolicyVersion);
+
 public record GeofenceItem(int Id, [Required, MaxLength(100)] string Name,
                            [Range(-90.0, 90.0)] double Lat, [Range(-180.0, 180.0)] double Lng,
                            [Range(100.0, 10000.0)] double RadiusM);
