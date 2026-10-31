@@ -13,9 +13,13 @@ class ConnectionSession extends ChangeNotifier {
   ConnectionSession({SecureStore? store})
     : _store = store ?? const FlutterSecureStore();
 
-  /// TODO(verify): chưa chốt domain MonsterASP. Đây là địa chỉ máy tính khi
-  /// chạy thử bằng emulator; người dùng sửa được trên màn kết nối.
-  static const defaultBaseUrl = 'http://10.0.2.2:5025';
+  /// TODO(verify): domain MonsterASP tạm (ftempurl), người dùng sửa được trên
+  /// màn kết nối.
+  static const defaultBaseUrl = 'https://shamixd-001-site1.ftempurl.com';
+
+  /// Mặc định cũ (emulator). Máy đã lưu đúng địa chỉ này thì coi như chưa tự
+  /// chỉnh, dùng mặc định mới, khỏi phải gỡ cài lại app.
+  static const _legacyDefaultBaseUrls = {'http://10.0.2.2:5025'};
 
   static const _kMode = 'conn_mode';
   static const _kBaseUrl = 'conn_base_url';
@@ -56,7 +60,13 @@ class ConnectionSession extends ChangeNotifier {
         (m) => m.name == mode,
         orElse: () => ConnectionMode.unset,
       );
-      _baseUrl = await _store.read(_kBaseUrl) ?? defaultBaseUrl;
+      final saved = await _store.read(_kBaseUrl);
+      if (saved == null || _legacyDefaultBaseUrls.contains(saved)) {
+        _baseUrl = defaultBaseUrl;
+        if (saved != null) await _write(_kBaseUrl, defaultBaseUrl);
+      } else {
+        _baseUrl = saved;
+      }
       _accessToken = await _store.read(_kAccess);
       _refreshToken = await _store.read(_kRefresh);
       _deviceToken = await _store.read(_kDevice);
