@@ -76,15 +76,22 @@ class ProfileController extends ChangeNotifier {
     await _reloadContacts();
   }
 
-  /// Đặt [id] làm liên hệ khẩn cấp (nút SOS); `null` để bỏ. Chỉ một người.
-  Future<void> setEmergency(String? id) async {
-    for (final c in _contacts) {
-      final want = c.id == id;
-      if (c.emergency != want) {
-        await _repository.updateContact(c.copyWith(emergency: want));
+  /// Tối đa bấy nhiêu liên hệ khẩn cấp (nút SOS trên màn chặn của con), khớp `PolicySchema.maxContacts`.
+  static const maxEmergency = 3;
+
+  /// Bật/tắt [id] là liên hệ khẩn cấp. Trả `false` (không đổi gì) nếu đã đủ [maxEmergency] người
+  /// hoặc liên hệ chưa có số.
+  Future<bool> toggleEmergency(String id) async {
+    final c = _contacts.firstWhere((c) => c.id == id);
+    if (!c.emergency) {
+      if (!c.hasPhone) return false;
+      if (_contacts.where((x) => x.emergency).length >= maxEmergency) {
+        return false;
       }
     }
+    await _repository.updateContact(c.copyWith(emergency: !c.emergency));
     await _reloadContacts();
+    return true;
   }
 
   Future<void> _reloadContacts() async {

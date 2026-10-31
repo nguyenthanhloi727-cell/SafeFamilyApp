@@ -20,6 +20,8 @@
         tools:ignore="ProtectedPermissions"/>
     <!-- Duyệt app mới cài: thông báo "Con vừa cài app X" (Android 13+ phải được cấp). -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <!-- API-13: nút SOS trên màn chặn của con gọi thẳng số mẹ chọn; chưa cấp thì xin lúc bấm, từ chối thì mở bàn phím. -->
+    <uses-permission android:name="android.permission.CALL_PHONE"/>
     <!-- Gỡ SafeFamily qua mục "Gỡ cài đặt" trong app (Intent.ACTION_DELETE, Android 9+). -->
     <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES"/>
     <!-- Kết nối gia đình (máy con): chia sẻ vị trí + hàng rào địa lý. Vị trí nền xin theo 2 bước;
@@ -152,7 +154,7 @@
             <data android:mimeType="text/plain"/>
         </intent>
         <!-- url_launcher trên Android 11+ (package visibility):
-             mở màn quay số bằng tel: (không cần quyền CALL_PHONE) và mở YouTube/trình duyệt bằng https. -->
+             mở màn quay số bằng tel: (url_launcher, không cần quyền) và mở YouTube/trình duyệt bằng https. -->
         <intent>
             <action android:name="android.intent.action.VIEW"/>
             <data android:scheme="tel"/>

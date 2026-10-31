@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/constants/app_languages.dart';
+import '../../../core/network/policy_sync.dart';
 import '../../../core/security/parent_guard.dart';
 import '../../../core/security/ui/parent_gate.dart';
 import '../../../core/services/external_launcher.dart';
@@ -122,6 +123,7 @@ class _ProfilePageState extends State<ProfilePage> {
       ),
       'Đã lưu ${draft.label}.',
     );
+    if (mounted && contact.emergency) PolicySyncScope.notifyChanged(context);
   }
 
   Future<void> _toggleEmergency(FamilyContact contact) async {
@@ -129,12 +131,29 @@ class _ProfilePageState extends State<ProfilePage> {
       return;
     }
     if (!mounted) return;
-    await _save(
-      () => _controller.setEmergency(contact.emergency ? null : contact.id),
-      contact.emergency
-          ? 'Đã bỏ liên hệ khẩn cấp.'
-          : '${contact.label} là liên hệ khẩn cấp (nút SOS).',
+    final turnOn = !contact.emergency;
+    var changed = false;
+    try {
+      changed = await _controller.toggleEmergency(contact.id);
+    } catch (_) {
+      if (mounted) _snack('Không lưu được, hãy thử lại.');
+      return;
+    }
+    if (!mounted) return;
+    if (!changed) {
+      _snack(
+        contact.hasPhone
+            ? 'Tối đa ${ProfileController.maxEmergency} liên hệ khẩn cấp. Hãy bỏ bớt một người trước.'
+            : 'Liên hệ chưa có số điện thoại.',
+      );
+      return;
+    }
+    _snack(
+      turnOn
+          ? '${contact.label} là liên hệ khẩn cấp (nút SOS).'
+          : 'Đã bỏ ${contact.label} khỏi liên hệ khẩn cấp.',
     );
+    PolicySyncScope.notifyChanged(context);
   }
 
   Future<void> _deleteContact(FamilyContact contact) async {
@@ -155,6 +174,7 @@ class _ProfilePageState extends State<ProfilePage> {
       () => _controller.deleteContact(contact.id),
       'Đã xóa ${contact.label}.',
     );
+    if (mounted && contact.emergency) PolicySyncScope.notifyChanged(context);
   }
 
   @override

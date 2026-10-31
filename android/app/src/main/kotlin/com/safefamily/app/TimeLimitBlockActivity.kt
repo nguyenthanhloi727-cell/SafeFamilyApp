@@ -2,7 +2,9 @@ package com.safefamily.app
 
 import android.app.Activity
 import android.app.AlertDialog
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
@@ -53,9 +55,18 @@ class TimeLimitBlockActivity : Activity() {
                 finish()
             }
         }
-        // SOS: gọi/nhắn người nhà bằng app Điện thoại/Tin nhắn của máy (không cần quyền CALL_PHONE, SEND_SMS).
+        // SOS: mẹ chọn số (policy.contacts, tối đa 3) thì mỗi số một nút GỌI THẲNG (quyền CALL_PHONE, chưa cấp
+        // thì xin lúc bấm; từ chối thì mở bàn phím). Chưa có số mẹ chọn thì như cũ: bàn phím gọi, không cần quyền.
+        // Nhắn tin luôn qua app Tin nhắn (không cần quyền SEND_SMS).
+        val parentSos = GuardPrefs.sos(this)
         val contacts = GuardPrefs.contacts(this)
-        val emergency = contacts.firstOrNull { it.emergency } ?: contacts.firstOrNull()
+        val emergency = parentSos.firstOrNull() ?: contacts.firstOrNull { it.emergency } ?: contacts.firstOrNull()
+        val sosButtons = parentSos.map { c ->
+            Button(this).apply {
+                text = "SOS: gọi ${c.label}"
+                setOnClickListener { callDirect(c.phone) }
+            }
+        }
         val sos = Button(this).apply {
             text = if (emergency != null) "SOS: gọi ${emergency.label}" else "SOS: mở bàn phím gọi"
             setOnClickListener { dial(emergency?.phone) }
@@ -82,7 +93,7 @@ class TimeLimitBlockActivity : Activity() {
                 addView(hint)
                 if (canRequest) addView(request)
                 if (intent.getBooleanExtra(EXTRA_NEEDS_REVIEW, false)) addView(review)
-                addView(sos)
+                if (sosButtons.isEmpty()) addView(sos) else sosButtons.forEach { addView(it) }
                 if (emergency != null) addView(sms)
                 if (contacts.size > 1) addView(family)
                 addView(home)
@@ -126,6 +137,31 @@ class TimeLimitBlockActivity : Activity() {
         runCatching { startActivity(Intent(Intent.ACTION_DIAL, uri).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
     }
 
+    private var pendingCall: String? = null
+
+    /** Gọi ngay không hỏi lại. Chưa có quyền CALL_PHONE thì xin; không được cấp thì mở bàn phím với số đó. */
+    private fun callDirect(phone: String) {
+        if (checkSelfPermission(Manifest.permission.CALL_PHONE) == PackageManager.PERMISSION_GRANTED) {
+            val started = runCatching {
+                startActivity(
+                    Intent(Intent.ACTION_CALL, Uri.fromParts("tel", phone, null)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                )
+            }.isSuccess
+            if (!started) dial(phone)
+        } else {
+            pendingCall = phone
+            requestPermissions(arrayOf(Manifest.permission.CALL_PHONE), REQUEST_CALL)
+        }
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode != REQUEST_CALL) return
+        val phone = pendingCall ?: return
+        pendingCall = null
+        if (grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) callDirect(phone) else dial(phone)
+    }
+
     private fun sendHelpSms(phone: String) {
         runCatching {
             startActivity(
@@ -158,6 +194,7 @@ class TimeLimitBlockActivity : Activity() {
         const val EXTRA_MESSAGE = "message"
         const val EXTRA_CAN_REQUEST = "can_request"
         const val EXTRA_NEEDS_REVIEW = "needs_review"
+        private const val REQUEST_CALL = 13
         private const val BACKGROUND = 0xFF00796B.toInt()
     }
 }

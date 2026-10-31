@@ -51,6 +51,27 @@ python -c "import json;print(json.dumps({'json':json.dumps({'x':'a'*70000}),'exp
 " -X PUT $B/api/devices/$DID/policy -H "$J" -H "Authorization: Bearer $A" -d @-
 echo "child reads policy (expect version 1, same block):"
 curl -s $B/api/devices/me/policy -H "Authorization: Bearer $DT"; echo
+# --- LiÃªn há»‡ kháº©n cáº¥p SOS trong policy (API-13): tá»‘i Ä‘a 3, nhÃ£n 1-30, sá»‘ 9-12 chá»¯ sá»‘ ---
+cj() { python -c "import json,sys;print(json.dumps({'json':json.dumps({'schemaVersion':2,'contacts':json.loads(sys.argv[1])}),'expectedVersion':int(sys.argv[2])}))" "$1" "$2"; }
+cput() { code "$1" "$2" -X PUT $B/api/devices/$DID/policy -H "$J" -H "Authorization: Bearer $A" -d "$(cj "$3" "$4")"; }
+cput "contacts 4 entries" 400 '[{"label":"a","phone":"0901234567"},{"label":"b","phone":"0901234567"},{"label":"c","phone":"0901234567"},{"label":"d","phone":"0901234567"}]' 1
+cput "contacts not array" 400 '"0901234567"' 1
+cput "contacts entry not object" 400 '["0901234567"]' 1
+cput "contacts phone letters" 400 '[{"label":"Me","phone":"09012abc67"}]' 1
+cput "contacts phone too short" 400 '[{"label":"Me","phone":"12345678"}]' 1
+cput "contacts phone too long" 400 '[{"label":"Me","phone":"1234567890123"}]' 1
+cput "contacts phone number type" 400 '[{"label":"Me","phone":901234567}]' 1
+cput "contacts label empty" 400 '[{"label":"  ","phone":"0901234567"}]' 1
+cput "contacts label 31 chars" 400 "[{\"label\":\"$(python -c "print('a'*31)")\",\"phone\":\"0901234567\"}]" 1
+cput "contacts label control char" 400 '[{"label":"a\nb","phone":"0901234567"}]' 1
+cput "contacts missing phone" 400 '[{"label":"Me"}]' 1
+cput "contacts sos string" 400 '[{"label":"Me","phone":"0901234567","sos":"yes"}]' 1
+echo "policy version unchanged after bad contacts (expect 1): $(curl -s $B/api/devices/$DID/policy -H "Authorization: Bearer $A" | py "['version']")"
+cput "contacts empty list ok" 200 '[]' 1
+cput "contacts 3 entries ok (label 30 chars, +84)" 200 "[{\"label\":\"$(python -c "print('a'*30)")\",\"phone\":\"+84901234567\",\"sos\":true},{\"label\":\"Bo\",\"phone\":\"0901234568\"},{\"label\":\"Cap cuu\",\"phone\":\"0901234569\",\"sos\":true}]" 2
+echo "child reads contacts (expect 3): $(curl -s $B/api/devices/me/policy -H "Authorization: Bearer $DT" | python -c "import sys,json;print(len(json.loads(json.load(sys.stdin)['json'])['contacts']))")"
+code "contacts other family" 404 -X PUT $B/api/devices/$DID/policy -H "$J" -H "Authorization: Bearer $EB" -d "$(cj '[]' 3)"
+code "contacts device token" 403 -X PUT $B/api/devices/$DID/policy -H "$J" -H "Authorization: Bearer $DT" -d "$(cj '[]' 3)"
 # --- Lệnh từ xa (API-05): danh sách Type cho phép + kiểm payload ---
 cmd() { python -c "import json,sys;print(json.dumps({'type':sys.argv[1],'payloadJson':sys.argv[2]} if sys.argv[2]!='-' else {'type':sys.argv[1]}))" "$1" "$2" | curl -s -o /dev/null -w "$3 (expect $4) %{http_code}\n" -X POST $B/api/devices/$DID/commands -H "$J" -H "Authorization: Bearer $A" -d @-; }
 cmd app_unlock_temp '{"package":"com.google.android.youtube","minutes":15}' "unlock_temp ok" 200

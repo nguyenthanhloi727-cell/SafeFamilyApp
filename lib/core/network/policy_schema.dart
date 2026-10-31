@@ -1,12 +1,15 @@
 import 'dart:convert';
 
+import '../../features/profile/data/family_contact.dart';
+
 /// Schema gói luật gửi lên `PUT /api/devices/{id}/policy` (docs/API_DAY_DU.md, API-04).
 ///
 /// ```json
 /// {
-///   "schemaVersion": 1,
+///   "schemaVersion": 2,
 ///   "timeLimit": { ...cấu hình giới hạn thời gian (TimeLimitConfig.toJson)... },
-///   "appLock": { "blocked": ["com.google.android.youtube"], "schedules": [] }
+///   "appLock": { "blocked": ["com.google.android.youtube"], "schedules": [] },
+///   "contacts": [ { "label": "Mẹ", "phone": "0901234567", "sos": true } ]
 /// }
 /// ```
 ///
@@ -14,8 +17,14 @@ import 'dart:convert';
 /// (Kotlin `FamilySync.pullPolicy`) mới là nơi hiểu nội dung. Thêm trường mới
 /// thì thêm ở cuối, không đổi nghĩa trường cũ; đổi nghĩa thì tăng [version]
 /// (máy con gặp phiên bản lớn hơn mình hiểu sẽ bỏ qua và giữ luật cũ).
+///
+/// Phiên bản 2 (API-13) thêm `contacts`: CHỈ các số khẩn cấp (SOS) mẹ chọn, không
+/// phải cả danh bạ. Tối đa [maxContacts] số; nhãn ≤ [maxLabel] ký tự (khớp server
+/// `PolicyRules`). Máy con bản cũ chỉ hiểu phiên bản 1 sẽ giữ luật cũ.
 abstract final class PolicySchema {
-  static const version = 1;
+  static const version = 2;
+  static const maxContacts = 3;
+  static const maxLabel = 30;
 
   /// Khớp `MaxPolicyBytes` của server.
   static const maxBytes = 64 * 1024;
@@ -29,12 +38,24 @@ abstract final class PolicySchema {
   static String build({
     required Map<String, dynamic> timeLimit,
     required Iterable<String> blocked,
+    Iterable<FamilyContact> sosContacts = const [],
   }) {
     final packages = blocked.toSet().toList()..sort();
     return jsonEncode({
       'schemaVersion': version,
       'timeLimit': timeLimit,
       'appLock': {'blocked': packages, 'schedules': const <Object>[]},
+      'contacts': [
+        for (final c
+            in sosContacts.where((c) => c.emergency && c.hasPhone).take(maxContacts))
+          {
+            'label': c.label.length > maxLabel
+                ? c.label.substring(0, maxLabel)
+                : c.label,
+            'phone': c.phone,
+            'sos': true,
+          },
+      ],
     });
   }
 

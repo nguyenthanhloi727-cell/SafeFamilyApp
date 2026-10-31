@@ -24,6 +24,7 @@ object GuardPrefs {
     private const val KEY_EXTRA_TIME = "extra_time_pending"
     private const val KEY_CONTACTS = "family_contacts"
     private const val KEY_REMOTE_BLOCKED = "remote_blocked"
+    private const val KEY_SOS = "policy_sos_contacts"
 
     private fun prefs(context: Context) =
         context.applicationContext.getSharedPreferences(FILE, Context.MODE_PRIVATE)
@@ -153,6 +154,27 @@ object GuardPrefs {
             (0 until array.length()).map {
                 val o = array.getJSONObject(it)
                 Contact(o.getString("label"), o.getString("phone"), o.optBoolean("emergency"))
+            }
+        }.getOrDefault(emptyList())
+    }
+
+    /**
+     * Số SOS mẹ chọn, đến từ `policy.contacts` (API-13). Tách khỏi [contacts] (danh bạ trên máy con):
+     * luật mới của mẹ thay hết danh sách này, kể cả thành rỗng.
+     */
+    fun setSos(context: Context, sos: List<Contact>) {
+        val array = org.json.JSONArray()
+        for (c in sos) array.put(org.json.JSONObject().put("label", c.label).put("phone", c.phone))
+        prefs(context).edit().putString(KEY_SOS, array.toString()).apply()
+    }
+
+    fun sos(context: Context): List<Contact> {
+        val raw = prefs(context).getString(KEY_SOS, null) ?: return emptyList()
+        return runCatching {
+            val array = org.json.JSONArray(raw)
+            (0 until array.length()).map {
+                val o = array.getJSONObject(it)
+                Contact(o.getString("label"), o.getString("phone"), true)
             }
         }.getOrDefault(emptyList())
     }

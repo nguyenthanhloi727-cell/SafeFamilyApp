@@ -54,7 +54,10 @@ public class DevicesController(AppDb db) : ApiBase
         return ToDto(await db.Policies.FirstOrDefaultAsync(p => p.DeviceId == id));
     }
 
-    /// <summary>Ghi luật. Phiên bản mẹ gửi (ExpectedVersion) phải bằng phiên bản hiện tại, lệch thì 409.</summary>
+    /// <summary>
+    /// Ghi luật. Phiên bản mẹ gửi (ExpectedVersion) phải bằng phiên bản hiện tại, lệch thì 409.
+    /// Nếu luật có <c>contacts</c> (số SOS, API-13): tối đa 3 mục, nhãn 1–30 ký tự, số 9–12 chữ số; sai thì 400.
+    /// </summary>
     [HttpPut("{id:int}/policy")]
     public async Task<ActionResult<PolicyDto>> PutPolicy(int id, PutPolicyRequest req)
     {
@@ -68,6 +71,8 @@ public class DevicesController(AppDb db) : ApiBase
             using var doc = System.Text.Json.JsonDocument.Parse(req.Json);
             if (doc.RootElement.ValueKind != System.Text.Json.JsonValueKind.Object)
                 return BadRequest(new { error = "Luật phải là một đối tượng JSON." });
+            var bad = PolicyRules.Validate(doc.RootElement); // contacts SOS (API-13)
+            if (bad is not null) return BadRequest(new { error = bad });
         }
         catch (System.Text.Json.JsonException) { return BadRequest(new { error = "Json không hợp lệ." }); }
 

@@ -55,7 +55,7 @@ object FamilySync {
     private const val REQUEST_NOTIFICATION_ID = 0x57D2
 
     /** Bản schema gói luật máy con hiểu (xem lib/core/network/policy_schema.dart). */
-    private const val SUPPORTED_SCHEMA = 1
+    private const val SUPPORTED_SCHEMA = 2
 
     private fun prefs(context: Context) =
         context.applicationContext.getSharedPreferences(FILE, Context.MODE_PRIVATE)
@@ -461,11 +461,17 @@ object FamilySync {
         val applied = runCatching {
             parsed.timeLimit?.let { TimeLimits.setConfig(context, it.toString()) }
             parsed.blocked?.let { applyRemoteBlocked(context, it) }
+            parsed.sos?.let { GuardPrefs.setSos(context, it) }
         }.isSuccess
         if (applied) p.edit().putInt(KEY_POLICY_VERSION, parsed.version).apply()
     }
 
-    private class ParsedPolicy(val version: Int, val timeLimit: JSONObject?, val blocked: Set<String>?)
+    private class ParsedPolicy(
+        val version: Int,
+        val timeLimit: JSONObject?,
+        val blocked: Set<String>?,
+        val sos: List<GuardPrefs.Contact>? = null,
+    )
 
     /** `null` ở timeLimit/blocked = gói không nhắc tới phần đó (giữ nguyên). Ném lỗi nếu gói không hợp lệ. */
     private fun parsePolicy(body: String): ParsedPolicy {
@@ -490,7 +496,29 @@ object FamilySync {
             }
             out
         } else null
-        return ParsedPolicy(version, timeLimit, blocked)
+        return ParsedPolicy(version, timeLimit, blocked, parseSos(policy))
+    }
+
+    private val sosPhone = Regex("""^\+?[0-9]{9,12}$""")
+
+    /**
+     * `contacts` (schema 2, API-13): số SOS mẹ chọn. `null` = gói không nhắc tới (giữ nguyên). Có thì phải
+     * hợp lệ HẾT (tối đa 3, nhãn 1–30 ký tự, số 9–12 chữ số) nếu không cả gói bị bỏ; mục `sos:false` bị lọc.
+     */
+    private fun parseSos(policy: JSONObject): List<GuardPrefs.Contact>? {
+        if (!policy.has("contacts")) return null
+        val array = policy.getJSONArray("contacts")
+        require(array.length() <= 3) { "quá 3 số SOS" }
+        val out = mutableListOf<GuardPrefs.Contact>()
+        for (i in 0 until array.length()) {
+            val o = array.getJSONObject(i)
+            val label = o.get("label")
+            val phone = o.get("phone")
+            require(label is String && label.trim().length in 1..30) { "nhãn SOS không hợp lệ" }
+            require(phone is String && sosPhone.matches(phone)) { "số SOS không hợp lệ" }
+            if (o.optBoolean("sos", true)) out.add(GuardPrefs.Contact(label.trim(), phone, true))
+        }
+        return out
     }
 
     /**

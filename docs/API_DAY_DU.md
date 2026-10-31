@@ -49,7 +49,7 @@ Gói luật (schema `schemaVersion` 1): `{"schemaVersion":1,"timeLimit":{...},"a
 | 12 | Vị trí (`FamilyService`, `remote_monitor_page`) | Máy con + server | ✅ | Xóa lịch sử và công tắc chia sẻ vị trí: code xong, chờ test máy thật (giữ 7 ngày, con không xem lịch sử: đã chốt) | API-11 |
 | 13 | Hàng rào địa lý (`Geofences.kt`) | Máy con + server | ✅ | Thông báo máy mẹ trễ 15 phút (WorkManager), cân nhắc đẩy | API-12 |
 | 14 | Lệnh từ xa (khóa/mở, tắt giới hạn hôm nay…) | Server | ✅ | Màn "Lệnh đã gửi" (đang chờ / đã thực thi / quá hạn 24h) đã có, chờ test máy thật | API-09 |
-| 15 | Hồ sơ, liên hệ gia đình, SOS (`profile/`) | Máy | ❌ | Đồng bộ liên hệ khẩn cấp xuống máy con (cân nhắc riêng tư) | API-13 |
+| 15 | Hồ sơ, liên hệ gia đình, SOS (`profile/`) | Máy | 🟡 `policy.contacts` | Code xong, chờ test máy thật: mẹ chọn tối đa 3 số SOS, chỉ nhãn + số lên server (không gửi danh bạ), màn chặn của con gọi thẳng | API-13 |
 | 16 | Quyền ứng dụng, Setup Wizard, Đang cản trở (`PermissionRegistry`, `setup/`, `home/`) | Máy | ➖ | Chỉ cần báo mẹ khi con thiếu quyền (xem API-10) | – |
 | 17 | PIN, mã khôi phục, sinh trắc (`core/security/`) | Máy | ➖ | Đã chốt chỉ lưu hash trên máy | – |
 | 18 | Báo thức giọng nói (`alarm/`) | Máy | ➖ | Không liên quan giám sát | – |
@@ -81,7 +81,7 @@ Mỗi task: endpoint/bảng cần thêm, phía Flutter/Kotlin cần nối, đi�
 - Xong khi: sau đăng xuất, refresh token cũ bị 401.
 
 ### API-04 Chốt schema `policy` và đẩy từ Flutter mẹ — code xong, CHƯA test máy thật
-- Schema đã chốt: `{"schemaVersion":1,"timeLimit":{...},"appLock":{"blocked":[pkg],"schedules":[]}}`. `study`, `contacts` chưa có (thêm khi làm API-13; máy con bỏ qua trường lạ, gặp `schemaVersion` lớn hơn mình hiểu thì giữ luật cũ). Server vẫn lưu nguyên khối, chỉ kiểm tra là đối tượng JSON hợp lệ và ≤64 KB.
+- Schema đã chốt: `{"schemaVersion":1,"timeLimit":{...},"appLock":{"blocked":[pkg],"schedules":[]}}`. `study` chưa có; `contacts` đã thêm ở API-13 (`schemaVersion` 2; máy con bỏ qua trường lạ, gặp `schemaVersion` lớn hơn mình hiểu thì giữ luật cũ). Server vẫn lưu nguyên khối, chỉ kiểm tra là đối tượng JSON hợp lệ và ≤64 KB.
 - Flutter mẹ (xong): `PolicySync` đẩy sau khi lưu ở `time_limit_page` và `app_lock_page` (`block_schedules` chỉ hiển thị, không lưu gì nên không cần). Chỉ chạy khi chế độ "mẹ" và đã chọn máy con. 409 → tải lại → khác thì hỏi mẹ; giống thì bỏ qua.
 - Kotlin con (xong, chưa chạy thật): `pullPolicy` kiểm tra hết rồi mới ghi `timeLimit` + `appLock.blocked`; lỗi thì giữ luật cũ.
 - Tự động đã đạt: `flutter test` (có `policy_sync_test.dart`), `smoke.sh` (policy 200/409/400).
@@ -148,9 +148,14 @@ Mỗi task: endpoint/bảng cần thêm, phía Flutter/Kotlin cần nối, đi�
 ### API-12 Thông báo nhanh hơn (tùy chọn)
 - Hiện trễ tối thiểu 15 phút ở máy mẹ. Phương án: SignalR (cần app mở) hoặc FCM (đã chốt không dùng). Chỉ làm khi người dùng chấp nhận đổi quyết định.
 
-### API-13 Đồng bộ liên hệ khẩn cấp
-- Đưa `contacts` (nhãn, số, cờ SOS) vào `policy` để máy con gọi SOS từ màn chặn. Cân nhắc quyền riêng tư: chỉ gửi số khẩn cấp, không gửi cả danh bạ.
-- Xong khi: mẹ đặt số SOS, màn chặn của con gọi đúng số.
+### API-13 Đồng bộ liên hệ khẩn cấp — code xong, server + Flutter đã test tự động, CHƯA test 2 máy thật
+- Đã chốt (2026-10-31, người dùng trả lời): (1) ĐƯỢC gửi nhãn + số SOS lên server; (2) tối đa **3** số SOS; (3) màn chặn của con **gọi thẳng**, không hỏi xác nhận (quyền `CALL_PHONE`).
+- Schema `policy` nâng lên `schemaVersion` **2**: thêm `contacts: [{"label","phone","sos":true}]`. CHỈ các liên hệ mẹ đánh dấu khẩn cấp và có số; không id, không thứ tự, không phải cả danh bạ. Nhãn cắt còn 30 ký tự khi gửi. Máy con bản cũ (chỉ hiểu schema 1) gặp schema 2 thì giữ luật cũ (đúng cơ chế API-04), nên cần cập nhật app con cùng lúc.
+- Server: không endpoint mới, không migration. `PUT /api/devices/{id}/policy` kiểm `contacts` bằng `Services/PolicyRules.cs`: phải là mảng ≤3 mục, mỗi mục là đối tượng có `label` (chuỗi 1–30 ký tự, không ký tự điều khiển), `phone` (chuỗi `+?` + 9–12 chữ số), `sos` (nếu có phải là true/false); sai → 400 và phiên bản luật không đổi. Gia đình khác → 404, token máy con → 403 (như cũ). Mô tả 400 nằm trong tóm tắt Swagger của endpoint.
+- Flutter mẹ: `PolicySchema.build(sosContacts:)`; `PolicySync` có tham số `loadContacts` (app đọc danh bạ trên máy mẹ) và gửi kèm khi lưu. Màn "Cá nhân": mục "Đặt làm liên hệ khẩn cấp" giờ cho chọn nhiều người (tối đa 3, `ProfileController.toggleEmergency`; đủ 3 thì báo, liên hệ chưa có số thì không đặt được); đổi/sửa/xóa liên hệ SOS thì `PolicySyncScope.notifyChanged` đẩy lại luật. Việc này vẫn qua `ParentGate.childAction` có sẵn.
+- Kotlin con (xong, chưa chạy thật): `FamilySync.parsePolicy` hiểu schema ≤2, kiểm `contacts` HẾT (≤3, nhãn 1–30, số 9–12 chữ số) rồi mới ghi `GuardPrefs.setSos`; gói không có `contacts` thì giữ SOS cũ, `contacts: []` thì xóa SOS. `TimeLimitBlockActivity`: mỗi số SOS một nút "SOS: gọi <nhãn>" gọi thẳng bằng `ACTION_CALL`; chưa có quyền `CALL_PHONE` thì xin lúc bấm, bị từ chối thì mở bàn phím với đúng số đó. Chưa có số mẹ chọn thì giữ hành vi cũ (bàn phím gọi / danh bạ trên máy con). Thêm `CALL_PHONE` vào manifest.
+- TODO(verify): (a) hộp xin quyền `CALL_PHONE` hiện được trên màn chặn (Xiaomi có thể chặn gọi từ app nền / cần quyền "Hiển thị cửa sổ pop-up khi chạy nền"); (b) `ACTION_CALL` từ Activity đang đè lên app bị chặn có gọi được trên Xiaomi T11 Pro; (c) máy con không có SIM thì `ACTION_CALL` báo lỗi, đã fallback `dial`; (d) nhãn quá 30 ký tự bị cắt âm thầm khi gửi.
+- Xong khi: mẹ đặt số SOS, màn chặn của con gọi đúng số (cần 2 máy thật, xem TASKS/TEST_PLAN.md "Bổ sung API-13").
 
 ### API-14 Nền tảng và vận hành server
 - `GET /health` cho MyASP.net.
@@ -183,5 +188,5 @@ Mỗi task: endpoint/bảng cần thêm, phía Flutter/Kotlin cần nối, đi�
 1. Có thêm tài khoản bố ngang quyền mẹ không (API-02)?
 2. Báo cáo sử dụng giữ bao nhiêu ngày (đề xuất 90)? (Vị trí: đã chốt 7 ngày, 2026-10-31.)
 3. Chấp nhận trễ 15 phút cho thông báo ở máy mẹ, hay đổi quyết định không dùng FCM (API-12)?
-4. Có gửi liên hệ khẩn cấp lên server không (API-13)?
+4. ~~Có gửi liên hệ khẩn cấp lên server không (API-13)?~~ Đã chốt 2026-10-31: có, tối đa 3 số, gọi thẳng.
 5. MyASP.net có SMTP để làm quên mật khẩu không (API-03)?

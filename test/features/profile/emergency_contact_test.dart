@@ -11,26 +11,37 @@ void main() {
         InMemorySharedPreferencesAsync.empty();
   });
 
-  test('chỉ một liên hệ khẩn cấp, và được đồng bộ sang native', () async {
+  test('tối đa 3 liên hệ khẩn cấp, bật/tắt và đồng bộ sang native', () async {
     final repo = LocalProfileRepository();
     await repo.addContact(label: 'Ông', phone: '0901234567');
+    await repo.addContact(label: 'Bà', phone: '0901234568');
+    await repo.addContact(label: 'Dì', phone: '0901234569');
     List<FamilyContact> synced = const [];
     final controller = ProfileController(
       repo,
       onContactsChanged: (c) async => synced = c,
     );
     await controller.load();
-    final a = controller.contacts.firstWhere((c) => c.label == 'Mẹ');
-    final b = controller.contacts.firstWhere((c) => c.label == 'Ông');
+    FamilyContact byLabel(String l) =>
+        controller.contacts.firstWhere((c) => c.label == l);
 
-    await controller.setEmergency(a.id);
-    await controller.setEmergency(b.id);
+    // Liên hệ mặc định "Mẹ" chưa có số: không đặt SOS được.
+    expect(await controller.toggleEmergency(byLabel('Mẹ').id), isFalse);
+    await controller.updateContact(byLabel('Mẹ').copyWith(phone: '0901234560'));
+    expect(await controller.toggleEmergency(byLabel('Mẹ').id), isTrue);
+    expect(await controller.toggleEmergency(byLabel('Ông').id), isTrue);
+    expect(await controller.toggleEmergency(byLabel('Bà').id), isTrue);
+    // Đủ 3: người thứ 4 bị từ chối, không đổi gì.
+    expect(await controller.toggleEmergency(byLabel('Dì').id), isFalse);
+    expect(
+      controller.contacts.where((c) => c.emergency).map((c) => c.label),
+      unorderedEquals(['Mẹ', 'Ông', 'Bà']),
+    );
+    expect(synced.where((c) => c.emergency), hasLength(3));
 
-    expect(controller.contacts.where((c) => c.emergency).map((c) => c.label), [
-      'Ông',
-    ]);
-    expect(synced.where((c) => c.emergency).single.label, 'Ông');
-    await controller.setEmergency(null);
-    expect(controller.contacts.any((c) => c.emergency), isFalse);
+    // Bỏ một người thì thêm được người khác.
+    expect(await controller.toggleEmergency(byLabel('Ông').id), isTrue);
+    expect(byLabel('Ông').emergency, isFalse);
+    expect(await controller.toggleEmergency(byLabel('Dì').id), isTrue);
   });
 }

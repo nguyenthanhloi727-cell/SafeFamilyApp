@@ -8,6 +8,7 @@ import 'package:safe_family_app/core/network/api_client.dart';
 import 'package:safe_family_app/core/network/connection_session.dart';
 import 'package:safe_family_app/core/network/policy_schema.dart';
 import 'package:safe_family_app/core/network/policy_sync.dart';
+import 'package:safe_family_app/features/profile/data/family_contact.dart';
 
 import '../../helpers/security_fakes.dart';
 
@@ -47,7 +48,11 @@ Future<
     Widget app,
   })
 >
-_setup({ConnectionMode mode = ConnectionMode.parent, int? child = 5}) async {
+_setup({
+  ConnectionMode mode = ConnectionMode.parent,
+  int? child = 5,
+  List<FamilyContact> contacts = const [],
+}) async {
   final server = _Server();
   final session = ConnectionSession(store: InMemorySecureStore());
   await session.load();
@@ -63,6 +68,7 @@ _setup({ConnectionMode mode = ConnectionMode.parent, int? child = 5}) async {
     navigatorKey: key,
     loadTimeLimit: () async => _timeLimit,
     blockedPackages: () => blocked,
+    loadContacts: () async => contacts,
     debounce: const Duration(milliseconds: 10),
   );
   return (
@@ -85,12 +91,47 @@ void main() {
         blocked: ['b.app', 'a.app', 'b.app'],
       ),
     );
-    expect(json['schemaVersion'], 1);
+    expect(json['schemaVersion'], 2);
+    expect(json['contacts'], isEmpty);
     expect(json['timeLimit'], {'enabled': true});
     expect(json['appLock'], {
       'blocked': ['a.app', 'b.app'],
       'schedules': [],
     });
+  });
+
+  test('PolicySchema.build: contacts chỉ gồm số SOS có số, tối đa 3, nhãn ≤30', () {
+    FamilyContact c(String id, String phone, {bool sos = true, String? label}) =>
+        FamilyContact(
+          id: id,
+          label: label ?? 'L$id',
+          phone: phone,
+          order: 0,
+          emergency: sos,
+        );
+    final json = jsonDecode(
+      PolicySchema.build(
+        timeLimit: {},
+        blocked: [],
+        sosContacts: [
+          c('1', '0901234561'),
+          c('2', '0901234562', sos: false), // không phải SOS: không gửi
+          c('3', '', label: 'chưa có số'), // chưa có số: không gửi
+          c('4', '+84901234564', label: 'x' * 40),
+          c('5', '0901234565'),
+          c('6', '0901234566'), // thứ 4 hợp lệ: bị cắt
+        ],
+      ),
+    );
+    final contacts = json['contacts'] as List;
+    expect(contacts.map((e) => e['phone']), [
+      '0901234561',
+      '+84901234564',
+      '0901234565',
+    ]);
+    expect(contacts[1]['label'], 'x' * 30);
+    expect(contacts.every((e) => e['sos'] == true), isTrue);
+    expect(contacts.every((e) => (e as Map).keys.length == 3), isTrue); // không lộ id/thứ tự
   });
 
   test('PolicySchema.sameContent bỏ qua thứ tự khóa và khoảng trắng', () {
@@ -121,10 +162,25 @@ void main() {
     expect(result, PolicyPushResult.pushed);
     expect(s.server.puts.single['expectedVersion'], 0);
     final sent = jsonDecode(s.server.puts.single['json'] as String);
-    expect(sent['schemaVersion'], 1);
+    expect(sent['schemaVersion'], 2);
     expect(sent['appLock']['blocked'], ['com.google.android.youtube']);
     expect(sent['timeLimit']['enabled'], isTrue);
     expect(s.session.policyVersionOf(5), 1);
+  });
+
+  testWidgets('gói luật gửi kèm số SOS mẹ chọn từ danh bạ máy mẹ', (t) async {
+    final s = await _setup(
+      contacts: [
+        const FamilyContact(id: 'a', label: 'Mẹ', phone: '0901234567', order: 0, emergency: true),
+        const FamilyContact(id: 'b', label: 'Ông', phone: '0907654321', order: 1),
+      ],
+    );
+    await t.pumpWidget(s.app);
+    await s.sync.pushNow();
+    final sent = jsonDecode(s.server.puts.single['json'] as String);
+    expect(sent['contacts'], [
+      {'label': 'Mẹ', 'phone': '0901234567', 'sos': true},
+    ]);
   });
 
   testWidgets('changed() gom nhiều lần sửa thành một lần gửi', (t) async {

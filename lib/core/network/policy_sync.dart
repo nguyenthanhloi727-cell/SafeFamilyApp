@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 
+import '../../features/profile/data/family_contact.dart';
 import '../security/ui/parent_gate.dart';
 import 'api_client.dart';
 import 'connection_session.dart';
@@ -39,6 +40,7 @@ class PolicySync {
     required this.navigatorKey,
     required this.loadTimeLimit,
     required this.blockedPackages,
+    this.loadContacts,
     this.debounce = const Duration(seconds: 2),
   });
 
@@ -51,6 +53,9 @@ class PolicySync {
 
   /// Các app đang khóa trên máy này.
   final Set<String> Function() blockedPackages;
+
+  /// Danh bạ gia đình của máy này; chỉ các liên hệ đánh dấu khẩn cấp (SOS) được gửi (API-13).
+  final Future<List<FamilyContact>> Function()? loadContacts;
   final Duration debounce;
 
   Timer? _timer;
@@ -105,6 +110,7 @@ class PolicySync {
       final json = PolicySchema.build(
         timeLimit: jsonDecode(await loadTimeLimit()) as Map<String, dynamic>,
         blocked: blockedPackages(),
+        sosContacts: await _sosContacts(),
       );
       if (utf8.encode(json).length > PolicySchema.maxBytes) {
         _say('Luật quá lớn, không gửi được lên máy con.');
@@ -133,8 +139,15 @@ class PolicySync {
     } on FormatException {
       _say('Luật trên máy này bị lỗi định dạng, chưa gửi.');
       return PolicyPushResult.failed;
+    } catch (_) {
+      _say('Không đọc được danh bạ khẩn cấp, chưa gửi luật.');
+      return PolicyPushResult.failed;
     }
   }
+
+  /// Lỗi đọc danh bạ thì ném tiếp để KHÔNG gửi gói thiếu số SOS (máy con sẽ xóa SOS cũ).
+  Future<List<FamilyContact>> _sosContacts() async =>
+      await loadContacts?.call() ?? const [];
 
   Future<PolicyPushResult> _put(int id, String json, int expected) async {
     final saved = await api.putPolicy(id, json, expected);
