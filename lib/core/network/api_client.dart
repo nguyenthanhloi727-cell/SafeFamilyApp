@@ -219,6 +219,37 @@ class UsageDayInfo {
   final Map<String, int> apps;
 }
 
+/// Loại cảnh báo tamper / mất kết nối (khớp `AlertRules` ở server, API-10).
+abstract final class AlertKind {
+  static const timeChanged = 'time_changed';
+  static const appUninstallAttempt = 'app_uninstall_attempt';
+  static const accessibilityOff = 'accessibility_off';
+  static const deviceAdminOff = 'device_admin_off';
+  static const permissionMissing = 'permission_missing';
+  static const offline = 'offline';
+}
+
+/// Một cảnh báo của máy con (`GET /api/devices/{id}/alerts`). Chỉ có loại, mã/số ngắn và thời điểm.
+class AlertInfo {
+  const AlertInfo({
+    required this.id,
+    required this.kind,
+    required this.createdAt,
+    this.detail,
+    this.readAt,
+  });
+
+  final int id;
+  final String kind;
+
+  /// Mã/số ngắn tùy loại: phút lệch giờ, id quyền, số giờ mất kết nối... Có thể `null`.
+  final String? detail;
+  final DateTime createdAt;
+  final DateTime? readAt;
+
+  bool get isUnread => readAt == null;
+}
+
 class LocationInfo {
   const LocationInfo(this.lat, this.lng, this.accuracy, this.time);
   final double lat;
@@ -494,6 +525,40 @@ class ApiClient {
         'decision': approve ? 'approved' : 'rejected',
         'minutes': ?minutes,
       }, auth: _Auth.parent);
+
+  /// Cảnh báo của máy con, cũ trước, tối đa 100. [afterId] = 0 (mặc định): 100 cảnh báo MỚI nhất; lớn hơn 0: các
+  /// cảnh báo kế sau mốc đó (dò theo con trỏ không sót). Dòng hỏng bị bỏ qua.
+  Future<List<AlertInfo>> getAlerts(int deviceId, {int afterId = 0}) async {
+    final query = afterId > 0 ? '?afterId=$afterId' : '';
+    final list = await _send(
+      'GET',
+      '/api/devices/$deviceId/alerts$query',
+      null,
+      auth: _Auth.parent,
+    ) as List<dynamic>;
+    final out = <AlertInfo>[];
+    for (final e in list) {
+      if (e is! Map<String, dynamic>) continue;
+      final id = e['id'];
+      final kind = e['kind'];
+      final createdAt = parseServerTime(e['createdAt']);
+      if (id is! num || kind is! String || createdAt == null) continue;
+      out.add(
+        AlertInfo(
+          id: id.toInt(),
+          kind: kind,
+          detail: e['detail'] as String?,
+          createdAt: createdAt,
+          readAt: parseServerTime(e['readAt']),
+        ),
+      );
+    }
+    return out;
+  }
+
+  /// Đánh dấu một cảnh báo đã đọc (gọi lại không sao). Cảnh báo của máy đã hủy ghép → 404.
+  Future<void> markAlertRead(int alertId) =>
+      _send('POST', '/api/alerts/$alertId/read', null, auth: _Auth.parent);
 
   /// App của máy con theo trạng thái duyệt (`new` = vừa cài, chờ mẹ), mới nhất trước, tối đa 200.
   Future<List<InstalledAppInfo>> getDeviceApps(

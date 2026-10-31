@@ -181,6 +181,23 @@ public class UsageDay
     public List<UsageApp> Apps { get; set; } = [];
 }
 
+/// <summary>
+/// Cảnh báo cho mẹ (API-10): máy con bị đổi giờ, thiếu quyền, gỡ app... hoặc mất kết nối quá ngưỡng (server tự tạo).
+/// Chỉ có loại sự kiện, mã/số ngắn và thời điểm: không nội dung, không vị trí.
+/// </summary>
+public class Alert
+{
+    public int Id { get; set; }
+    public int DeviceId { get; set; }
+    /// <summary>Một trong <see cref="AlertRules.Kinds"/>.</summary>
+    public string Kind { get; set; } = "";
+    /// <summary>Mã/số ngắn (ví dụ lệch giờ theo phút, id quyền, số giờ mất kết nối); không bao giờ là nội dung.</summary>
+    public string? Detail { get; set; }
+    /// <summary>Thời điểm xảy ra (UTC). Máy con gửi bù lúc offline thì là giờ xảy ra thật, không phải giờ gửi.</summary>
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime? ReadAt { get; set; }
+}
+
 /// <summary>Phút dùng một app trong một ngày (<see cref="UsageDay"/>).</summary>
 public class UsageApp
 {

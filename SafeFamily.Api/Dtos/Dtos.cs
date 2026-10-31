@@ -67,4 +67,9 @@ public record UsageDayItem([Required] string Date, int TotalMinutes, int Blocks,
 public record PostUsageRequest([Required] List<UsageDayItem> Days);
 public record UsageDayDto(string Date, int TotalMinutes, int Blocks, Dictionary<string, int> Apps);
 
+// ---- Cảnh báo cho mẹ (API-10). Chỉ loại sự kiện, mã/số ngắn và thời điểm. ----
+/// <summary>OccurredAt = lúc xảy ra (UTC); bỏ trống = bây giờ. Máy con gửi bù lúc offline thì điền giờ thật.</summary>
+public record PostAlertRequest([Required, MaxLength(30)] string Kind, [MaxLength(32)] string? Detail, DateTime? OccurredAt);
+public record AlertDto(int Id, string Kind, string? Detail, DateTime CreatedAt, DateTime? ReadAt);
+
 public record DecideRequest([Required, MaxLength(10)] string Decision, int? Minutes);

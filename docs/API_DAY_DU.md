@@ -9,7 +9,7 @@ Mã task `API-xx` dùng để tham chiếu. Làm theo "Thứ tự đề xuất" 
 
 ---
 
-## 1. API hiện có (32 endpoint)
+## 1. API hiện có (35 endpoint)
 
 | Nhóm | Endpoint | Ai gọi |
 |---|---|---|
@@ -24,6 +24,7 @@ Mã task `API-xx` dùng để tham chiếu. Làm theo "Thứ tự đề xuất" 
 | Hàng rào | `GET/PUT /api/devices/{id}/geofences`, `GET /api/devices/me/geofences`, `POST /api/devices/me/geofence-events`, `GET /api/devices/{id}/geofence-events` | Mẹ / Con |
 | Yêu cầu của con | `POST /api/devices/me/requests`, `GET /api/devices/me/requests/{id}` (con); `GET /api/devices/{id}/requests?status=`, `PUT /api/requests/{id}` (mẹ) | Con gửi / Mẹ duyệt |
 | Báo cáo sử dụng | `POST /api/devices/me/usage` (con), `GET /api/devices/{id}/usage?from=&to=` (mẹ) | Con gửi / Mẹ xem |
+| Cảnh báo | `POST /api/devices/me/alerts` (con), `GET /api/devices/{id}/alerts?afterId=` (mẹ), `POST /api/alerts/{id}/read` (mẹ) | Con gửi / Mẹ xem, đánh dấu đã đọc |
 
 Lệnh máy con đã hiểu (`FamilySync.apply`): `pause`, `lock`, `unpause`, `unlock`, `study_start`, `study_stop`, `disable_limit_today`, `enable_limit_today`, `study_approve`, `study_reject`, `extra_time_grant` (API-06), `app_unlock_temp`, `app_relock`, `app_block`, `app_allow`.
 Gói luật (schema `schemaVersion` 1): `{"schemaVersion":1,"timeLimit":{...},"appLock":{"blocked":[pkg],"schedules":[]}}`.
@@ -44,7 +45,7 @@ Gói luật (schema `schemaVersion` 1): `{"schemaVersion":1,"timeLimit":{...},"a
 | 8 | App mới cài (`new_app/`, `NewApps.kt`) | Máy con | 🟡 báo app mới + trạng thái duyệt | Code xong, chờ test máy thật: con báo app mới cài, mẹ cho phép / chặn từ xa, mẹ được báo khi có app mới | API-07 |
 | 9 | Báo cáo sử dụng (`report/`, `UsageReport.kt`) | Máy con + server | 🟡 báo phút theo app theo ngày | Code xong, chờ test máy thật: con gửi phút theo app, mẹ chọn máy con và xem biểu đồ tuần | API-08 |
 | 10 | Nhật ký mở khóa (`unlock_log`) | Máy con | ➖ | Đã chốt không đưa lên server | – |
-| 11 | Cảnh báo tamper: đổi giờ máy, gỡ app, tắt trợ năng/Device Admin, mất kết nối (`TimeChangeReceiver`, `UninstallGate`, `SettingsGuardService`) | Máy con | ❌ | Con gửi sự kiện cảnh báo; mẹ nhận; server tự cảnh báo "mất kết nối > ngưỡng" | API-10 |
+| 11 | Cảnh báo tamper: đổi giờ máy, gỡ app, tắt trợ năng/Device Admin, mất kết nối (`TimeChangeReceiver`, `UninstallGate`, `SettingsGuardService`, `TamperAlerts.kt`) | Máy con + server | 🟡 báo loại sự kiện + mất kết nối do server tự phát hiện | Code xong, chờ test máy thật: con báo tamper (xếp hàng khi offline), server tự báo "mất kết nối > 24h", mẹ xem danh sách và được thông báo. Chưa có: mẹ chỉnh ngưỡng mất kết nối (hiện cấu hình server) | API-10 |
 | 12 | Vị trí (`FamilyService`, `remote_monitor_page`) | Máy con + server | ✅ | Xóa lịch sử; mẹ bật/tắt chia sẻ vị trí; pin còn lại của máy con | API-11 |
 | 13 | Hàng rào địa lý (`Geofences.kt`) | Máy con + server | ✅ | Thông báo máy mẹ trễ 15 phút (WorkManager), cân nhắc đẩy | API-12 |
 | 14 | Lệnh từ xa (khóa/mở, tắt giới hạn hôm nay…) | Server | ✅ | Màn "Lệnh đã gửi" (đang chờ / đã thực thi / quá hạn 24h) đã có, chờ test máy thật | API-09 |
@@ -123,13 +124,14 @@ Mỗi task: endpoint/bảng cần thêm, phía Flutter/Kotlin cần nối, đi�
 - Giới hạn đã biết: trạng thái chỉ mới bằng lượt đồng bộ 5 phút của máy con, nên "chặn lại ngay" và `isPaused` trễ tối đa vài phút; `isPaused` chỉ là có/không (không có số phút còn lại, theo quy định chỉ gửi các trường đã chốt).
 - Xong khi: màn máy con hiện đúng "đang tạm dừng", "pin 40%", "lần cuối 2 phút trước" (cần 2 máy thật, xem TASKS/TEST_PLAN.md "Bổ sung API-09").
 
-### API-10 Cảnh báo cho mẹ (tamper và mất kết nối)
-- Bảng `Alert` (DeviceId, Kind, Detail, CreatedAt, ReadAt). Loại: `time_changed`, `app_uninstall_attempt`, `accessibility_off`, `device_admin_off`, `permission_missing`, `offline`.
-- API: `POST /api/devices/me/alerts` (con), `GET /api/devices/{id}/alerts?afterId=` (mẹ), `POST /api/alerts/{id}/read`.
-- Server: tác vụ nền (hosted service) đánh dấu `offline` khi `LastSeenAt` quá ngưỡng (mặc định 24h, mẹ chỉnh được: thêm trường ngưỡng vào cài đặt gia đình).
-- Kotlin: `TimeChangeReceiver`, `UninstallGate`, `SettingsGuardService` gọi gửi cảnh báo (xếp hàng offline).
-- Flutter mẹ: mở rộng `parent_alert_worker` để báo cả cảnh báo này (cùng WorkManager 15 phút).
-- Xong khi: tắt trợ năng trên máy con, mẹ nhận thông báo.
+### API-10 Cảnh báo cho mẹ (tamper và mất kết nối) — code xong, CHƯA test máy thật
+- Server (xong, đã chạy `smoke.sh`): bảng `Alert` (`DeviceId`, `Kind`, `Detail`, `CreatedAt`, `ReadAt`; migration `Alerts`). Loại: `time_changed`, `app_uninstall_attempt`, `accessibility_off`, `device_admin_off`, `permission_missing`, `offline`. `POST /api/devices/me/alerts` (con) nhận `{kind, detail?, occurredAt?}`: `kind` ≤30 ký tự và phải thuộc danh sách (con KHÔNG được tự gửi `offline`, do server tạo); `detail` ≤32 ký tự và chỉ là mã/số ngắn (`^-?[a-z0-9_]{1,31}$`, nên không lọt chữ có dấu, khoảng trắng, tên gói hay văn bản); `occurredAt` không ở tương lai quá 5 phút, không cũ quá 7 ngày (để con gửi bù lúc offline vẫn giữ giờ xảy ra thật); sai kiểu → 400. Chống trùng: cùng `Kind` trong ±10 phút quanh thời điểm xảy ra → 409 kèm `id` (máy con coi như đã gửi). Tối đa 200 dòng/máy: vượt thì XÓA dòng cũ nhất (không từ chối, để cảnh báo tamper mới không bao giờ bị bỏ vì mẹ chưa đọc); dòng quá 30 ngày bị dọn mỗi lần con gửi. `GET /api/devices/{id}/alerts?afterId=` (mẹ): cũ trước, ≤100 (không có `afterId` thì 100 cảnh báo MỚI nhất; có thì 100 kế sau mốc), `afterId` sai kiểu → 400; gia đình khác hoặc máy đã hủy ghép → 404. `POST /api/alerts/{id}/read` (mẹ): đặt `ReadAt` (gọi lại giữ giờ đầu), gia đình khác / không có → 404. Logic ở `Services/AlertRules.cs`.
+- Mất kết nối: `OfflineAlertService` (hosted service) chạy mỗi `Alerts:CheckIntervalSeconds` (mặc định 900 giây), tạo MỘT cảnh báo `offline` (Detail = số giờ) cho máy chưa hủy ghép có `LastSeenAt` (hoặc `PairedAt` nếu chưa từng kết nối) cũ hơn `Alerts:OfflineHours` (mặc định 24). Chỉ tạo lại khi máy đã kết nối lại rồi mất lần nữa (không có cảnh báo `offline` nào sau lần thấy cuối), nên không tạo trùng liên tục. Đã kiểm bằng SQL (đổi `LastSeenAt`) với `Alerts__CheckIntervalSeconds=3`: 25 giờ → đúng 1 cảnh báo, các lượt sau không thêm, online lại rồi im lặng tiếp → cảnh báo thứ 2, máy hủy ghép không có cảnh báo. TODO(verify): trên MonsterASP, IIS có thể dừng tiến trình khi không có truy cập (khi đó tác vụ nền không chạy); máy mẹ polling 15 phút giữ tiến trình sống phần nào. Ngưỡng mẹ tự chỉnh trong cài đặt gia đình CHƯA làm (hiện chỉ cấu hình server).
+- Kotlin con (xong, biên dịch được, chưa chạy máy thật): `TamperAlerts.kt`. Hàng chờ SharedPreferences (`safefamily_alerts`, ≤30 mục, bỏ mục quá ~7 ngày), lưu bằng `commit()` để không mất khi bị kill ngay; gửi ngay ở luồng nền, gửi bù mỗi `FamilySync.syncOnce`; 200/409/400/404 → bỏ khỏi hàng, 401/429/5xx/mất mạng → giữ; mọi lỗi bị nuốt, không làm hỏng `syncOnce`. Nguồn sự kiện: `TimeChangeReceiver` (nhật ký lệch giờ của `TimeLimits` có lần mới → `time_changed`, Detail = số phút lệch có dấu, có `goAsync`); `UninstallGate.begin` → `app_uninstall_attempt` (`authorized`, sau khi qua PIN + sinh trắc, vì gỡ xong thì không còn app để báo); `SettingsGuardService.challenge` (có người mở màn Cài đặt của SafeFamily khi chưa qua khóa) → `app_uninstall_attempt` (`guard`); `SettingsGuardService.onUnbind` → chờ 15 giây rồi kiểm lại, dịch vụ còn tắt thì `accessibility_off` (tránh báo nhầm khi cập nhật app); `SafeFamilyAdminReceiver.onDisabled` → `device_admin_off` (bỏ qua khi cửa gỡ app hợp lệ đang mở). Phát hiện bù ở mỗi lượt đồng bộ: so `PermissionStatus.missing` với mốc, quyền MỚI thiếu → `accessibility_off` (Trợ năng / dịch vụ chặn), `device_admin_off`, hoặc `permission_missing` (Detail = id quyền); chỉ báo khi mất đi (cạnh xuống), mất lần nữa sau khi cấp lại mới báo lại. Mốc quyền và giờ lấy lúc ghép đôi (`FamilySync.configure` khi đổi token) nên quyền chưa cấp xong lúc cài đặt không báo; máy nâng cấp từ bản cũ chưa có mốc thì lần đồng bộ đầu chỉ ghi mốc. Trùng loại trong 10 phút thì bỏ (khớp server). Quyền micro không bao giờ báo (như API-09). TODO(verify): tắt Trợ năng trên Xiaomi T11 Pro có gọi `onUnbind` không; dịch vụ Trợ năng của `app_blocker` (plugin) không hook được nên chỉ bắt qua lượt đồng bộ ≤5 phút.
+- Flutter mẹ (xong, có test tự động `tamper_alerts_test.dart`, `device_alerts_page_test.dart`): `ApiClient.getAlerts/markAlertRead`, `alertLabel` (`child_status_text.dart`); `TamperAlertChecker` (`lib/core/alerts/tamper_alerts.dart`) chạy trong `parent_alert_worker` cùng WorkManager 15 phút, mốc theo id cảnh báo mỗi máy, cảnh báo đã đọc không báo lại (mốc vẫn đi qua), tối đa 5 thông báo/máy/lượt; màn `DeviceAlertsPage` ("Cảnh báo (N chưa đọc)" ở màn máy con): mới nhất trước, chạm để đánh dấu đã đọc, "Đã đọc hết". Đánh dấu đã đọc KHÔNG qua khóa phụ huynh vì chỉ đổi cờ đọc (cảnh báo vẫn nằm trong danh sách), không mở/tắt/duyệt gì; nếu muốn chặt hơn thì bọc bằng `ParentGate.always` ở `_markRead`. TODO(verify): thông báo nền trên máy mẹ thật (Android 13+ cần quyền thông báo; trễ tối thiểu 15 phút).
+- Quyền riêng tư: chỉ loại sự kiện, mã/số ngắn (phút lệch giờ, id quyền, số giờ mất kết nối, `authorized`/`guard`) và thời điểm; không nội dung, không vị trí, không tên app.
+- Giới hạn đã biết: (1) `app_uninstall_attempt` `guard` báo cả khi chỉ mở màn thông tin app SafeFamily (không chắc là gỡ); mẹ thấy chữ "mở màn cài đặt của SafeFamily khi chưa qua khóa phụ huynh". (2) `time_changed` còn báo cả lần máy tự đồng bộ giờ mạng lệch hơn 2 phút (ngưỡng của `TimeLimits`). (3) Mất quyền không có sự kiện trực tiếp thì chỉ phát hiện ở lượt đồng bộ (≤5 phút). (4) Máy tắt hẳn/hết pin/không mạng không tự báo được: mẹ chỉ biết qua cảnh báo `offline` sau 24 giờ. (5) Cài lại app hoặc xóa dữ liệu app thì hàng chờ chưa gửi mất.
+- Xong khi: tắt trợ năng trên máy con, mẹ nhận thông báo (cần 2 máy thật, xem TASKS/TEST_PLAN.md "Bổ sung API-10").
 
 ### API-11 Quyền riêng tư vị trí
 - API: `DELETE /api/devices/{id}/locations` (xóa lịch sử), cờ `LocationSharing` trong cài đặt máy con (mẹ bật/tắt, con kéo về).
@@ -164,7 +166,7 @@ Mỗi task: endpoint/bảng cần thêm, phía Flutter/Kotlin cần nối, đi�
 1. **API-04** (policy + đẩy từ Flutter): chạm đúng cốt lõi, mở khóa app lock và giới hạn giờ.
 2. **API-05** (lệnh mở rộng) và **API-09** (trạng thái): vài endpoint nhỏ, lợi lớn cho UI mẹ.
 3. **API-06** (yêu cầu của con), **API-07** (duyệt app mới).
-4. **API-08** (báo cáo), **API-10** (cảnh báo).
+4. **API-08** (báo cáo), **API-10** (cảnh báo) — code xong, chờ test máy thật.
 5. **API-03**, **API-01**, **API-11**, **API-13**.
 6. **API-14**, **API-15** làm xen kẽ; bắt buộc xong trước khi phát hành.
 7. **API-02**, **API-12**: chỉ làm khi người dùng chốt quyết định.

@@ -179,6 +179,21 @@ public class DevicesController(AppDb db) : ApiBase
             u.Apps.ToDictionary(a => a.Package, a => a.Minutes))).ToList();
     }
 
+    /// <summary>
+    /// Cảnh báo của máy con (API-10), cũ trước, tối đa 100 (như geofence-events): không có <c>afterId</c> thì lấy 100 cảnh báo
+    /// MỚI nhất, có thì 100 cảnh báo kế sau mốc để dò theo con trỏ không sót. Gia đình khác / máy đã hủy ghép → 404.
+    /// </summary>
+    [HttpGet("{id:int}/alerts")]
+    public async Task<ActionResult<List<AlertDto>>> Alerts(int id, [FromQuery] int afterId = 0)
+    {
+        if (await Own(id) is null) return NotFound();
+        var q = db.Alerts.Where(a => a.DeviceId == id && a.Id > afterId);
+        var rows = afterId <= 0
+            ? (await q.OrderByDescending(a => a.Id).Take(AlertRules.MaxListRows).ToListAsync()).AsEnumerable().Reverse().ToList()
+            : await q.OrderBy(a => a.Id).Take(AlertRules.MaxListRows).ToListAsync();
+        return rows.Select(AlertRules.ToDto).ToList();
+    }
+
     /// <summary>Vị trí mới nhất của máy con (204 nếu chưa có).</summary>
     [HttpGet("{id:int}/location")]
     public async Task<ActionResult<LocationDto>> LastLocation(int id)
@@ -462,6 +477,33 @@ public class DeviceSelfController(AppDb db) : ApiBase
         var cutoff = today.AddDays(-UsageRules.RetentionDays);
         await db.UsageDays.Where(u => u.DeviceId == SubjectId && u.Date < cutoff).ExecuteDeleteAsync();
         return NoContent();
+    }
+
+    /// <summary>
+    /// Máy con báo sự kiện tamper (API-10): <c>time_changed</c>, <c>app_uninstall_attempt</c>, <c>accessibility_off</c>,
+    /// <c>device_admin_off</c>, <c>permission_missing</c> (<c>offline</c> do server tự tạo). <c>detail</c> chỉ là mã/số ngắn.
+    /// Cùng loại trong 10 phút quanh thời điểm xảy ra → 409 kèm <c>id</c> của dòng đã có (máy con coi như đã gửi).
+    /// Quá 200 dòng thì xóa dòng cũ nhất; dòng quá 30 ngày bị dọn mỗi lần gửi.
+    /// </summary>
+    [HttpPost("alerts")]
+    public async Task<ActionResult<AlertDto>> PostAlert(PostAlertRequest req)
+    {
+        if (!await Touch()) return Unauthorized();
+        var now = DateTime.UtcNow;
+        var error = AlertRules.Validate(req, now, out var at);
+        if (error is not null) return BadRequest(new { error });
+
+        var lo = at - AlertRules.DedupWindow;
+        var hi = at + AlertRules.DedupWindow;
+        var dup = await db.Alerts.Where(a => a.DeviceId == SubjectId && a.Kind == req.Kind && a.CreatedAt > lo && a.CreatedAt < hi)
+            .OrderByDescending(a => a.Id).FirstOrDefaultAsync();
+        if (dup is not null) return Conflict(new { error = "Đã có cảnh báo cùng loại gần đây.", id = dup.Id });
+
+        await AlertRules.TrimAsync(db, SubjectId, now);
+        var row = new Alert { DeviceId = SubjectId, Kind = req.Kind, Detail = string.IsNullOrEmpty(req.Detail) ? null : req.Detail, CreatedAt = at };
+        db.Alerts.Add(row);
+        await db.SaveChangesAsync();
+        return AlertRules.ToDto(row);
     }
 
     [HttpGet("geofences")]

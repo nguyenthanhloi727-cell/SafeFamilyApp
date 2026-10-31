@@ -11,4 +11,9 @@ import android.content.Intent
 class SafeFamilyAdminReceiver : DeviceAdminReceiver() {
     override fun onDisableRequested(context: Context, intent: Intent): CharSequence =
         "Tắt quyền này sẽ cho phép gỡ SafeFamily. Chỉ phụ huynh nên làm."
+
+    /** Đã tắt: báo mẹ `device_admin_off` (API-10), trừ khi phụ huynh đang mở cửa gỡ app hợp lệ (đã báo riêng). */
+    override fun onDisabled(context: Context, intent: Intent) {
+        runCatching { TamperAlerts.permissionLost(context.applicationContext, "device_admin") }
+    }
 }

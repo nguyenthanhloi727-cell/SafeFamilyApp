@@ -20,6 +20,7 @@ public class AppDb(DbContextOptions<AppDb> options) : DbContext(options)
     public DbSet<ChildRequest> ChildRequests => Set<ChildRequest>();
     public DbSet<UsageDay> UsageDays => Set<UsageDay>();
     public DbSet<UsageApp> UsageApps => Set<UsageApp>();
+    public DbSet<Alert> Alerts => Set<Alert>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -53,5 +54,8 @@ public class AppDb(DbContextOptions<AppDb> options) : DbContext(options)
         b.Entity<UsageDay>().HasMany(u => u.Apps).WithOne().HasForeignKey(a => a.UsageDayId).OnDelete(DeleteBehavior.Cascade);
         b.Entity<UsageApp>().HasIndex(a => new { a.UsageDayId, a.Package }).IsUnique();
         b.Entity<UsageApp>().Property(a => a.Package).HasMaxLength(200);
+        b.Entity<Alert>().HasIndex(a => new { a.DeviceId, a.Kind, a.CreatedAt }); // chống trùng + tìm cảnh báo offline gần nhất
+        b.Entity<Alert>().Property(a => a.Kind).HasMaxLength(AlertRules.MaxKindLength);
+        b.Entity<Alert>().Property(a => a.Detail).HasMaxLength(AlertRules.MaxDetailLength);
     }
 }

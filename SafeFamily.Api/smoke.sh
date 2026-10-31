@@ -244,6 +244,86 @@ echo "other child same date is a separate row; next line expect child1 D0 still 
 up2() { curl -s -o /dev/null -w "$1 (expect $2) %{http_code}\n" -X POST $B/api/devices/me/usage -H "$J" -H "Authorization: Bearer $DT2" -d "$3"; }
 up2 "child2 posts same date (own row, no clash)" 204 "{\"days\":[{\"date\":\"$D0\",\"totalMinutes\":7,\"blocks\":0,\"apps\":{\"com.a.b\":7}}]}"
 curl -s "$B/api/devices/$DID/usage?from=$D0&to=$D0" -H "Authorization: Bearer $A" | python -c "import sys,json;d=json.load(sys.stdin)[0];print('child1 D0 still',d['totalMinutes'])"
+# --- Cảnh báo cho mẹ (API-10): loại cho phép, detail chỉ là mã/số, chống trùng, giới hạn, đã đọc, cô lập gia đình ---
+ts() { python -c "import datetime as d,sys;print((d.datetime.utcnow()+d.timedelta(minutes=float(sys.argv[1]))).strftime('%Y-%m-%dT%H:%M:%SZ'))" "$1"; }
+al() { curl -s -o /dev/null -w "$2 (expect $3) %{http_code}\n" -X POST $B/api/devices/me/alerts -H "$J" -H "Authorization: Bearer $DT" -d "$1"; }
+echo "mother lists alerts before any (expect []):"; curl -s "$B/api/devices/$DID/alerts" -H "Authorization: Bearer $A"; echo
+al '{"kind":"accessibility_off"}' "alert accessibility_off" 200
+curl -s -w "\nalert duplicate within window (expect 409 with id) %{http_code}\n" -X POST $B/api/devices/me/alerts -H "$J" -H "Authorization: Bearer $DT" -d '{"kind":"accessibility_off","detail":"settings_guard"}'
+al "{\"kind\":\"time_changed\",\"detail\":\"-120\",\"occurredAt\":\"$(ts -60)\"}" "alert time_changed 1h ago, detail -120" 200
+al "{\"kind\":\"time_changed\",\"detail\":\"30\",\"occurredAt\":\"$(ts -3)\"}" "alert time_changed 3 min ago (60 min apart from the previous: not duplicate)" 200
+al '{"kind":"device_admin_off","detail":null}' "alert device_admin_off null detail" 200
+al '{"kind":"permission_missing","detail":"usage_access"}' "alert permission_missing usage_access" 200
+al '{"kind":"app_uninstall_attempt","detail":"authorized"}' "alert app_uninstall_attempt authorized" 200
+al '{"kind":"khong_co"}' "alert unknown kind" 400
+al '{"kind":""}' "alert empty kind" 400
+al '{}' "alert missing kind" 400
+al '{"kind":123}' "alert kind wrong type" 400
+al "{\"kind\":\"$(python -c "print('a'*31)")\"}" "alert kind 31 chars" 400
+al '{"kind":"offline"}' "alert child cannot send offline" 400
+al '{"kind":"permission_missing","detail":"Co Dau"}' "alert detail with space/uppercase" 400
+al '{"kind":"permission_missing","detail":"ten app: Zalo"}' "alert detail free text" 400
+al '{"kind":"permission_missing","detail":"com.zing.zalo"}' "alert detail looks like package (dot)" 400
+al "{\"kind\":\"permission_missing\",\"detail\":\"$(python -c "print('a'*33)")\"}" "alert detail 33 chars" 400
+al '{"kind":"permission_missing","detail":5}' "alert detail wrong type (number)" 400
+al "{\"kind\":\"permission_missing\",\"detail\":\"x\",\"occurredAt\":\"$(ts 60)\"}" "alert occurredAt 1h in future" 400
+al "{\"kind\":\"permission_missing\",\"detail\":\"x\",\"occurredAt\":\"$(ts -11520)\"}" "alert occurredAt 8 days old" 400
+al '{"kind":"permission_missing","detail":"x","occurredAt":"abc"}' "alert occurredAt not a date" 400
+curl -s -o /dev/null -w "alert post with parent token (expect 403) %{http_code}\n" -X POST $B/api/devices/me/alerts -H "$J" -H "Authorization: Bearer $A" -d '{"kind":"accessibility_off"}'
+curl -s -o /dev/null -w "alert post no token (expect 401) %{http_code}\n" -X POST $B/api/devices/me/alerts -H "$J" -d '{"kind":"accessibility_off"}'
+echo "mother lists alerts (expect 5 rows ascending: accessibility_off, time_changed -120, time_changed 30, device_admin_off, permission_missing, app_uninstall_attempt = 6):"
+curl -s "$B/api/devices/$DID/alerts" -H "Authorization: Bearer $A" | python -c "import sys,json;d=json.load(sys.stdin);print(len(d),[(x['kind'],x['detail'],x['readAt']) for x in d])"
+AIDS=$(curl -s "$B/api/devices/$DID/alerts" -H "Authorization: Bearer $A" | python -c "import sys,json;print(' '.join(str(x['id']) for x in json.load(sys.stdin)))"); set -- $AIDS; AL1=$1; AL3=$3; ALLAST=${6}
+echo "afterId=$AL3 (expect 3 rows after it):"; curl -s "$B/api/devices/$DID/alerts?afterId=$AL3" -H "Authorization: Bearer $A" | python -c "import sys,json;print(len(json.load(sys.stdin)))"
+curl -s -o /dev/null -w "alerts afterId not a number (expect 400) %{http_code}\n" "$B/api/devices/$DID/alerts?afterId=abc" -H "Authorization: Bearer $A"
+curl -s -o /dev/null -w "alerts list with device token (expect 403) %{http_code}\n" "$B/api/devices/$DID/alerts" -H "Authorization: Bearer $DT"
+curl -s -o /dev/null -w "alerts list no token (expect 401) %{http_code}\n" "$B/api/devices/$DID/alerts"
+curl -s -o /dev/null -w "other family lists alerts (expect 404) %{http_code}\n" "$B/api/devices/$DID/alerts" -H "Authorization: Bearer $A2"
+curl -s -o /dev/null -w "unknown device alerts (expect 404) %{http_code}\n" "$B/api/devices/999999/alerts" -H "Authorization: Bearer $A"
+curl -s -o /dev/null -w "other family marks read (expect 404) %{http_code}\n" -X POST $B/api/alerts/$AL1/read -H "Authorization: Bearer $A2"
+curl -s -o /dev/null -w "mark read unknown alert (expect 404) %{http_code}\n" -X POST $B/api/alerts/999999/read -H "Authorization: Bearer $A"
+curl -s -o /dev/null -w "mark read with device token (expect 403) %{http_code}\n" -X POST $B/api/alerts/$AL1/read -H "Authorization: Bearer $DT"
+curl -s -o /dev/null -w "mark read no token (expect 401) %{http_code}\n" -X POST $B/api/alerts/$AL1/read
+curl -s -o /dev/null -w "mark read ok (expect 200) %{http_code}\n" -X POST $B/api/alerts/$AL1/read -H "Authorization: Bearer $A"
+R1=$(curl -s "$B/api/devices/$DID/alerts" -H "Authorization: Bearer $A" | python -c "import sys,json;print([x['readAt'] for x in json.load(sys.stdin) if x['id']==$AL1][0])")
+curl -s -o /dev/null -w "mark read again (expect 200) %{http_code}\n" -X POST $B/api/alerts/$AL1/read -H "Authorization: Bearer $A"
+R2=$(curl -s "$B/api/devices/$DID/alerts" -H "Authorization: Bearer $A" | python -c "import sys,json;print([x['readAt'] for x in json.load(sys.stdin) if x['id']==$AL1][0])")
+echo "readAt set and unchanged by second call (expect True True): $([ "$R1" != "None" ] && echo True) $([ "$R1" = "$R2" ] && echo True)"
+echo "other child may send the same kind (expect 200, separate device):"
+curl -s -o /dev/null -w "other child accessibility_off %{http_code}\n" -X POST $B/api/devices/me/alerts -H "$J" -H "Authorization: Bearer $DT2" -d '{"kind":"accessibility_off"}'
+echo "per-device cap: 205 distinct time_changed events on child 2 (expect rows kept = 200, newest kept):"
+DID2=$(curl -s $B/api/devices -H "Authorization: Bearer $A2" | py "[0]['id']")
+for i in $(seq 0 204); do python -c "import datetime as d,sys;print((d.datetime.utcnow()-d.timedelta(minutes=11*int(sys.argv[1])+1)).strftime('%Y-%m-%dT%H:%M:%SZ'))" $i; done | tr -d '\r' > /tmp/sf_alert_times.txt
+CAPFAIL=0; while read T; do C=$(curl -s -o /dev/null -w "%{http_code}" -X POST $B/api/devices/me/alerts -H "$J" -H "Authorization: Bearer $DT2" -d "{\"kind\":\"time_changed\",\"detail\":\"5\",\"occurredAt\":\"$T\"}"); [ "$C" = "200" ] || { CAPFAIL=$((CAPFAIL+1)); echo "  unexpected $C for $T"; }; done < /tmp/sf_alert_times.txt
+echo "cap posts not 200: $CAPFAIL (expect 0)"
+TOTAL=0; AFTER=1; while :; do PAGE=$(curl -s "$B/api/devices/$DID2/alerts?afterId=$AFTER" -H "Authorization: Bearer $A2" | python -c "import sys,json;d=json.load(sys.stdin);print(len(d),d[-1]['id'] if d else 0)"); set -- $PAGE; [ "$1" = "0" ] && break; TOTAL=$((TOTAL+$1)); AFTER=$2; done
+echo "child 2 total alert rows (expect 200): $TOTAL"
+if [ -n "$SF_SQL_SERVER" ] && [ -n "$SF_SQL_DB" ] && command -v sqlcmd >/dev/null; then
+  sq() { sqlcmd -S "$SF_SQL_SERVER" -d "$SF_SQL_DB" -E -h -1 -W -Q "SET NOCOUNT ON; $1" | tr -d '\r' | head -1; }
+  echo "SQL: retention - insert a 40-day-old alert, then child sends a new event; the old row must be purged"
+  sq "INSERT INTO Alerts(DeviceId,Kind,Detail,CreatedAt) VALUES ($DID,'permission_missing','old',DATEADD(day,-40,SYSUTCDATETIME()))" >/dev/null
+  echo "  old rows before (expect 1): $(sq "SELECT COUNT(*) FROM Alerts WHERE DeviceId=$DID AND Detail='old'")"
+  al "{\"kind\":\"time_changed\",\"detail\":\"7\",\"occurredAt\":\"$(ts -180)\"}" "  new event (3h ago)" 200
+  echo "  old rows after (expect 0): $(sq "SELECT COUNT(*) FROM Alerts WHERE DeviceId=$DID AND Detail='old'")"
+  echo "SQL: offline detection needs the API started with Alerts__CheckIntervalSeconds=3 (threshold stays 24h by default)"
+  sq "UPDATE Devices SET LastSeenAt=DATEADD(hour,-25,SYSUTCDATETIME()) WHERE Id=$DID" >/dev/null
+  sleep 8
+  echo "  offline alerts after 25h silence (expect 1): $(sq "SELECT COUNT(*) FROM Alerts WHERE DeviceId=$DID AND Kind='offline'")  detail (expect 25): $(sq "SELECT Detail FROM Alerts WHERE DeviceId=$DID AND Kind='offline'")"
+  sleep 8
+  echo "  offline alerts after several more checks (expect still 1, no repeat): $(sq "SELECT COUNT(*) FROM Alerts WHERE DeviceId=$DID AND Kind='offline'")"
+  echo "mother sees the offline alert (expect offline|25|None):"; curl -s "$B/api/devices/$DID/alerts?afterId=$ALLAST" -H "Authorization: Bearer $A" | python -c "import sys,json;print([(x['kind'],x['detail'],x['readAt']) for x in json.load(sys.stdin) if x['kind']=='offline'])"
+  curl -s -o /dev/null -w "child comes back online (any call, expect 200) %{http_code}\n" $B/api/devices/me/policy -H "Authorization: Bearer $DT"
+  sleep 8
+  echo "  still 1 offline alert once back online (expect 1): $(sq "SELECT COUNT(*) FROM Alerts WHERE DeviceId=$DID AND Kind='offline'")"
+  # Mô phỏng: cảnh báo cũ xảy ra 60 giờ trước, máy online lại lúc 30 giờ trước rồi im lặng tiếp (sau lần online mà chưa có cảnh báo).
+  sq "UPDATE Alerts SET CreatedAt=DATEADD(hour,-60,SYSUTCDATETIME()) WHERE DeviceId=$DID AND Kind='offline'" >/dev/null
+  sq "UPDATE Devices SET LastSeenAt=DATEADD(hour,-30,SYSUTCDATETIME()) WHERE Id=$DID" >/dev/null
+  sleep 8
+  echo "  second silence = new episode (expect 2): $(sq "SELECT COUNT(*) FROM Alerts WHERE DeviceId=$DID AND Kind='offline'")"
+  sq "UPDATE Devices SET LastSeenAt=SYSUTCDATETIME() WHERE Id=$DID" >/dev/null
+else
+  echo "SKIP: retention + offline detection need SF_SQL_SERVER / SF_SQL_DB and sqlcmd (see docs/API_TIEN_TRINH.md)"
+fi
 R3=$(curl -s -X POST $B/api/devices/me/requests -H "$J" -H "Authorization: Bearer $DT" -d '{"kind":"study_done"}'); RID3=$(echo $R3 | py "['id']")
 curl -s -o /dev/null -w "unpair (expect 204) %{http_code}\n" -X DELETE $B/api/devices/$DID -H "Authorization: Bearer $A"
 dec $RID3 '{"decision":"approved"}' "approve after unpair" 404
@@ -251,3 +331,8 @@ curl -s -o /dev/null -w "list after unpair (expect 404) %{http_code}\n" "$B/api/
 curl -s -o /dev/null -w "child request after unpair (expect 401) %{http_code}\n" -X POST $B/api/devices/me/requests -H "$J" -H "Authorization: Bearer $DT" -d '{"kind":"study_done"}'
 curl -s -o /dev/null -w "usage get after unpair (expect 404) %{http_code}\n" "$B/api/devices/$DID/usage" -H "Authorization: Bearer $A"
 curl -s -o /dev/null -w "usage post after unpair (expect 401) %{http_code}\n" -X POST $B/api/devices/me/usage -H "$J" -H "Authorization: Bearer $DT" -d '{"days":[]}'
+if [ -n "$SF_SQL_SERVER" ] && [ -n "$SF_SQL_DB" ] && command -v sqlcmd >/dev/null; then
+  sq "UPDATE Devices SET LastSeenAt=DATEADD(hour,-50,SYSUTCDATETIME()) WHERE Id=$DID" >/dev/null
+  sleep 8
+  echo "revoked device never gets an offline alert (expect still 2): $(sq "SELECT COUNT(*) FROM Alerts WHERE DeviceId=$DID AND Kind='offline'")"
+fi

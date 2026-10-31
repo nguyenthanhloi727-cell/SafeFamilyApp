@@ -22,6 +22,8 @@ object UninstallGate {
         val admin = ComponentName(activity, SafeFamilyAdminReceiver::class.java)
         val wasAdmin = dpm.isAdminActive(admin)
         GuardPrefs.beginUninstallWindow(activity, WINDOW_SECONDS, wasAdmin)
+        // Báo mẹ ngay: gỡ xong thì app không còn để gửi. Đã qua PIN + sinh trắc nên detail = "authorized".
+        runCatching { TamperAlerts.report(activity, TamperAlerts.APP_UNINSTALL_ATTEMPT, "authorized") }
         if (wasAdmin) runCatching { dpm.removeActiveAdmin(admin) }
         return try {
             activity.startActivity(

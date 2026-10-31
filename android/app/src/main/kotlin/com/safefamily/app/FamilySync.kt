@@ -72,6 +72,7 @@ object FamilySync {
         if (changed) {
             resetVersions(context)
             UsageReport.forgetSent(context)
+            runCatching { TamperAlerts.reset(context) } // mốc quyền + giờ lúc ghép, bỏ hàng chờ cảnh báo cũ
         }
     }
 
@@ -79,6 +80,7 @@ object FamilySync {
     @Synchronized
     fun clear(context: Context) {
         prefs(context).edit().clear().apply()
+        runCatching { TamperAlerts.forget(context) }
         runCatching { Geofences.removeAll(context) }
         stopService(context)
     }
@@ -146,7 +148,7 @@ object FamilySync {
         p.edit().putString(key, kept.toString()).apply()
     }
 
-    private fun iso(ms: Long): String {
+    internal fun iso(ms: Long): String {
         val f = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", java.util.Locale.US)
         f.timeZone = java.util.TimeZone.getTimeZone("UTC")
         return f.format(java.util.Date(ms))
@@ -154,7 +156,7 @@ object FamilySync {
 
     // ---- Đồng bộ một lượt --------------------------------------------------
 
-    /** Một lượt: lệnh → luật → hàng rào → trạng thái → yêu cầu → app mới → báo cáo sử dụng → gửi vị trí → gửi sự kiện. Gọi ở luồng nền. */
+    /** Một lượt: lệnh → luật → hàng rào → trạng thái → yêu cầu → app mới → báo cáo sử dụng → cảnh báo tamper → gửi vị trí → gửi sự kiện. Gọi ở luồng nền. */
     @Synchronized
     fun syncOnce(context: Context): Boolean {
         if (!isConfigured(context)) return false
@@ -167,6 +169,7 @@ object FamilySync {
             syncRequests(context) // gửi yêu cầu chờ + xem kết quả; mọi lỗi chỉ bỏ qua lượt này
             NewApps.syncWithServer(context) // app mới cài lên + quyết định của mẹ xuống; mọi lỗi chỉ bỏ qua
             UsageReport.syncWithServer(context) // báo cáo phút theo app (API-08); mọi lỗi chỉ bỏ qua
+            TamperAlerts.syncWithServer(context) // cảnh báo tamper cho mẹ (API-10): phát hiện + gửi bù; mọi lỗi chỉ bỏ qua
             flush(context, KEY_LOCATIONS, "locations", "points")
             flush(context, KEY_EVENTS, "geofence-events", "events")
             true

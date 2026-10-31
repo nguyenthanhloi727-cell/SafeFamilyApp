@@ -8,6 +8,7 @@ import '../network/connection_session.dart';
 import 'geofence_alerts.dart';
 import 'new_app_alerts.dart';
 import 'request_alerts.dart';
+import 'tamper_alerts.dart';
 
 const _kTask = 'geofence_alert_check';
 const _kUnique = 'safefamily_geofence_alerts';
@@ -25,7 +26,7 @@ void parentAlertDispatcher() {
         return true;
       }
       final api = ApiClient(session: session);
-      // Ba việc độc lập: lỗi mạng ở việc này không được làm mất việc kia.
+      // Bốn việc độc lập: lỗi mạng ở việc này không được làm mất việc kia.
       Object? failure;
       try {
         await _show(
@@ -59,6 +60,18 @@ void parentAlertDispatcher() {
           ],
           'new_apps',
           'App mới cài trên máy con',
+        );
+      } on ApiException catch (e) {
+        failure ??= e;
+      }
+      try {
+        await _show(
+          [
+            for (final a in await TamperAlertChecker(api).check())
+              (title: a.title, body: a.body),
+          ],
+          'tamper_alerts',
+          'Cảnh báo máy con bị can thiệp hoặc mất kết nối',
         );
       } on ApiException catch (e) {
         failure ??= e;

@@ -28,6 +28,38 @@ String requestLabel(ChildRequestInfo r) => switch (r.kind) {
   _ => 'Yêu cầu của con',
 };
 
+/// Câu hiển thị cho mẹ về một cảnh báo của máy con. `detail` chỉ là mã/số ngắn do máy con gửi nên
+/// được diễn giải ở đây; loại hoặc mã lạ (máy con bản mới hơn) thì hiện nguyên chữ, không đoán.
+String alertLabel(AlertInfo a) {
+  final d = a.detail;
+  switch (a.kind) {
+    case AlertKind.timeChanged:
+      final minutes = int.tryParse(d ?? '');
+      if (minutes == null || minutes == 0) return 'Giờ trên máy con bị chỉnh';
+      final dir = minutes > 0 ? 'nhanh' : 'chậm';
+      return 'Giờ trên máy con bị chỉnh $dir hơn ${minutes.abs()} phút';
+    case AlertKind.appUninstallAttempt:
+      return d == 'authorized'
+          ? 'Đã mở quy trình gỡ SafeFamily (có nhập khóa phụ huynh)'
+          : 'Có người mở màn cài đặt của SafeFamily khi chưa qua khóa phụ huynh';
+    case AlertKind.accessibilityOff:
+      return 'Dịch vụ Trợ năng của SafeFamily đã bị tắt';
+    case AlertKind.deviceAdminOff:
+      return 'Quyền Quản trị thiết bị của SafeFamily đã bị tắt';
+    case AlertKind.permissionMissing:
+      return d == null
+          ? 'Máy con vừa mất một quyền'
+          : 'Máy con vừa mất quyền: ${permissionLabel(d)}';
+    case AlertKind.offline:
+      final hours = int.tryParse(d ?? '');
+      return hours == null || hours < 1
+          ? 'Máy con mất kết nối'
+          : 'Máy con mất kết nối hơn $hours giờ';
+    default:
+      return a.kind;
+  }
+}
+
 /// Mô tả ngắn một lệnh mẹ đã gửi, ví dụ "Mở tạm com.zing.zalo 15 phút".
 String commandLabel(CommandInfo c) {
   Map<String, dynamic> p = const {};

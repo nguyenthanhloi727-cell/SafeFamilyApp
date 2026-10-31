@@ -14,6 +14,7 @@ import '../../../core/theme/app_tokens.dart';
 import '../../../core/widgets/app_snack_bar.dart';
 import '../../new_app/presentation/new_apps_page.dart';
 import 'child_requests_page.dart';
+import 'device_alerts_page.dart';
 import 'sent_commands_page.dart';
 
 /// Máy mẹ xem và điều khiển một máy con: vị trí, hàng rào địa lý, lệnh nhanh
@@ -39,6 +40,7 @@ class _RemoteMonitorPageState extends State<RemoteMonitorPage> {
   DeviceStatusInfo? _status;
   int? _pendingRequests;
   int? _pendingNewApps;
+  int? _unreadAlerts;
   LocationInfo? _location;
   GeofenceSet? _fences;
   List<GeofenceEventInfo> _events = const [];
@@ -111,6 +113,14 @@ class _RemoteMonitorPageState extends State<RemoteMonitorPage> {
       if (mounted) setState(() => _pendingNewApps = apps.length);
     } on ApiException {
       // Giữ số cũ; vào màn duyệt app sẽ báo lỗi rõ hơn.
+    }
+    try {
+      final alerts = await api.getAlerts(_id);
+      if (mounted) {
+        setState(() => _unreadAlerts = alerts.where((a) => a.isUnread).length);
+      }
+    } on ApiException {
+      // Giữ số cũ; vào màn cảnh báo sẽ báo lỗi rõ hơn.
     }
   }
 
@@ -302,6 +312,25 @@ class _RemoteMonitorPageState extends State<RemoteMonitorPage> {
               (_pendingNewApps ?? 0) > 0
                   ? 'App mới cài ($_pendingNewApps chờ duyệt)'
                   : 'App mới cài',
+            ),
+          ),
+          const SizedBox(height: AppSpace.sm),
+          OutlinedButton.icon(
+            key: const Key('device-alerts'),
+            onPressed: () async {
+              final api = ApiScope.of(context);
+              await Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => DeviceAlertsPage(device: widget.device),
+                ),
+              );
+              if (mounted) unawaited(_loadPendingRequests(api));
+            },
+            icon: const Icon(Icons.notifications_active_outlined),
+            label: Text(
+              (_unreadAlerts ?? 0) > 0
+                  ? 'Cảnh báo ($_unreadAlerts chưa đọc)'
+                  : 'Cảnh báo của máy con',
             ),
           ),
           const SizedBox(height: AppSpace.sm),

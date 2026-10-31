@@ -24,6 +24,7 @@ builder.Services.AddDbContext<AppDb>(o => o.UseSqlServer(connection));
 builder.Services.AddSingleton(jwt);
 builder.Services.AddSingleton<TokenService>();
 builder.Services.AddControllers();
+builder.Services.AddHostedService<OfflineAlertService>(); // API-10: cảnh báo mẹ khi máy con mất kết nối
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(o =>

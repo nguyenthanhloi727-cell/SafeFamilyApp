@@ -63,6 +63,12 @@ class SettingsGuardService : AccessibilityService() {
 
     override fun onInterrupt() = Unit
 
+    /** Dịch vụ bị tắt (Cài đặt, hoặc hệ thống dừng): chờ kiểm lại rồi báo mẹ `accessibility_off` (API-10). */
+    override fun onUnbind(intent: Intent?): Boolean {
+        runCatching { TamperAlerts.confirmLost(this, "settings_guard") }
+        return super.onUnbind(intent)
+    }
+
     override fun onDestroy() {
         handler.removeCallbacksAndMessages(null)
         hideWarning()
@@ -340,6 +346,8 @@ class SettingsGuardService : AccessibilityService() {
     }
 
     private fun challenge() {
+        // Có người mở màn Cài đặt của SafeFamily (gỡ app, tắt Trợ năng/Quản trị...) mà chưa qua khóa phụ huynh. Báo mẹ.
+        runCatching { TamperAlerts.report(this, TamperAlerts.APP_UNINSTALL_ATTEMPT, "guard") }
         GuardPrefs.setChallengePending(this, true)
         performGlobalAction(GLOBAL_ACTION_HOME)
         handler.postDelayed({
