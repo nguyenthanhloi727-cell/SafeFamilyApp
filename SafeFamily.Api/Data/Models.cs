@@ -41,6 +41,8 @@ public class Device
     public bool Revoked { get; set; }
     /// <summary>Phiên bản bộ hàng rào địa lý; mỗi lần mẹ ghi mới tăng 1.</summary>
     public int GeofenceVersion { get; set; }
+    /// <summary>API-11: mẹ tắt thì máy con ngừng gửi vị trí và server bỏ vị trí gửi tới. Mặc định bật (giữ hành vi cũ).</summary>
+    public bool LocationSharing { get; set; } = true;
 }
 
 /// <summary>Mã ghép đôi 6 số do mẹ tạo, có hạn dùng, dùng một lần.</summary>

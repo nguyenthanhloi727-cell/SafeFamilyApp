@@ -29,6 +29,7 @@ object FamilySync {
     private const val KEY_POLICY_VERSION = "policy_version"
     private const val KEY_GEOFENCE_VERSION = "geofence_version"
     private const val KEY_LOCATIONS = "pending_locations"
+    private const val KEY_LOCATION_SHARING = "location_sharing"
     private const val KEY_EVENTS = "pending_events"
     private const val KEY_REQUESTS = "pending_requests"
     private const val KEY_TRACKED = "tracked_requests"
@@ -86,7 +87,9 @@ object FamilySync {
     }
 
     private fun resetVersions(context: Context) {
-        prefs(context).edit().remove(KEY_POLICY_VERSION).remove(KEY_GEOFENCE_VERSION).apply()
+        // Ghép máy khác: cờ chia sẻ vị trí và vị trí chờ gửi của lần ghép trước không được mang sang (API-11).
+        prefs(context).edit().remove(KEY_POLICY_VERSION).remove(KEY_GEOFENCE_VERSION)
+            .remove(KEY_LOCATION_SHARING).remove(KEY_LOCATIONS).apply()
     }
 
     // ---- Dịch vụ nền -------------------------------------------------------
@@ -126,8 +129,24 @@ object FamilySync {
 
     // ---- Hàng chờ gửi ------------------------------------------------------
 
+    /**
+     * Mẹ có đang cho chia sẻ vị trí không (API-11). Mặc định bật cho tới khi kéo được cờ từ server; mất mạng thì
+     * giữ giá trị lần trước. TODO(verify): giữa lúc mẹ tắt và lượt đồng bộ kế (tối đa ~5 phút) máy con vẫn có thể
+     * thu thêm vài điểm; chúng bị server từ chối (403) hoặc bị xóa ở lượt đó, không lưu lên server.
+     */
+    fun isLocationSharing(context: Context): Boolean = prefs(context).getBoolean(KEY_LOCATION_SHARING, true)
+
+    /** Ghi cờ; tắt thì xóa luôn vị trí chờ gửi (không gửi bù khi bật lại những điểm của lúc đã tắt). */
+    @Synchronized
+    private fun setLocationSharing(context: Context, on: Boolean) {
+        val e = prefs(context).edit().putBoolean(KEY_LOCATION_SHARING, on)
+        if (!on) e.putString(KEY_LOCATIONS, "[]")
+        e.apply()
+    }
+
     @Synchronized
     fun addLocation(context: Context, lat: Double, lng: Double, accuracy: Double, timeMs: Long) {
+        if (!isLocationSharing(context)) return
         append(context, KEY_LOCATIONS, JSONObject()
             .put("lat", lat).put("lng", lng).put("accuracy", accuracy).put("time", iso(timeMs)))
     }
@@ -156,7 +175,7 @@ object FamilySync {
 
     // ---- Đồng bộ một lượt --------------------------------------------------
 
-    /** Một lượt: lệnh → luật → hàng rào → trạng thái → yêu cầu → app mới → báo cáo sử dụng → cảnh báo tamper → gửi vị trí → gửi sự kiện. Gọi ở luồng nền. */
+    /** Một lượt: lệnh → luật → hàng rào → cài đặt (chia sẻ vị trí) → trạng thái → yêu cầu → app mới → báo cáo sử dụng → cảnh báo tamper → gửi vị trí → gửi sự kiện. Gọi ở luồng nền. */
     @Synchronized
     fun syncOnce(context: Context): Boolean {
         if (!isConfigured(context)) return false
@@ -165,12 +184,13 @@ object FamilySync {
             TempRelocks.sweep(context) // chặn lại app mở tạm đã quá hạn
             pullPolicy(context)
             pullGeofences(context)
+            pullSettings(context) // cờ chia sẻ vị trí (API-11); lỗi không phải mạng chỉ bỏ qua
             pushStatus(context) // lỗi mạng/ máy chủ chỉ bỏ qua lượt này, không làm hỏng các bước còn lại
             syncRequests(context) // gửi yêu cầu chờ + xem kết quả; mọi lỗi chỉ bỏ qua lượt này
             NewApps.syncWithServer(context) // app mới cài lên + quyết định của mẹ xuống; mọi lỗi chỉ bỏ qua
             UsageReport.syncWithServer(context) // báo cáo phút theo app (API-08); mọi lỗi chỉ bỏ qua
             TamperAlerts.syncWithServer(context) // cảnh báo tamper cho mẹ (API-10): phát hiện + gửi bù; mọi lỗi chỉ bỏ qua
-            flush(context, KEY_LOCATIONS, "locations", "points")
+            if (isLocationSharing(context)) flush(context, KEY_LOCATIONS, "locations", "points")
             flush(context, KEY_EVENTS, "geofence-events", "events")
             true
         } catch (e: java.io.IOException) {
@@ -532,6 +552,19 @@ object FamilySync {
         context.packageManager.getPackageInfo(context.packageName, 0).versionName
     }.getOrNull()?.takeIf { it.length in 1..32 && Regex("^[0-9A-Za-z.+_-]+$").matches(it) }
 
+    /**
+     * Kéo cài đặt do mẹ đặt (`GET /api/devices/me/settings`, API-11). Tắt chia sẻ vị trí thì xóa vị trí chờ gửi;
+     * dịch vụ nền tự dừng/bật thu thập theo cờ sau lượt này ([FamilyService]). Hàng rào địa lý KHÔNG đổi theo cờ này.
+     * TODO(verify): hàng rào dùng GeofencingClient của hệ thống và vẫn có thể báo vào/ra khi cờ tắt; chưa chốt có
+     * nên coi đó là "vị trí" (cần ý kiến chủ dự án và test máy thật). Lỗi mạng ném IOException lên [syncOnce] như các bước khác.
+     */
+    private fun pullSettings(context: Context) {
+        val r = request(context, "GET", "/api/devices/me/settings", null)
+        if (r.code != 200) return
+        val on = runCatching { JSONObject(r.body).getBoolean("locationSharing") }.getOrNull() ?: return
+        if (on != isLocationSharing(context)) setLocationSharing(context, on)
+    }
+
     private fun pullGeofences(context: Context) {
         val r = request(context, "GET", "/api/devices/me/geofences", null)
         if (r.code != 200) return
@@ -559,6 +592,8 @@ object FamilySync {
             }
         } else if (r.code == 400) {
             p.edit().putString(key, "[]").apply() // dữ liệu hỏng: bỏ, tránh kẹt hàng chờ
+        } else if (r.code == 403 && key == KEY_LOCATIONS) {
+            setLocationSharing(context, false) // mẹ vừa tắt chia sẻ: server không lưu, bỏ hàng chờ
         }
     }
 

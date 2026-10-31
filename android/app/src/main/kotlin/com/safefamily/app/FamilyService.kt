@@ -27,7 +27,10 @@ class FamilyService : Service() {
     private var locationCallback: LocationCallback? = null
     private val poll = object : Runnable {
         override fun run() {
-            Thread { FamilySync.syncOnce(this@FamilyService) }.start()
+            Thread {
+                FamilySync.syncOnce(this@FamilyService)
+                handler.post { applyLocationSharing() } // cờ chia sẻ vị trí có thể vừa đổi (API-11)
+            }.start()
             handler.postDelayed(this, POLL_MS)
         }
     }
@@ -44,6 +47,22 @@ class FamilyService : Service() {
         handler.removeCallbacks(poll)
         handler.post(poll)
         return START_STICKY
+    }
+
+    private var shownSharing: Boolean? = null
+
+    /** Mẹ tắt thì dừng thu thập vị trí và đổi thông báo; bật lại thì thu thập tiếp. Chạy ở luồng chính. */
+    private fun applyLocationSharing() {
+        val on = FamilySync.isLocationSharing(this)
+        if (!on) {
+            locationCallback?.let {
+                runCatching { LocationServices.getFusedLocationProviderClient(this).removeLocationUpdates(it) }
+            }
+            locationCallback = null
+        } else {
+            startLocationUpdates()
+        }
+        if (shownSharing != on) startInForeground() // cập nhật chữ thông báo cho trẻ biết
     }
 
     private fun startInForeground() {
@@ -65,13 +84,17 @@ class FamilyService : Service() {
             @Suppress("DEPRECATION")
             Notification.Builder(this)
         }
-        val sharing = FamilySync.hasLocationPermission(this)
+        val sharing = FamilySync.hasLocationPermission(this) && FamilySync.isLocationSharing(this)
+        shownSharing = FamilySync.isLocationSharing(this)
         val notification = builder
             .setSmallIcon(applicationInfo.icon)
             .setContentTitle("SafeFamily đang kết nối với máy mẹ")
             .setContentText(
-                if (sharing) "Vị trí máy này đang được chia sẻ với phụ huynh."
-                else "Máy mẹ có thể đặt luật cho máy này.",
+                when {
+                    sharing -> "Vị trí máy này đang được chia sẻ với phụ huynh."
+                    !FamilySync.isLocationSharing(this) -> "Phụ huynh đã tắt chia sẻ vị trí của máy này."
+                    else -> "Máy mẹ có thể đặt luật cho máy này."
+                },
             )
             .setContentIntent(open)
             .setOngoing(true)
@@ -91,7 +114,9 @@ class FamilyService : Service() {
 
     @Suppress("MissingPermission") // đã kiểm tra hasLocationPermission
     private fun startLocationUpdates() {
-        if (locationCallback != null || !FamilySync.hasLocationPermission(this)) return
+        if (locationCallback != null || !FamilySync.hasLocationPermission(this) ||
+            !FamilySync.isLocationSharing(this)
+        ) return
         val callback = object : LocationCallback() {
             override fun onLocationResult(result: LocationResult) {
                 result.locations.forEach {

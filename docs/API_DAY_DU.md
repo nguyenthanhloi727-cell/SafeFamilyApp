@@ -46,7 +46,7 @@ Gói luật (schema `schemaVersion` 1): `{"schemaVersion":1,"timeLimit":{...},"a
 | 9 | Báo cáo sử dụng (`report/`, `UsageReport.kt`) | Máy con + server | 🟡 báo phút theo app theo ngày | Code xong, chờ test máy thật: con gửi phút theo app, mẹ chọn máy con và xem biểu đồ tuần | API-08 |
 | 10 | Nhật ký mở khóa (`unlock_log`) | Máy con | ➖ | Đã chốt không đưa lên server | – |
 | 11 | Cảnh báo tamper: đổi giờ máy, gỡ app, tắt trợ năng/Device Admin, mất kết nối (`TimeChangeReceiver`, `UninstallGate`, `SettingsGuardService`, `TamperAlerts.kt`) | Máy con + server | 🟡 báo loại sự kiện + mất kết nối do server tự phát hiện | Code xong, chờ test máy thật: con báo tamper (xếp hàng khi offline), server tự báo "mất kết nối > 24h", mẹ xem danh sách và được thông báo. Chưa có: mẹ chỉnh ngưỡng mất kết nối (hiện cấu hình server) | API-10 |
-| 12 | Vị trí (`FamilyService`, `remote_monitor_page`) | Máy con + server | ✅ | Xóa lịch sử; mẹ bật/tắt chia sẻ vị trí; pin còn lại của máy con | API-11 |
+| 12 | Vị trí (`FamilyService`, `remote_monitor_page`) | Máy con + server | ✅ | Xóa lịch sử và công tắc chia sẻ vị trí: code xong, chờ test máy thật (giữ 7 ngày, con không xem lịch sử: đã chốt) | API-11 |
 | 13 | Hàng rào địa lý (`Geofences.kt`) | Máy con + server | ✅ | Thông báo máy mẹ trễ 15 phút (WorkManager), cân nhắc đẩy | API-12 |
 | 14 | Lệnh từ xa (khóa/mở, tắt giới hạn hôm nay…) | Server | ✅ | Màn "Lệnh đã gửi" (đang chờ / đã thực thi / quá hạn 24h) đã có, chờ test máy thật | API-09 |
 | 15 | Hồ sơ, liên hệ gia đình, SOS (`profile/`) | Máy | ❌ | Đồng bộ liên hệ khẩn cấp xuống máy con (cân nhắc riêng tư) | API-13 |
@@ -133,10 +133,14 @@ Mỗi task: endpoint/bảng cần thêm, phía Flutter/Kotlin cần nối, đi�
 - Giới hạn đã biết: (1) `app_uninstall_attempt` `guard` báo cả khi chỉ mở màn thông tin app SafeFamily (không chắc là gỡ); mẹ thấy chữ "mở màn cài đặt của SafeFamily khi chưa qua khóa phụ huynh". (2) `time_changed` còn báo cả lần máy tự đồng bộ giờ mạng lệch hơn 2 phút (ngưỡng của `TimeLimits`). (3) Mất quyền không có sự kiện trực tiếp thì chỉ phát hiện ở lượt đồng bộ (≤5 phút). (4) Máy tắt hẳn/hết pin/không mạng không tự báo được: mẹ chỉ biết qua cảnh báo `offline` sau 24 giờ. (5) Cài lại app hoặc xóa dữ liệu app thì hàng chờ chưa gửi mất.
 - Xong khi: tắt trợ năng trên máy con, mẹ nhận thông báo (cần 2 máy thật, xem TASKS/TEST_PLAN.md "Bổ sung API-10").
 
-### API-11 Quyền riêng tư vị trí
-- API: `DELETE /api/devices/{id}/locations` (xóa lịch sử), cờ `LocationSharing` trong cài đặt máy con (mẹ bật/tắt, con kéo về).
-- Chốt còn mở: giữ bao nhiêu ngày (code đang 7), con có thấy lịch sử của mình không.
-- Xong khi: tắt chia sẻ thì con dừng gửi vị trí, mẹ xóa được lịch sử.
+### API-11 Quyền riêng tư vị trí — code xong, server + Flutter đã test tự động, Kotlin CHƯA test máy thật
+- Đã chốt (2026-10-31): giữ vị trí **7 ngày** (`LocationRules.Retention`); con **không** xem lịch sử vị trí của chính mình (không làm endpoint/màn cho con).
+- API: `GET/PUT /api/devices/{id}/location-sharing` (mẹ; `{"enabled":bool}` bắt buộc), `DELETE /api/devices/{id}/locations` (xóa lịch sử, 204), `GET /api/devices/me/settings` (con kéo cờ `locationSharing`). Cờ `Device.LocationSharing` mặc định bật (migration `LocationSharing`).
+- Khi tắt: `POST devices/me/locations` → 403, không lưu; `GET .../location` và `.../locations` của mẹ → 403 `{"error","locationSharing":false}`. Lịch sử cũ giữ nguyên cho tới khi mẹ xóa hoặc quá 7 ngày.
+- Máy con (Kotlin): kéo cờ trong `syncOnce`; tắt thì `FamilyService` gỡ cập nhật vị trí, `addLocation` bỏ điểm, `pending_locations` bị xóa, thông báo thường trực đổi chữ; bật lại thì thu thập tiếp. Hàng rào địa lý không đổi theo cờ (TODO(verify) trong `FamilySync.pullSettings`).
+- Mẹ (Flutter): công tắc "Chia sẻ vị trí" và nút "Xóa lịch sử vị trí" ở `remote_monitor_page`, cả hai qua `ParentGate.always`, xóa có hộp xác nhận; khi tắt hiện "Đang tắt chia sẻ vị trí".
+- Quyền riêng tư: chỉ đổi cờ và xóa, không thêm dữ liệu nào mới lên server.
+- Xong khi: tắt chia sẻ thì con dừng gửi vị trí, mẹ xóa được lịch sử (cần 2 máy thật, xem TASKS/TEST_PLAN.md "Bổ sung API-11").
 
 ### API-12 Thông báo nhanh hơn (tùy chọn)
 - Hiện trễ tối thiểu 15 phút ở máy mẹ. Phương án: SignalR (cần app mở) hoặc FCM (đã chốt không dùng). Chỉ làm khi người dùng chấp nhận đổi quyết định.
@@ -174,7 +178,7 @@ Mỗi task: endpoint/bảng cần thêm, phía Flutter/Kotlin cần nối, đi�
 ## 5. Câu hỏi cần chốt
 
 1. Có thêm tài khoản bố ngang quyền mẹ không (API-02)?
-2. Báo cáo sử dụng giữ bao nhiêu ngày (đề xuất 90)? Vị trí giữ bao nhiêu ngày (đang 7)?
+2. Báo cáo sử dụng giữ bao nhiêu ngày (đề xuất 90)? (Vị trí: đã chốt 7 ngày, 2026-10-31.)
 3. Chấp nhận trễ 15 phút cho thông báo ở máy mẹ, hay đổi quyết định không dùng FCM (API-12)?
 4. Có gửi liên hệ khẩn cấp lên server không (API-13)?
 5. MonsterASP có SMTP để làm quên mật khẩu không (API-03)?

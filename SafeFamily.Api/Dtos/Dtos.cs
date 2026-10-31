@@ -35,6 +35,11 @@ public record AppDecisionDto(string PackageName, string Status);
 public record LocationItem([Range(-90.0, 90.0)] double Lat, [Range(-180.0, 180.0)] double Lng, [Range(0.0, 100000.0)] double Accuracy, DateTime Time);
 public record PostLocationsRequest([Required] List<LocationItem> Points);
 public record LocationDto(double Lat, double Lng, double Accuracy, DateTime Time);
+/// <summary>API-11. Enabled bắt buộc: thiếu trường thì 400, không ngầm hiểu là tắt.</summary>
+public record PutLocationSharingRequest([Required] bool? Enabled);
+public record LocationSharingDto(bool Enabled);
+/// <summary>Cài đặt máy con kéo về mỗi lượt đồng bộ (GET devices/me/settings).</summary>
+public record DeviceSettingsDto(bool LocationSharing);
 
 public record GeofenceItem(int Id, [Required, MaxLength(100)] string Name,
                            [Range(-90.0, 90.0)] double Lat, [Range(-180.0, 180.0)] double Lng,

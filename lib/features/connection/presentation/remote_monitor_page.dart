@@ -42,6 +42,7 @@ class _RemoteMonitorPageState extends State<RemoteMonitorPage> {
   int? _pendingNewApps;
   int? _unreadAlerts;
   LocationInfo? _location;
+  bool _locationSharing = true;
   GeofenceSet? _fences;
   List<GeofenceEventInfo> _events = const [];
   String? _error;
@@ -69,13 +70,16 @@ class _RemoteMonitorPageState extends State<RemoteMonitorPage> {
     unawaited(_loadStatus(api));
     unawaited(_loadPendingRequests(api));
     try {
+      // Cờ chia sẻ trước: tắt thì không hỏi vị trí (server cũng từ chối 403).
+      final sharing = await api.getLocationSharing(_id);
       final results = await Future.wait<Object?>([
-        api.getLastLocation(_id),
+        sharing ? api.getLastLocation(_id) : Future<LocationInfo?>.value(),
         api.getGeofences(_id),
         api.getGeofenceEvents(_id),
       ]);
       if (!mounted) return;
       setState(() {
+        _locationSharing = sharing;
         _location = results[0] as LocationInfo?;
         _fences = results[1] as GeofenceSet;
         _events = (results[2] as List<GeofenceEventInfo>).reversed.toList();
@@ -83,6 +87,14 @@ class _RemoteMonitorPageState extends State<RemoteMonitorPage> {
         _loaded = true;
       });
     } on ApiException catch (e) {
+      if (e.isForbidden && mounted) {
+        // Mẹ tắt ở máy khác giữa hai lần gọi: hiện "đang tắt" thay vì báo lỗi.
+        setState(() {
+          _locationSharing = false;
+          _location = null;
+        });
+        return;
+      }
       if (mounted) {
         setState(() {
           _error = e.message;
@@ -157,6 +169,66 @@ class _RemoteMonitorPageState extends State<RemoteMonitorPage> {
     await sync.pushNow();
   }
 
+  // ---- Quyền riêng tư vị trí (API-11) ----
+
+  Future<void> _toggleSharing(bool on) async {
+    final api = ApiScope.of(context);
+    final label = on ? 'Bật chia sẻ vị trí' : 'Tắt chia sẻ vị trí';
+    if (!await ParentGate.always(context, label)) return;
+    try {
+      final saved = await api.setLocationSharing(_id, on);
+      if (!mounted) return;
+      setState(() {
+        _locationSharing = saved;
+        if (!saved) _location = null;
+      });
+      showAppSnackBar(
+        context,
+        saved
+            ? 'Đã bật chia sẻ vị trí. Máy con áp dụng ở lần đồng bộ kế (tối đa vài phút).'
+            : 'Đã tắt chia sẻ vị trí. Máy con dừng gửi ở lần đồng bộ kế (tối đa vài phút).',
+      );
+      if (saved) await _reload();
+    } on ApiException catch (e) {
+      if (mounted) showAppSnackBar(context, e.message);
+    }
+  }
+
+  Future<void> _deleteHistory() async {
+    final api = ApiScope.of(context);
+    if (!await ParentGate.always(context, 'Xóa lịch sử vị trí')) return;
+    if (!mounted) return;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Xóa lịch sử vị trí?'),
+        content: const Text(
+          'Toàn bộ vị trí đã lưu của máy con sẽ bị xóa khỏi máy chủ và không khôi phục được.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Hủy'),
+          ),
+          FilledButton(
+            key: const Key('confirm-delete-locations'),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Xóa'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    try {
+      await api.deleteLocationHistory(_id);
+      if (!mounted) return;
+      setState(() => _location = null);
+      showAppSnackBar(context, 'Đã xóa lịch sử vị trí.');
+    } on ApiException catch (e) {
+      if (mounted) showAppSnackBar(context, e.message);
+    }
+  }
+
   // ---- Hàng rào ----
 
   Future<void> _addFence() async {
@@ -220,7 +292,28 @@ class _RemoteMonitorPageState extends State<RemoteMonitorPage> {
           _statusTile(theme),
           const SizedBox(height: AppSpace.lg),
           Text('Vị trí', style: theme.textTheme.titleMedium),
+          SwitchListTile(
+            key: const Key('location-sharing'),
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Chia sẻ vị trí'),
+            subtitle: Text(
+              _locationSharing
+                  ? 'Máy con gửi vị trí cho bố mẹ.'
+                  : 'Đã tắt: máy con không gửi vị trí.',
+            ),
+            value: _locationSharing,
+            onChanged: _loaded ? _toggleSharing : null,
+          ),
           _locationTile(),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              key: const Key('delete-locations'),
+              onPressed: _loaded ? _deleteHistory : null,
+              icon: const Icon(Icons.delete_sweep_outlined),
+              label: const Text('Xóa lịch sử vị trí'),
+            ),
+          ),
           const SizedBox(height: AppSpace.lg),
           Row(
             children: [
@@ -416,6 +509,15 @@ class _RemoteMonitorPageState extends State<RemoteMonitorPage> {
   Widget _locationTile() {
     final l = _location;
     if (!_loaded) return const LinearProgressIndicator();
+    if (!_locationSharing) {
+      return const ListTile(
+        key: Key('location-off'),
+        contentPadding: EdgeInsets.zero,
+        leading: Icon(Icons.location_off_rounded),
+        title: Text('Đang tắt chia sẻ vị trí'),
+        subtitle: Text('Máy con không gửi vị trí. Bật công tắc để chia sẻ lại.'),
+      );
+    }
     if (l == null) {
       return const ListTile(
         contentPadding: EdgeInsets.zero,

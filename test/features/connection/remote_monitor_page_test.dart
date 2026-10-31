@@ -30,6 +30,7 @@ class _Server {
     {'id': 1, 'name': 'Trường', 'lat': 10.77, 'lng': 106.7, 'radiusM': 150.0},
   ];
   bool failStatus = false;
+  bool sharing = true;
   final requests = <String>[];
   final bodies = <String, Object?>{};
 
@@ -38,7 +39,15 @@ class _Server {
     requests.add(key);
     if (r.body.isNotEmpty) bodies[key] = jsonDecode(r.body);
     switch (key) {
+      case 'GET /api/devices/5/location-sharing':
+        return _json({'enabled': sharing});
+      case 'PUT /api/devices/5/location-sharing':
+        sharing = (jsonDecode(r.body) as Map<String, dynamic>)['enabled'] == true;
+        return _json({'enabled': sharing});
+      case 'DELETE /api/devices/5/locations':
+        return http.Response('', 204);
       case 'GET /api/devices/5/location':
+        if (!sharing) return _json({'error': 'Đã tắt chia sẻ vị trí.', 'locationSharing': false}, 403);
         return _json({
           'lat': 10.77,
           'lng': 106.7,
@@ -164,6 +173,7 @@ void main() {
     expect(find.byKey(const Key('last-location')), findsOneWidget);
     expect(find.textContaining('3 phút trước'), findsOneWidget);
     expect(find.text('Trường'), findsOneWidget);
+    await t.scrollUntilVisible(find.text('Con đã rời Trường'), 200); // danh sách dựng dần, thêm công tắc vị trí (API-11) đẩy xuống
     expect(find.text('Con đã rời Trường'), findsOneWidget);
   });
 
@@ -224,6 +234,7 @@ void main() {
     expect(body['expectedVersion'], 1);
     final sent = (body['geofences'] as List).cast<Map>();
     expect(sent.map((f) => f['name']), ['Trường', 'Nhà ông bà']);
+    await t.scrollUntilVisible(find.text('Nhà ông bà'), 200);
     expect(find.text('Nhà ông bà'), findsOneWidget);
   });
 
@@ -251,11 +262,59 @@ void main() {
     await t.pumpAndSettle();
 
     await t.scrollUntilVisible(find.byKey(const Key('cmd-lock')), 200);
+    await t.ensureVisible(find.byKey(const Key('cmd-lock')));
+    await t.pumpAndSettle();
     await t.tap(find.byKey(const Key('cmd-lock')));
     await t.pumpAndSettle();
 
     final body = server.bodies['POST /api/devices/5/commands']! as Map;
     expect(body['type'], 'lock');
     expect(jsonDecode(body['payloadJson'] as String), {'minutes': 60});
+  });
+
+  testWidgets('tắt chia sẻ vị trí: gửi PUT enabled=false và hiện "đang tắt"', (t) async {
+    final (server, app) = await _page();
+    await t.pumpWidget(app);
+    await t.pumpAndSettle();
+    expect(find.byKey(const Key('last-location')), findsOneWidget);
+
+    await t.tap(find.byKey(const Key('location-sharing')));
+    await t.pumpAndSettle();
+
+    expect((server.bodies['PUT /api/devices/5/location-sharing']! as Map)['enabled'], false);
+    expect(find.byKey(const Key('location-off')), findsOneWidget);
+    expect(find.byKey(const Key('last-location')), findsNothing);
+  });
+
+  testWidgets('máy con đang tắt chia sẻ: mở màn là hiện "đang tắt", không hỏi vị trí', (t) async {
+    final (server, app) = await _page();
+    server.sharing = false;
+    await t.pumpWidget(app);
+    await t.pumpAndSettle();
+
+    expect(find.byKey(const Key('location-off')), findsOneWidget);
+    expect(server.requests, isNot(contains('GET /api/devices/5/location')));
+    // Hàng rào không bị ảnh hưởng bởi cờ vị trí.
+    expect(find.text('Trường'), findsOneWidget);
+  });
+
+  testWidgets('xóa lịch sử vị trí: có hộp xác nhận, Hủy thì không gọi server', (t) async {
+    final (server, app) = await _page();
+    await t.pumpWidget(app);
+    await t.pumpAndSettle();
+
+    await t.tap(find.byKey(const Key('delete-locations')));
+    await t.pumpAndSettle();
+    expect(find.text('Xóa lịch sử vị trí?'), findsOneWidget);
+    await t.tap(find.text('Hủy'));
+    await t.pumpAndSettle();
+    expect(server.requests, isNot(contains('DELETE /api/devices/5/locations')));
+
+    await t.tap(find.byKey(const Key('delete-locations')));
+    await t.pumpAndSettle();
+    await t.tap(find.byKey(const Key('confirm-delete-locations')));
+    await t.pumpAndSettle();
+    expect(server.requests, contains('DELETE /api/devices/5/locations'));
+    expect(find.byKey(const Key('last-location')), findsNothing);
   });
 }

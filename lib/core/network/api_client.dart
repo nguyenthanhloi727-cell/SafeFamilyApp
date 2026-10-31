@@ -16,6 +16,9 @@ class ApiException implements Exception {
   bool get isUnauthorized => status == 401;
   bool get isConflict => status == 409;
 
+  /// 403: với vị trí là "mẹ đã tắt chia sẻ" (API-11).
+  bool get isForbidden => status == 403;
+
   @override
   String toString() => 'ApiException($status): $message';
 }
@@ -650,7 +653,38 @@ class ApiClient {
 
   // ---- Vị trí và hàng rào địa lý (mẹ) ----
 
-  /// Vị trí mới nhất; `null` nếu máy con chưa gửi lần nào.
+  /// Mẹ đang cho máy con chia sẻ vị trí không (API-11). Mặc định của server là bật.
+  Future<bool> getLocationSharing(int deviceId) async {
+    final m = await _send(
+      'GET',
+      '/api/devices/$deviceId/location-sharing',
+      null,
+      auth: _Auth.parent,
+    );
+    return m is Map<String, dynamic> ? m['enabled'] != false : true;
+  }
+
+  /// Bật/tắt chia sẻ vị trí; máy con áp ở lượt đồng bộ kế (tối đa vài phút). Chỉ đổi cờ, không xóa lịch sử.
+  /// Nơi gọi phải qua `ParentGate` trước.
+  Future<bool> setLocationSharing(int deviceId, bool enabled) async {
+    final m = await _send(
+      'PUT',
+      '/api/devices/$deviceId/location-sharing',
+      {'enabled': enabled},
+      auth: _Auth.parent,
+    );
+    return m is Map<String, dynamic> ? m['enabled'] == true : enabled;
+  }
+
+  /// Xóa toàn bộ lịch sử vị trí của máy con trên server. Nơi gọi phải qua `ParentGate` + hộp xác nhận.
+  Future<void> deleteLocationHistory(int deviceId) => _send(
+    'DELETE',
+    '/api/devices/$deviceId/locations',
+    null,
+    auth: _Auth.parent,
+  );
+
+  /// Vị trí mới nhất; `null` nếu máy con chưa gửi lần nào. Mẹ đã tắt chia sẻ → [ApiException.isForbidden].
   Future<LocationInfo?> getLastLocation(int deviceId) async {
     final m = await _send(
       'GET',

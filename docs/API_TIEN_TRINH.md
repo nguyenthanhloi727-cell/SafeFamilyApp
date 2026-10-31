@@ -2,7 +2,7 @@
 
 Mục tiêu: máy mẹ quản lý máy con từ xa qua server. Máy con vẫn tự chặn bằng code Kotlin hiện có; API chỉ chuyển luật/lệnh qua lại.
 
-Cập nhật lần cuối: 2026-10-31 (API-10) · Trạng thái chung: **Đợt 1, 2, 5 xong code; test tự động đạt trên LocalDB; chưa publish MonsterASP, chưa test 2 máy thật (TASKS/TEST_PLAN.md)**
+Cập nhật lần cuối: 2026-10-31 (API-11) · Trạng thái chung: **Đợt 1, 2, 5 xong code; test tự động đạt trên LocalDB; chưa publish MonsterASP, chưa test 2 máy thật (TASKS/TEST_PLAN.md)**
 
 Ký hiệu: `[ ]` chưa làm · `[~]` đang làm · `[x]` xong
 
@@ -110,6 +110,8 @@ Task Flutter/Android tương ứng: `TASKS/TASKS.md` mục 13–15. Không dùng
 - [x] `GET/PUT /api/devices/{id}/geofences`, `POST /api/devices/me/geofence-events`, `GET /api/devices/{id}/geofence-events`
 - [x] Dọn vị trí cũ >7 ngày mỗi lần máy con gửi lô mới (không cần job riêng)
 - [ ] Chốt lại quyết định "chỉ gửi thống kê dùng": vị trí là dữ liệu nhạy cảm mới
+- [x] Quyền riêng tư vị trí (API-11, chốt 2026-10-31: giữ **7 ngày**, con **không** xem lịch sử vị trí của mình): cờ `Device.LocationSharing` (mặc định bật, migration `LocationSharing`); `GET/PUT /api/devices/{id}/location-sharing` (mẹ, body `{"enabled":bool}` bắt buộc, sai kiểu → 400, gia đình khác / máy hủy ghép → 404); `DELETE /api/devices/{id}/locations` xóa toàn bộ lịch sử (204); `GET devices/me/settings` (con kéo `{"locationSharing":bool}`); cờ tắt thì `POST devices/me/locations` trả **403** và KHÔNG lưu, `GET .../location` và `.../locations` của mẹ trả **403** `{"error":"Đã tắt chia sẻ vị trí.","locationSharing":false}`. Smoke test đạt (LocalDB tạm, đã xóa); Flutter mẹ có công tắc "Chia sẻ vị trí" + nút "Xóa lịch sử vị trí" (qua khóa phụ huynh, xóa có hộp xác nhận), test widget đạt
+- [~] Kotlin máy con theo cờ `locationSharing` (kéo trong `syncOnce`, tắt thì dừng thu thập, xóa `pending_locations`, bật lại thì thu thập tiếp, thông báo thường trực đổi chữ): biên dịch được (`flutter build apk --debug`), CHƯA chạy máy thật nên chưa tick (xem `TASKS/TEST_PLAN.md` "Bổ sung API-11")
 
 
 Ghi chú 2026-10-31 (thêm): máy mẹ nhận thông báo vào/ra vùng khi app đóng bằng WorkManager 15 phút (`lib/core/alerts/`), chỉ gọi `GET /api/devices` + `GET .../geofence-events?afterId=`; không đổi API. Chưa test máy thật.
@@ -154,6 +156,7 @@ Emulator Android gọi máy tính qua `http://10.0.2.2:<cổng>`; app mặc đ�
 | Yêu cầu | `POST /api/devices/me/requests`, `GET /api/devices/me/requests/{id}`, `GET /api/devices/{id}/requests`, `PUT /api/requests/{id}` | Con tạo, mẹ duyệt | Xin thêm giờ, đã học xong (API-06) |
 | Duyệt app mới | `POST /api/devices/me/apps` (cờ `isNew`), `GET /api/devices/me/apps/decisions`, `GET /api/devices/{id}/apps?status=`, `PUT /api/devices/{id}/apps/{package}` | Con báo app mới, kéo quyết định; mẹ cho phép / chặn | API-07 |
 | Báo cáo | `POST /api/devices/me/usage`, `GET /api/devices/{id}/usage?from=&to=` | Con gửi, mẹ xem | API-08: phút theo app theo ngày, upsert, giữ 90 ngày |
+| Quyền riêng tư vị trí | `GET/PUT /api/devices/{id}/location-sharing`, `DELETE /api/devices/{id}/locations`, `GET /api/devices/me/settings` | Mẹ bật/tắt + xóa, con kéo cờ | API-11: mặc định bật; tắt thì con ngừng gửi, server trả 403 và không lưu; giữ vị trí 7 ngày |
 | Cảnh báo | `POST /api/devices/me/alerts`, `GET /api/devices/{id}/alerts?afterId=`, `POST /api/alerts/{id}/read` | Con gửi, mẹ xem / đã đọc | API-10: tamper + mất kết nối (server tự tạo `offline`), chống trùng 10 phút, ≤200 dòng/máy, giữ 30 ngày |
 
 (Tên endpoint là dự kiến, sẽ chỉnh khi làm.)

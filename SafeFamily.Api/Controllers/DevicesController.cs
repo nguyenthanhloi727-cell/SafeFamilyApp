@@ -194,11 +194,44 @@ public class DevicesController(AppDb db) : ApiBase
         return rows.Select(AlertRules.ToDto).ToList();
     }
 
-    /// <summary>Vị trí mới nhất của máy con (204 nếu chưa có).</summary>
+    /// <summary>Cờ chia sẻ vị trí của máy con (API-11). Gia đình khác / máy hủy ghép → 404.</summary>
+    [HttpGet("{id:int}/location-sharing")]
+    public async Task<ActionResult<LocationSharingDto>> GetLocationSharing(int id)
+    {
+        var device = await Own(id);
+        return device is null ? NotFound() : new LocationSharingDto(device.LocationSharing);
+    }
+
+    /// <summary>
+    /// Mẹ bật/tắt chia sẻ vị trí (API-11), body <c>{"enabled":true|false}</c> (thiếu / sai kiểu → 400). Chỉ đổi cờ:
+    /// lịch sử đã có giữ nguyên, muốn xóa dùng <c>DELETE {id}/locations</c>. Máy con nhận ở lượt đồng bộ kế.
+    /// </summary>
+    [HttpPut("{id:int}/location-sharing")]
+    public async Task<ActionResult<LocationSharingDto>> PutLocationSharing(int id, PutLocationSharingRequest req)
+    {
+        var device = await Own(id);
+        if (device is null) return NotFound();
+        device.LocationSharing = req.Enabled!.Value;
+        await db.SaveChangesAsync();
+        return new LocationSharingDto(device.LocationSharing);
+    }
+
+    /// <summary>Xóa toàn bộ lịch sử vị trí của máy con (API-11). Không đụng hàng rào và sự kiện vào/ra.</summary>
+    [HttpDelete("{id:int}/locations")]
+    public async Task<IActionResult> DeleteLocations(int id)
+    {
+        if (await Own(id) is null) return NotFound();
+        await db.LocationPoints.Where(l => l.DeviceId == id).ExecuteDeleteAsync();
+        return NoContent();
+    }
+
+    /// <summary>Vị trí mới nhất của máy con (204 nếu chưa có). Mẹ đã tắt chia sẻ → 403 kèm <c>locationSharing:false</c>.</summary>
     [HttpGet("{id:int}/location")]
     public async Task<ActionResult<LocationDto>> LastLocation(int id)
     {
-        if (await Own(id) is null) return NotFound();
+        var device = await Own(id);
+        if (device is null) return NotFound();
+        if (!device.LocationSharing) return SharingOff();
         var last = await db.LocationPoints.Where(l => l.DeviceId == id).OrderByDescending(l => l.Time)
             .Select(l => new LocationDto(l.Lat, l.Lng, l.Accuracy, l.Time)).FirstOrDefaultAsync();
         return last is null ? NoContent() : last;
@@ -207,7 +240,9 @@ public class DevicesController(AppDb db) : ApiBase
     [HttpGet("{id:int}/locations")]
     public async Task<ActionResult<List<LocationDto>>> LocationHistory(int id)
     {
-        if (await Own(id) is null) return NotFound();
+        var device = await Own(id);
+        if (device is null) return NotFound();
+        if (!device.LocationSharing) return SharingOff();
         return await db.LocationPoints.Where(l => l.DeviceId == id).OrderByDescending(l => l.Time).Take(200)
             .Select(l => new LocationDto(l.Lat, l.Lng, l.Accuracy, l.Time)).ToListAsync();
     }
@@ -266,6 +301,9 @@ public class DevicesController(AppDb db) : ApiBase
         return g;
     }
 
+    ObjectResult SharingOff() =>
+        StatusCode(StatusCodes.Status403Forbidden, new { error = LocationRules.SharingOffError, locationSharing = false });
+
     Task<Device?> Own(int id) =>
         db.Devices.FirstOrDefaultAsync(d => d.Id == id && d.FamilyId == FamilyId && !d.Revoked);
 
@@ -279,7 +317,14 @@ public class DevicesController(AppDb db) : ApiBase
 [Authorize(Roles = Roles.Device)]
 public class DeviceSelfController(AppDb db) : ApiBase
 {
-    static readonly TimeSpan LocationRetention = TimeSpan.FromDays(7);
+    /// <summary>Cài đặt do mẹ đặt mà máy con cần biết (API-11: chia sẻ vị trí). Mỗi lượt đồng bộ kéo một lần.</summary>
+    [HttpGet("settings")]
+    public async Task<ActionResult<DeviceSettingsDto>> Settings()
+    {
+        if (!await Touch()) return Unauthorized();
+        var device = await db.Devices.AsNoTracking().FirstAsync(d => d.Id == SubjectId);
+        return new DeviceSettingsDto(device.LocationSharing);
+    }
 
     [HttpGet("policy")]
     public async Task<ActionResult<PolicyDto>> Policy()
@@ -426,11 +471,16 @@ public class DeviceSelfController(AppDb db) : ApiBase
             .Select(a => new AppDecisionDto(a.PackageName, a.Status)).ToListAsync();
     }
 
-    /// <summary>Gửi lô vị trí. Bỏ điểm có thời gian ở tương lai quá 5 phút; xóa điểm cũ hơn LocationRetention.</summary>
+    /// <summary>
+    /// Gửi lô vị trí. Bỏ điểm có thời gian ở tương lai quá 5 phút; xóa điểm cũ hơn LocationRules.Retention.
+    /// Mẹ đã tắt chia sẻ (API-11) → 403, KHÔNG lưu gì; máy con coi là bỏ hàng chờ.
+    /// </summary>
     [HttpPost("locations")]
     public async Task<IActionResult> PostLocations(PostLocationsRequest req)
     {
         if (!await Touch()) return Unauthorized();
+        if (!await db.Devices.AnyAsync(d => d.Id == SubjectId && d.LocationSharing))
+            return StatusCode(StatusCodes.Status403Forbidden, new { error = LocationRules.SharingOffError, locationSharing = false });
         if (req.Points.Count > 500) return BadRequest(new { error = "Quá nhiều điểm." });
         var now = DateTime.UtcNow;
         foreach (var p in req.Points.Where(p => p.Time.ToUniversalTime() < now.AddMinutes(5)))
@@ -438,7 +488,7 @@ public class DeviceSelfController(AppDb db) : ApiBase
             {
                 DeviceId = SubjectId, Lat = p.Lat, Lng = p.Lng, Accuracy = p.Accuracy, Time = p.Time.ToUniversalTime(),
             });
-        var cutoff = now - LocationRetention;
+        var cutoff = now - LocationRules.Retention;
         await db.LocationPoints.Where(l => l.DeviceId == SubjectId && l.Time < cutoff).ExecuteDeleteAsync();
         await db.SaveChangesAsync();
         return NoContent();

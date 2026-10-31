@@ -17,6 +17,29 @@ curl -s -w "\nev get %{http_code}\n" $B/api/devices/$DID/geofence-events -H "Aut
 curl -s -o /dev/null -w "ev bad type (expect 400) %{http_code}\n" -X POST $B/api/devices/me/geofence-events -H "$J" -H "Authorization: Bearer $DT" -d "{\"events\":[{\"geofenceId\":$GID,\"type\":\"x\",\"time\":\"$NOW\"}]}"
 curl -s -o /dev/null -w "device token on parent route (expect 403) %{http_code}\n" $B/api/devices/$DID/location -H "Authorization: Bearer $DT"
 curl -s -o /dev/null -w "no token (expect 401) %{http_code}\n" $B/api/devices/me/geofences
+# --- Quyền riêng tư vị trí (API-11) ---
+code() { curl -s -o /dev/null -w "$1 (expect $2) %{http_code}\n" "${@:3}"; }
+echo "settings default (expect locationSharing True): $(curl -s $B/api/devices/me/settings -H "Authorization: Bearer $DT" | py "['locationSharing']")"
+echo "parent sharing default (expect True): $(curl -s $B/api/devices/$DID/location-sharing -H "Authorization: Bearer $A" | py "['enabled']")"
+code "put sharing no body field" 400 -X PUT $B/api/devices/$DID/location-sharing -H "$J" -H "Authorization: Bearer $A" -d '{}'
+code "put sharing wrong type" 400 -X PUT $B/api/devices/$DID/location-sharing -H "$J" -H "Authorization: Bearer $A" -d '{"enabled":"no"}'
+echo "sharing still on after bad puts (expect True): $(curl -s $B/api/devices/$DID/location-sharing -H "Authorization: Bearer $A" | py "['enabled']")"
+EB=$(curl -s -X POST $B/api/auth/register -H "$J" -d "{\"email\":\"o$RANDOM@x.com\",\"password\":\"password123\"}" | py "['accessToken']")
+code "other family get sharing" 404 $B/api/devices/$DID/location-sharing -H "Authorization: Bearer $EB"
+code "other family put sharing" 404 -X PUT $B/api/devices/$DID/location-sharing -H "$J" -H "Authorization: Bearer $EB" -d '{"enabled":false}'
+code "other family delete locations" 404 -X DELETE $B/api/devices/$DID/locations -H "Authorization: Bearer $EB"
+code "device token put sharing" 403 -X PUT $B/api/devices/$DID/location-sharing -H "$J" -H "Authorization: Bearer $DT" -d '{"enabled":false}'
+code "parent token on settings" 403 $B/api/devices/me/settings -H "Authorization: Bearer $A"
+code "put sharing off" 200 -X PUT $B/api/devices/$DID/location-sharing -H "$J" -H "Authorization: Bearer $A" -d '{"enabled":false}'
+echo "settings after off (expect False): $(curl -s $B/api/devices/me/settings -H "Authorization: Bearer $DT" | py "['locationSharing']")"
+code "child post while off" 403 -X POST $B/api/devices/me/locations -H "$J" -H "Authorization: Bearer $DT" -d "{\"points\":[{\"lat\":10.78,\"lng\":106.71,\"accuracy\":9,\"time\":\"$NOW\"}]}"
+curl -s -w "\nparent last location while off (expect 403 + locationSharing false) %{http_code}\n" $B/api/devices/$DID/location -H "Authorization: Bearer $A"
+code "parent history while off" 403 $B/api/devices/$DID/locations -H "Authorization: Bearer $A"
+code "put sharing on" 200 -X PUT $B/api/devices/$DID/location-sharing -H "$J" -H "Authorization: Bearer $A" -d '{"enabled":true}'
+echo "history count after on (expect 1 = only the point sent before off): $(curl -s $B/api/devices/$DID/locations -H "Authorization: Bearer $A" | python -c "import sys,json;print(len(json.load(sys.stdin)))")"
+code "delete locations" 204 -X DELETE $B/api/devices/$DID/locations -H "Authorization: Bearer $A"
+echo "history count after delete (expect 0): $(curl -s $B/api/devices/$DID/locations -H "Authorization: Bearer $A" | python -c "import sys,json;print(len(json.load(sys.stdin)))")"
+code "last location after delete" 204 $B/api/devices/$DID/location -H "Authorization: Bearer $A"
 # --- Policy (API-04): server chỉ kiểm tra JSON hợp lệ + kích thước, lưu nguyên khối ---
 P='{"schemaVersion":1,"timeLimit":{"enabled":true},"appLock":{"blocked":["com.google.android.youtube"],"schedules":[]}}'
 pj() { python -c "import json,sys;print(json.dumps({'json':sys.argv[1],'expectedVersion':int(sys.argv[2])}))" "$1" "$2"; }
@@ -330,6 +353,10 @@ dec $RID3 '{"decision":"approved"}' "approve after unpair" 404
 curl -s -o /dev/null -w "list after unpair (expect 404) %{http_code}\n" "$B/api/devices/$DID/requests" -H "Authorization: Bearer $A"
 curl -s -o /dev/null -w "child request after unpair (expect 401) %{http_code}\n" -X POST $B/api/devices/me/requests -H "$J" -H "Authorization: Bearer $DT" -d '{"kind":"study_done"}'
 curl -s -o /dev/null -w "usage get after unpair (expect 404) %{http_code}\n" "$B/api/devices/$DID/usage" -H "Authorization: Bearer $A"
+code "sharing get after unpair" 404 $B/api/devices/$DID/location-sharing -H "Authorization: Bearer $A"
+code "sharing put after unpair" 404 -X PUT $B/api/devices/$DID/location-sharing -H "$J" -H "Authorization: Bearer $A" -d '{"enabled":false}'
+code "delete locations after unpair" 404 -X DELETE $B/api/devices/$DID/locations -H "Authorization: Bearer $A"
+code "settings after unpair" 401 $B/api/devices/me/settings -H "Authorization: Bearer $DT"
 curl -s -o /dev/null -w "usage post after unpair (expect 401) %{http_code}\n" -X POST $B/api/devices/me/usage -H "$J" -H "Authorization: Bearer $DT" -d '{"days":[]}'
 if [ -n "$SF_SQL_SERVER" ] && [ -n "$SF_SQL_DB" ] && command -v sqlcmd >/dev/null; then
   sq "UPDATE Devices SET LastSeenAt=DATEADD(hour,-50,SYSUTCDATETIME()) WHERE Id=$DID" >/dev/null
