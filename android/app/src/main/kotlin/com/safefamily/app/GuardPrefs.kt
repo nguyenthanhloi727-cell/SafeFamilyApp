@@ -23,6 +23,7 @@ object GuardPrefs {
     private const val KEY_CHALLENGE = "challenge_pending"
     private const val KEY_EXTRA_TIME = "extra_time_pending"
     private const val KEY_CONTACTS = "family_contacts"
+    private const val KEY_REMOTE_BLOCKED = "remote_blocked"
 
     private fun prefs(context: Context) =
         context.applicationContext.getSharedPreferences(FILE, Context.MODE_PRIVATE)
@@ -115,6 +116,18 @@ object GuardPrefs {
         val pending = p.getBoolean(KEY_EXTRA_TIME, false)
         if (pending) p.edit().putBoolean(KEY_EXTRA_TIME, false).apply()
         return pending
+    }
+
+    /**
+     * Các app máy mẹ đang khóa (`policy.appLock.blocked`, đã lọc app hệ thống).
+     * Giữ riêng để lần đồng bộ sau chỉ gỡ đúng những app mẹ vừa bỏ khóa, không
+     * đụng tới app bị khóa bằng cách khác.
+     */
+    fun remoteBlocked(context: Context): Set<String> =
+        prefs(context).getStringSet(KEY_REMOTE_BLOCKED, emptySet())?.toSet() ?: emptySet()
+
+    fun setRemoteBlocked(context: Context, packages: Set<String>) {
+        prefs(context).edit().putStringSet(KEY_REMOTE_BLOCKED, HashSet(packages)).apply()
     }
 
     /** Danh bạ gia đình (chỉ người có số) để màn chặn gọi được khi Flutter không chạy. */

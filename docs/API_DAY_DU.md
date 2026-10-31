@@ -23,7 +23,7 @@ Mã task `API-xx` dùng để tham chiếu. Làm theo "Thứ tự đề xuất" 
 | Hàng rào | `GET/PUT /api/devices/{id}/geofences`, `GET /api/devices/me/geofences`, `POST /api/devices/me/geofence-events`, `GET /api/devices/{id}/geofence-events` | Mẹ / Con |
 
 Lệnh máy con đã hiểu (`FamilySync.apply`): `pause`, `lock`, `unpause`, `unlock`, `study_start`, `study_stop`, `disable_limit_today`, `enable_limit_today`, `study_approve`, `study_reject`.
-Gói luật hiện chỉ chứa `{"timeLimit": ...}`.
+Gói luật (schema `schemaVersion` 1): `{"schemaVersion":1,"timeLimit":{...},"appLock":{"blocked":[pkg],"schedules":[]}}`.
 
 ---
 
@@ -33,11 +33,11 @@ Gói luật hiện chỉ chứa `{"timeLimit": ...}`.
 |---|---|---|---|---|---|
 | 1 | Chọn vai trò, ghép đôi (`connection/`) | Máy + server | ✅ | Đổi tên máy con; xem thông tin máy con (`/me`); thêm người giám hộ thứ 2 | API-01, API-02 |
 | 2 | Tài khoản mẹ (`parent_login_page`) | Server | 🟡 | Đăng xuất (thu hồi refresh), đổi mật khẩu, quên mật khẩu, xóa tài khoản | API-03 |
-| 3 | Giới hạn thời gian: ngày, giờ ngủ, theo tuổi (`time_limit/`) | Máy con (Kotlin) | 🟡 server nhận `policy.timeLimit`, con kéo về | Flutter mẹ chưa đẩy cấu hình lên; chưa có schema chốt | API-04 |
+| 3 | Giới hạn thời gian: ngày, giờ ngủ, theo tuổi (`time_limit/`) | Máy con (Kotlin) | 🟡 `policy.timeLimit` | Mẹ đã đẩy được (có test tự động); chờ test 2 máy thật | API-04 |
 | 4 | Giờ học, "Đã học xong", duyệt (`study_approval`, `StudyBlock.kt`) | Máy con | 🟡 lệnh `study_*` có | Con chưa gửi yêu cầu duyệt lên; mẹ chưa có danh sách yêu cầu | API-06 |
 | 5 | Xin thêm giờ (`extra_time`) | Máy con | ❌ | Endpoint yêu cầu, duyệt/từ chối | API-06 |
 | 6 | Tạm dừng (`pause_card`) | Máy con | 🟡 lệnh `pause/unpause` có | UI mẹ chưa gọi từ xa; chưa trả trạng thái hiện tại về mẹ | API-05, API-09 |
-| 7 | Khóa ứng dụng, lịch chặn, mở tạm (`app_lock/`, `TempRelocks.kt`) | Máy con | ❌ | Mở rộng policy `appLock` (danh sách chặn, lịch), lệnh mở tạm / khóa lại một app | API-04, API-05 |
+| 7 | Khóa ứng dụng, lịch chặn, mở tạm (`app_lock/`, `TempRelocks.kt`) | Máy con | 🟡 `policy.appLock.blocked` | Danh sách chặn đã đẩy/ghi được (chờ test máy thật). Còn: lịch chặn riêng từng app, lệnh mở tạm / khóa lại một app | API-05 |
 | 8 | App mới cài (`new_app/`, `NewApps.kt`) | Máy con | 🟡 gửi danh sách app | Trạng thái duyệt (cho dùng/chặn) mỗi app; thông báo cho mẹ khi có app mới | API-07 |
 | 9 | Báo cáo sử dụng (`report/`, `UsageReport.kt`) | Máy con | ❌ | Con gửi `DayUsage` theo ngày; mẹ xem theo máy con | API-08 |
 | 10 | Nhật ký mở khóa (`unlock_log`) | Máy con | ➖ | Đã chốt không đưa lên server | – |
@@ -73,10 +73,12 @@ Mỗi task: endpoint/bảng cần thêm, phía Flutter/Kotlin cần nối, đi�
 - Flutter: nút đăng xuất thật (hiện `reset()` chỉ xóa token cục bộ), màn quên mật khẩu.
 - Xong khi: sau đăng xuất, refresh token cũ bị 401.
 
-### API-04 Chốt schema `policy` và đẩy từ Flutter mẹ
-- Schema JSON: `{"timeLimit": {...}, "appLock": {"blocked": [pkg], "schedules": [...]}, "study": {...}, "contacts": [...]}` có `schemaVersion`. Server vẫn lưu nguyên khối nhưng nên kiểm tra tối thiểu (kích thước, JSON hợp lệ).
-- Flutter mẹ: `time_limit_page`, `app_lock_page`, `block_schedules` sau khi lưu local thì `putPolicy` (xử lý 409 lệch phiên bản: tải lại rồi hỏi).
-- Kotlin con: `pullPolicy` hiện chỉ đọc `timeLimit`; thêm `appLock` ghi vào `GuardPrefs`, chỉ ghi khi hợp lệ.
+### API-04 Chốt schema `policy` và đẩy từ Flutter mẹ — code xong, CHƯA test máy thật
+- Schema đã chốt: `{"schemaVersion":1,"timeLimit":{...},"appLock":{"blocked":[pkg],"schedules":[]}}`. `study`, `contacts` chưa có (thêm khi làm API-13; máy con bỏ qua trường lạ, gặp `schemaVersion` lớn hơn mình hiểu thì giữ luật cũ). Server vẫn lưu nguyên khối, chỉ kiểm tra là đối tượng JSON hợp lệ và ≤64 KB.
+- Flutter mẹ (xong): `PolicySync` đẩy sau khi lưu ở `time_limit_page` và `app_lock_page` (`block_schedules` chỉ hiển thị, không lưu gì nên không cần). Chỉ chạy khi chế độ "mẹ" và đã chọn máy con. 409 → tải lại → khác thì hỏi mẹ; giống thì bỏ qua.
+- Kotlin con (xong, chưa chạy thật): `pullPolicy` kiểm tra hết rồi mới ghi `timeLimit` + `appLock.blocked`; lỗi thì giữ luật cũ.
+- Tự động đã đạt: `flutter test` (có `policy_sync_test.dart`), `smoke.sh` (policy 200/409/400).
+- Còn lại: "Xong khi" bên dưới cần 2 máy thật + MonsterASP (TASKS/TEST_PLAN.md). Việc lưu từ `FeatureRegistry` ("Đang cản trở" tắt giờ học/giờ ngủ) và nút mở tạm/bỏ chặn từ trang chủ chưa đẩy tự động; mẹ dùng nút "Gửi luật" ở màn máy con.
 - Xong khi: mẹ khóa YouTube trên máy mẹ, máy con chặn YouTube trong ≤5 phút, tắt mạng vẫn chặn.
 
 ### API-05 Lệnh từ xa: bổ sung loại lệnh

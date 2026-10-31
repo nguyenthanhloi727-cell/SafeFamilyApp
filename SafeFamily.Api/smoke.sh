@@ -17,3 +17,14 @@ curl -s -w "\nev get %{http_code}\n" $B/api/devices/$DID/geofence-events -H "Aut
 curl -s -o /dev/null -w "ev bad type (expect 400) %{http_code}\n" -X POST $B/api/devices/me/geofence-events -H "$J" -H "Authorization: Bearer $DT" -d "{\"events\":[{\"geofenceId\":$GID,\"type\":\"x\",\"time\":\"$NOW\"}]}"
 curl -s -o /dev/null -w "device token on parent route (expect 403) %{http_code}\n" $B/api/devices/$DID/location -H "Authorization: Bearer $DT"
 curl -s -o /dev/null -w "no token (expect 401) %{http_code}\n" $B/api/devices/me/geofences
+# --- Policy (API-04): server chỉ kiểm tra JSON hợp lệ + kích thước, lưu nguyên khối ---
+P='{"schemaVersion":1,"timeLimit":{"enabled":true},"appLock":{"blocked":["com.google.android.youtube"],"schedules":[]}}'
+pj() { python -c "import json,sys;print(json.dumps({'json':sys.argv[1],'expectedVersion':int(sys.argv[2])}))" "$1" "$2"; }
+curl -s -o /dev/null -w "policy put v0 (expect 200) %{http_code}\n" -X PUT $B/api/devices/$DID/policy -H "$J" -H "Authorization: Bearer $A" -d "$(pj "$P" 0)"
+curl -s -o /dev/null -w "policy put stale (expect 409) %{http_code}\n" -X PUT $B/api/devices/$DID/policy -H "$J" -H "Authorization: Bearer $A" -d "$(pj "$P" 0)"
+curl -s -o /dev/null -w "policy bad json (expect 400) %{http_code}\n" -X PUT $B/api/devices/$DID/policy -H "$J" -H "Authorization: Bearer $A" -d "$(pj '{khong phai json' 1)"
+curl -s -o /dev/null -w "policy array root (expect 400) %{http_code}\n" -X PUT $B/api/devices/$DID/policy -H "$J" -H "Authorization: Bearer $A" -d "$(pj '[1,2]' 1)"
+python -c "import json;print(json.dumps({'json':json.dumps({'x':'a'*70000}),'expectedVersion':1}))" | curl -s -o /dev/null -w "policy too big (expect 400) %{http_code}
+" -X PUT $B/api/devices/$DID/policy -H "$J" -H "Authorization: Bearer $A" -d @-
+echo "child reads policy (expect version 1, same block):"
+curl -s $B/api/devices/me/policy -H "Authorization: Bearer $DT"; echo

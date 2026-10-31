@@ -37,8 +37,17 @@ class _ConnectionPageState extends State<ConnectionPage> {
 
   Future<void> _reload() async {
     final api = ApiScope.of(context);
+    final session = ConnectionScope.of(context);
     try {
       final devices = await api.listDevices();
+      // Máy con đã chọn bị hủy ghép → bỏ chọn; chỉ có một máy thì chọn luôn.
+      final chosen = session.selectedChildId;
+      if (chosen != null && devices.every((d) => d.id != chosen)) {
+        await session.selectChild(null);
+      }
+      if (session.selectedChildId == null && devices.length == 1) {
+        await session.selectChild(devices.single.id);
+      }
       if (mounted) setState(() => _devices = devices);
     } on ApiException catch (e) {
       if (mounted) setState(() => _error = e.message);
@@ -158,9 +167,15 @@ class _ConnectionPageState extends State<ConnectionPage> {
           key: Key('device-${d.id}'),
           leading: const Icon(Icons.child_care_rounded),
           title: Text(d.name),
-          onTap: () => Navigator.of(context).push(
-            MaterialPageRoute<void>(builder: (_) => RemoteMonitorPage(device: d)),
-          ),
+          selected: ConnectionScope.of(context).selectedChildId == d.id,
+          onTap: () {
+            ConnectionScope.of(context).selectChild(d.id);
+            Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => RemoteMonitorPage(device: d),
+              ),
+            );
+          },
           subtitle: Text(
             d.lastSeenAt == null
                 ? 'Chưa thấy hoạt động'
@@ -231,7 +246,9 @@ class _LocationPermissionTileState extends State<LocationPermissionTile>
     final full = _status.foreground && _status.background;
     return ListTile(
       key: const Key('location-permission'),
-      leading: Icon(full ? Icons.location_on_rounded : Icons.location_off_rounded),
+      leading: Icon(
+        full ? Icons.location_on_rounded : Icons.location_off_rounded,
+      ),
       title: Text(
         full
             ? 'Đang chia sẻ vị trí với máy mẹ'

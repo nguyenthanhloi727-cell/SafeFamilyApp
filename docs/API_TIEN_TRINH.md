@@ -2,7 +2,7 @@
 
 Mục tiêu: máy mẹ quản lý máy con từ xa qua server. Máy con vẫn tự chặn bằng code Kotlin hiện có; API chỉ chuyển luật/lệnh qua lại.
 
-Cập nhật lần cuối: 2026-10-31 · Trạng thái chung: **Đợt 1, 2, 5 xong code; test tự động đạt trên LocalDB; chưa publish MonsterASP, chưa test 2 máy thật (TASKS/TEST_PLAN.md)**
+Cập nhật lần cuối: 2026-10-31 (API-04) · Trạng thái chung: **Đợt 1, 2, 5 xong code; test tự động đạt trên LocalDB; chưa publish MonsterASP, chưa test 2 máy thật (TASKS/TEST_PLAN.md)**
 
 Ký hiệu: `[ ]` chưa làm · `[~]` đang làm · `[x]` xong
 
@@ -61,7 +61,7 @@ Thư mục: `SafeFamily.Api/` trong repo
 API:
 - [x] `GET/PUT /api/devices/{id}/policy` luật (kèm số phiên bản, lệch thì 409); máy con `GET /api/devices/me/policy`. Server lưu JSON nguyên khối, Flutter định nghĩa nội dung
 - [x] `POST /api/devices/me/apps` từ máy con; `GET /api/devices/{id}/apps` cho mẹ
-- [~] Luật khóa app và lịch chặn: dùng chung `policy` JSON ở trên; chưa định nghĩa schema JSON, làm khi nối `time_limit`/`app_lock`
+- [x] Luật khóa app và lịch chặn: dùng chung `policy` JSON ở trên. Schema chốt (API-04, `schemaVersion` 1): `{"schemaVersion":1,"timeLimit":{...},"appLock":{"blocked":[pkg],"schedules":[]}}`; server chỉ kiểm tra là đối tượng JSON hợp lệ và ≤64 KB (đã test bằng `smoke.sh`). `appLock.schedules` để trống (lịch giờ ngủ/giờ học nằm trong `timeLimit`)
 - [x] `POST /api/devices/{id}/commands`; con `GET /api/devices/me/commands` và `POST .../commands/{id}/ack`
 - [x] `DELETE /api/devices/{id}` hủy ghép
 
@@ -69,12 +69,12 @@ Flutter (mẹ):
 - [x] Thêm tầng gọi API: `lib/core/network/` (`ApiClient`, `ConnectionSession`; tự refresh token, GET thử lại 3 lần, có test)
 - [x] Màn chọn vai trò "Một máy / Máy mẹ / Máy con" (`RolePage`, hiện sau wizard quyền)
 - [x] Màn đăng nhập/đăng ký + tạo mã ghép đôi (`ParentLoginPage`, `ConnectionPage` trong Bảo mật → Kết nối gia đình)
-- [ ] Đẩy cấu hình giới hạn giờ, khóa app, tạm dừng lên server (nối vào `time_limit`, `app_lock`, `pause_card`)
+- [x] Đẩy cấu hình giới hạn giờ và khóa app lên server (`PolicySync`: `time_limit_page`, `app_lock_page`, nút "Gửi luật" ở `RemoteMonitorPage`; 409 thì tải lại và hỏi mẹ; có test tự động). `pause_card` là lệnh, không nằm trong policy: làm ở API-05
 
 Flutter/Android (con):
 - [x] Màn nhập mã ghép đôi (`ChildPairPage`)
 - [ ] Polling định kỳ bằng WorkManager (hoặc dùng service sẵn có), hỏi thêm khi mở app / có mạng lại
-- [ ] Ghi luật tải về vào `GuardPrefs` chỉ khi tải thành công và hợp lệ; lỗi thì giữ bản cũ
+- [~] Ghi luật tải về chỉ khi tải thành công và hợp lệ; lỗi thì giữ bản cũ (`FamilySync.pullPolicy` đọc cả `timeLimit` và `appLock`; đã biên dịch, CHƯA test trên máy thật: xem TASKS/TEST_PLAN.md)
 - [ ] Kiểm tra: tắt mạng máy con, luật vẫn chặn đúng
 
 Cột mốc đợt 2: mẹ đặt giới hạn cho 1 app trên máy mẹ, máy con tải về và chặn đúng, chạy trên 2 máy thật với MonsterASP.
@@ -176,3 +176,4 @@ Còn lại: quên mật khẩu khôi phục qua email, cần kiểm tra MonsterA
 - 2026-10-30: Lập kế hoạch, chốt SQL Server + MonsterASP + polling. Chưa viết code.
 - 2026-10-30: Chốt 1 mẹ nhiều con, email + mật khẩu, ngưỡng offline mẹ tự chỉnh (mặc định 24h), chỉ gửi thống kê dùng theo app, APK nội bộ, polling 5 phút.
 - 2026-10-31: Task 12 (T4.0): viết `SafeFamily.Api` (Auth, Pairing, Devices, Policy, Commands, Apps) + migration `Initial`. Test tay bằng curl trên LocalDB: đăng ký, tạo mã, claim (mã dùng lại bị 400), PUT luật (lệch phiên bản 409), con đọc luật/lệnh, ack, đẩy app, hủy ghép (con bị 401), con gọi endpoint của mẹ bị 403, Swagger 200. Flutter: `lib/core/network/`, `RolePage`, đăng nhập mẹ, nhập mã con, `ConnectionPage`. Chưa làm: publish MonsterASP, test 2 máy thật, polling nền của máy con (WorkManager), đẩy luật thật từ `time_limit`/`app_lock`/`pause_card`.
+- 2026-10-31: API-04. Chốt schema policy `schemaVersion` 1 (`lib/core/network/policy_schema.dart`). Flutter mẹ: `PolicySync` (`lib/core/network/policy_sync.dart`) gom các lần sửa 2 giây rồi `putPolicy`; máy con mẹ chọn lưu ở `ConnectionSession.selectedChildId` (tự chọn khi chỉ có 1 máy, chạm máy trong "Kết nối gia đình" để chọn); phiên bản luật mẹ biết lưu theo từng máy con; 409 thì tải luật server, nếu khác thì hỏi "Giữ luật trên máy chủ / Ghi đè" (ghi đè qua `ParentGate.always`). Kotlin: `FamilySync.pullPolicy` kiểm tra hết rồi mới ghi, đọc thêm `appLock.blocked` (khóa qua `BlockingServiceManager` của app_blocker, bỏ qua app hệ thống, nhớ danh sách mẹ khóa trong `GuardPrefs.remoteBlocked`). Server: kiểm tra kích thước theo byte + gốc phải là đối tượng JSON. Test: analyze sạch, `flutter test` 299 đạt, APK debug build được, `dotnet build` 0 lỗi, `smoke.sh` trên LocalDB đạt (kể cả 409/400 của policy). Chưa có project `dotnet test`. CHƯA test 2 máy thật.

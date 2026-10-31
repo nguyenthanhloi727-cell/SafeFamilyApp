@@ -6,13 +6,14 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/network/api_client.dart';
 import '../../../core/network/api_scope.dart';
+import '../../../core/network/connection_session.dart';
+import '../../../core/network/policy_sync.dart';
 import '../../../core/security/ui/parent_gate.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/widgets/app_snack_bar.dart';
-import '../../time_limit/data/time_limit_platform.dart';
 
 /// Máy mẹ xem và điều khiển một máy con: vị trí, hàng rào địa lý, lệnh nhanh
-/// (khóa/mở khóa, giờ học...) và gửi luật giới hạn thời gian.
+/// (khóa/mở khóa, giờ học...) và gửi luật (giới hạn thời gian + khóa ứng dụng).
 ///
 /// Không có FCM nên màn này tự hỏi lại server mỗi [refreshEvery] khi đang mở;
 /// lệnh gửi đi thì máy con nhận ở lần hỏi kế (tối đa ~5 phút).
@@ -21,12 +22,10 @@ class RemoteMonitorPage extends StatefulWidget {
     super.key,
     required this.device,
     this.refreshEvery = const Duration(seconds: 60),
-    this.timeLimit = const MethodChannelTimeLimit(),
   });
 
   final DeviceInfo device;
   final Duration refreshEvery;
-  final TimeLimitPlatform timeLimit;
 
   @override
   State<RemoteMonitorPage> createState() => _RemoteMonitorPageState();
@@ -103,21 +102,15 @@ class _RemoteMonitorPageState extends State<RemoteMonitorPage> {
     }
   }
 
-  /// Gói luật = `{"timeLimit": <cấu hình giới hạn thời gian của máy này>}`.
+  /// Gửi luật của máy này (schema: `PolicySchema`). Lệch phiên bản thì
+  /// `PolicySync` tải lại và hỏi mẹ, không ghi đè im lặng.
   Future<void> _pushPolicy() async {
-    final api = ApiScope.of(context);
-    if (!await ParentGate.always(context, 'Gửi luật giới hạn thời gian')) return;
-    try {
-      final config = await widget.timeLimit.load();
-      final current = await api.getPolicy(_id);
-      final json = jsonEncode({'timeLimit': jsonDecode(config.toJson())});
-      await api.putPolicy(_id, json, current.version);
-      if (mounted) {
-        showAppSnackBar(context, 'Đã gửi luật (phiên bản ${current.version + 1}).');
-      }
-    } on ApiException catch (e) {
-      if (mounted) showAppSnackBar(context, e.message);
-    }
+    final sync = PolicySyncScope.maybeOf(context);
+    if (sync == null) return;
+    final session = ConnectionScope.maybeOf(context);
+    if (!await ParentGate.always(context, 'Gửi luật cho máy con')) return;
+    await session?.selectChild(_id);
+    await sync.pushNow();
   }
 
   // ---- Hàng rào ----
@@ -241,7 +234,7 @@ class _RemoteMonitorPageState extends State<RemoteMonitorPage> {
             key: const Key('push-policy'),
             onPressed: _pushPolicy,
             icon: const Icon(Icons.cloud_upload_rounded),
-            label: const Text('Gửi luật giới hạn thời gian của máy này'),
+            label: const Text('Gửi luật của máy này (giờ + khóa app)'),
           ),
         ],
       ),

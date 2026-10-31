@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
+import com.khanhtq.app_blocker.blocking.BlockingServiceManager
 import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
@@ -31,6 +32,9 @@ object FamilySync {
     private const val MAX_QUEUE = 500
     private const val TIMEOUT_MS = 15_000
     private const val DEFAULT_LOCK_MINUTES = 60
+
+    /** Bản schema gói luật máy con hiểu (xem lib/core/network/policy_schema.dart). */
+    private const val SUPPORTED_SCHEMA = 1
 
     private fun prefs(context: Context) =
         context.applicationContext.getSharedPreferences(FILE, Context.MODE_PRIVATE)
@@ -181,18 +185,65 @@ object FamilySync {
         return true
     }
 
-    /** Gói luật = `{"timeLimit": <cấu hình giới hạn thời gian>}`. Hỏng thì giữ luật cũ. */
+    /**
+     * Gói luật = `{"schemaVersion":1,"timeLimit":{...},"appLock":{"blocked":[pkg],"schedules":[...]}}`.
+     * Kiểm tra HẾT trước khi ghi bất cứ thứ gì: gói hỏng, sai kiểu hoặc schema
+     * mới hơn bản app này hiểu thì giữ nguyên luật cũ (và không nhớ phiên bản,
+     * để lượt sau thử lại). Gói cũ chưa có `schemaVersion`/`appLock` vẫn nhận.
+     */
     private fun pullPolicy(context: Context) {
         val r = request(context, "GET", "/api/devices/me/policy", null)
         if (r.code != 200) return
-        val dto = JSONObject(r.body)
-        val version = dto.getInt("version")
         val p = prefs(context)
-        if (version == 0 || version == p.getInt(KEY_POLICY_VERSION, 0)) return
+        val parsed = runCatching { parsePolicy(r.body) }.getOrNull() ?: return
+        if (parsed.version == 0 || parsed.version == p.getInt(KEY_POLICY_VERSION, 0)) return
+        val applied = runCatching {
+            parsed.timeLimit?.let { TimeLimits.setConfig(context, it.toString()) }
+            parsed.blocked?.let { applyRemoteBlocked(context, it) }
+        }.isSuccess
+        if (applied) p.edit().putInt(KEY_POLICY_VERSION, parsed.version).apply()
+    }
+
+    private class ParsedPolicy(val version: Int, val timeLimit: JSONObject?, val blocked: Set<String>?)
+
+    /** `null` ở timeLimit/blocked = gói không nhắc tới phần đó (giữ nguyên). Ném lỗi nếu gói không hợp lệ. */
+    private fun parsePolicy(body: String): ParsedPolicy {
+        val dto = JSONObject(body)
+        val version = dto.getInt("version")
+        if (version == 0) return ParsedPolicy(0, null, null)
         val policy = JSONObject(dto.getString("json"))
-        val timeLimit = policy.optJSONObject("timeLimit")
-        if (timeLimit != null) TimeLimits.setConfig(context, timeLimit.toString())
-        p.edit().putInt(KEY_POLICY_VERSION, version).apply()
+        val schema = policy.optInt("schemaVersion", 1)
+        require(schema in 1..SUPPORTED_SCHEMA) { "schema $schema chưa hỗ trợ" }
+
+        val timeLimit = if (policy.has("timeLimit")) {
+            policy.getJSONObject("timeLimit") // sai kiểu → ném lỗi
+        } else null
+
+        val blocked = if (policy.has("appLock")) {
+            val array = policy.getJSONObject("appLock").getJSONArray("blocked")
+            val out = mutableSetOf<String>()
+            for (i in 0 until array.length()) {
+                val pkg = array.get(i)
+                require(pkg is String && pkg.isNotBlank()) { "tên gói không hợp lệ" }
+                out.add(pkg)
+            }
+            out
+        } else null
+        return ParsedPolicy(version, timeLimit, blocked)
+    }
+
+    /**
+     * Khóa đúng danh sách mẹ gửi. Bỏ khóa chỉ những app mẹ từng khóa mà nay không còn;
+     * không bao giờ khóa app hệ thống/Điện thoại/launcher/SafeFamily.
+     */
+    private fun applyRemoteBlocked(context: Context, blocked: Set<String>) {
+        val wanted = blocked - TimeLimits.exemptPackages(context)
+        val previous = GuardPrefs.remoteBlocked(context)
+        val manager = BlockingServiceManager(context.applicationContext)
+        val release = (previous - wanted).toList()
+        if (release.isNotEmpty()) manager.stopBlockingApps(release)
+        if (wanted.isNotEmpty()) manager.startBlocking(wanted.toList())
+        GuardPrefs.setRemoteBlocked(context, wanted)
     }
 
     private fun pullGeofences(context: Context) {

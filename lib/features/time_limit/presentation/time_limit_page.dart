@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/network/policy_sync.dart';
 import '../../../core/security/parent_guard.dart';
 import '../../../core/security/ui/parent_area_guard.dart';
 import '../../../core/security/ui/parent_gate.dart';
@@ -139,6 +140,8 @@ class _TimeLimitPageState extends State<TimeLimitPage>
     setState(() => _config = config);
     try {
       await widget.platform.save(config);
+      // Máy mẹ đã chọn máy con thì đẩy luật mới lên server (không làm gì nếu không).
+      if (mounted) PolicySyncScope.notifyChanged(context);
     } on Object {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

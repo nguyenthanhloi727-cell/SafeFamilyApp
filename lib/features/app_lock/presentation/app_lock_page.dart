@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/network/policy_sync.dart';
 import '../../../core/security/ui/parent_area_guard.dart';
 import '../../../core/security/ui/parent_gate.dart';
 import '../../../core/theme/app_tokens.dart';
@@ -61,8 +62,10 @@ class _AppLockPageState extends State<AppLockPage> {
     if (!mounted) return;
     if (!ok) {
       showAppSnackBar(context, 'Chưa ${action.toLowerCase()} được. Thử lại.');
-    } else if (locked) {
-      showAppSnackBar(context, 'Đã chặn ${app.name}.');
+    } else {
+      // Danh sách khóa đổi → đẩy lên máy con nếu máy mẹ đã chọn máy con.
+      PolicySyncScope.notifyChanged(context);
+      if (locked) showAppSnackBar(context, 'Đã chặn ${app.name}.');
     }
   }
 

@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 
 import '../security/secure_store.dart';
@@ -28,6 +30,8 @@ class ConnectionSession extends ChangeNotifier {
   static const _kDevice = 'conn_device_token';
   static const _kEmail = 'conn_email';
   static const _kDeviceId = 'conn_device_id';
+  static const _kChild = 'conn_child_id';
+  static const _kPolicyVersions = 'conn_policy_versions';
 
   final SecureStore _store;
   bool _loaded = false;
@@ -38,6 +42,8 @@ class ConnectionSession extends ChangeNotifier {
   String? _deviceToken;
   String? _email;
   int? _deviceId;
+  int? _selectedChildId;
+  Map<String, int> _policyVersions = {};
 
   bool get isLoaded => _loaded;
   ConnectionMode get mode => _mode;
@@ -47,6 +53,9 @@ class ConnectionSession extends ChangeNotifier {
   String? get deviceToken => _deviceToken;
   String? get email => _email;
   int? get deviceId => _deviceId;
+
+  /// Máy mẹ: máy con đang quản lý (luật gửi lên server là của máy này).
+  int? get selectedChildId => _selectedChildId;
 
   /// Đã chọn vai trò chưa (chưa chọn → hiện màn chọn vai trò).
   bool get isChosen => _mode != ConnectionMode.unset;
@@ -72,6 +81,8 @@ class ConnectionSession extends ChangeNotifier {
       _deviceToken = await _store.read(_kDevice);
       _email = await _store.read(_kEmail);
       _deviceId = int.tryParse(await _store.read(_kDeviceId) ?? '');
+      _selectedChildId = int.tryParse(await _store.read(_kChild) ?? '');
+      _policyVersions = _decodeVersions(await _store.read(_kPolicyVersions));
     } catch (_) {
       // Không đọc được kho bảo mật: coi như chưa chọn, hỏi lại vai trò.
     }
@@ -113,11 +124,50 @@ class ConnectionSession extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Chọn (hoặc bỏ chọn, `null`) máy con mà máy mẹ đang quản lý.
+  Future<void> selectChild(int? id) async {
+    if (id == _selectedChildId) return;
+    _selectedChildId = id;
+    if (id == null) {
+      try {
+        await _store.delete(_kChild);
+      } catch (_) {}
+    } else {
+      await _write(_kChild, '$id');
+    }
+    notifyListeners();
+  }
+
+  /// Phiên bản luật của [childId] mà máy mẹ biết lần cuối (đã tải hoặc đã
+  /// gửi); `null` = chưa biết. Dùng làm `expectedVersion` khi gửi luật.
+  int? policyVersionOf(int childId) => _policyVersions['$childId'];
+
+  Future<void> setPolicyVersion(int childId, int version) async {
+    _policyVersions['$childId'] = version;
+    await _write(_kPolicyVersions, jsonEncode(_policyVersions));
+  }
+
+  static Map<String, int> _decodeVersions(String? raw) {
+    if (raw == null) return {};
+    try {
+      final m = jsonDecode(raw);
+      if (m is! Map) return {};
+      return {
+        for (final e in m.entries)
+          if (e.value is int) '${e.key}': e.value as int,
+      };
+    } on FormatException {
+      return {};
+    }
+  }
+
   /// Về lại chọn vai trò: xóa mọi token. Nơi gọi phải đã qua khóa phụ huynh.
   Future<void> reset() async {
     _mode = ConnectionMode.unset;
     _accessToken = _refreshToken = _deviceToken = _email = null;
     _deviceId = null;
+    _selectedChildId = null;
+    _policyVersions = {};
     for (final k in [
       _kMode,
       _kAccess,
@@ -125,6 +175,8 @@ class ConnectionSession extends ChangeNotifier {
       _kDevice,
       _kEmail,
       _kDeviceId,
+      _kChild,
+      _kPolicyVersions,
     ]) {
       try {
         await _store.delete(k);

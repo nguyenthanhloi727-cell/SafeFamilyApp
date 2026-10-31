@@ -43,8 +43,16 @@ public class DevicesController(AppDb db) : ApiBase
     public async Task<ActionResult<PolicyDto>> PutPolicy(int id, PutPolicyRequest req)
     {
         if (await Own(id) is null) return NotFound();
-        if (req.Json.Length > MaxPolicyBytes) return BadRequest(new { error = "Luật quá lớn." });
-        try { System.Text.Json.JsonDocument.Parse(req.Json); }
+        // Server không hiểu nội dung (schema ở lib/core/network/policy_schema.dart): chỉ
+        // kiểm tra kích thước (byte, không phải ký tự) và là một đối tượng JSON hợp lệ.
+        if (System.Text.Encoding.UTF8.GetByteCount(req.Json) > MaxPolicyBytes)
+            return BadRequest(new { error = "Luật quá lớn." });
+        try
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(req.Json);
+            if (doc.RootElement.ValueKind != System.Text.Json.JsonValueKind.Object)
+                return BadRequest(new { error = "Luật phải là một đối tượng JSON." });
+        }
         catch (System.Text.Json.JsonException) { return BadRequest(new { error = "Json không hợp lệ." }); }
 
         var policy = await db.Policies.FirstOrDefaultAsync(p => p.DeviceId == id);

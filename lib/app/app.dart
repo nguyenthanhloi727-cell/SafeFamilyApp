@@ -6,6 +6,7 @@ import '../core/alerts/parent_alert_worker.dart';
 import '../core/network/api_client.dart';
 import '../core/network/api_scope.dart';
 import '../core/network/connection_session.dart';
+import '../core/network/policy_sync.dart';
 import '../core/permissions/permission_registry.dart';
 import '../core/security/biometric_authenticator.dart';
 import '../core/security/device_guard.dart';
@@ -78,6 +79,7 @@ class _SafeFamilyAppState extends State<SafeFamilyApp> {
   late final ConnectionSession _connection;
   late final ApiClient _api;
   late final FamilyPlatform _family;
+  late final PolicySync _policySync;
   String? _familyKey;
   final _navigatorKey = GlobalKey<NavigatorState>();
   AppLifecycleListener? _lifecycle;
@@ -108,6 +110,14 @@ class _SafeFamilyAppState extends State<SafeFamilyApp> {
     _connection = widget.connection ?? (ConnectionSession()..load());
     _api = widget.api ?? ApiClient(session: _connection);
     _family = widget.family ?? const MethodChannelFamily();
+    _policySync = PolicySync(
+      api: _api,
+      session: _connection,
+      navigatorKey: _navigatorKey,
+      loadTimeLimit: () async =>
+          (await const MethodChannelTimeLimit().load()).toJson(),
+      blockedPackages: () => _appLock.lockedPackages,
+    );
     _connection.addListener(_syncFamily);
     // Dịch vụ "Bảo vệ cài đặt" đưa con về SafeFamily khi con mở màn nguy hiểm
     // → app hiện lên (mở mới hoặc quay lại) thì hỏi PIN.
@@ -265,6 +275,7 @@ class _SafeFamilyAppState extends State<SafeFamilyApp> {
     if (widget.permissions == null) _permissions.dispose();
     if (widget.setup == null) _setup.dispose();
     if (widget.connection == null) _connection.dispose();
+    _policySync.dispose();
     if (widget.api == null) _api.close();
     super.dispose();
   }
@@ -281,30 +292,33 @@ class _SafeFamilyAppState extends State<SafeFamilyApp> {
             session: _connection,
             child: ApiScope(
               client: _api,
-              child: SetupSettingsScope(
-                settings: _setup,
-                child: VoiceLanguageScope(
-                  settings: _voiceLanguage,
-                  child: ThemeSettingsScope(
-                    settings: _themeSettings,
-                    child: ListenableBuilder(
-                      listenable: _themeSettings,
-                      builder: (context, _) => MaterialApp(
-                        navigatorKey: _navigatorKey,
-                        title: AppInfo.displayName,
-                        debugShowCheckedModeBanner: false,
-                        theme: AppTheme.light,
-                        darkTheme: AppTheme.dark,
-                        themeMode: _themeSettings.mode,
-                        // Chữ có sẵn của Material (chọn giờ, OK/Hủy…) bằng tiếng Việt.
-                        locale: const Locale('vi'),
-                        supportedLocales: const [Locale('vi')],
-                        localizationsDelegates:
-                            GlobalMaterialLocalizations.delegates,
-                        home: _SecurityGate(
-                          guard: _guard,
-                          setup: _setup,
-                          connection: _connection,
+              child: PolicySyncScope(
+                sync: _policySync,
+                child: SetupSettingsScope(
+                  settings: _setup,
+                  child: VoiceLanguageScope(
+                    settings: _voiceLanguage,
+                    child: ThemeSettingsScope(
+                      settings: _themeSettings,
+                      child: ListenableBuilder(
+                        listenable: _themeSettings,
+                        builder: (context, _) => MaterialApp(
+                          navigatorKey: _navigatorKey,
+                          title: AppInfo.displayName,
+                          debugShowCheckedModeBanner: false,
+                          theme: AppTheme.light,
+                          darkTheme: AppTheme.dark,
+                          themeMode: _themeSettings.mode,
+                          // Chữ có sẵn của Material (chọn giờ, OK/Hủy…) bằng tiếng Việt.
+                          locale: const Locale('vi'),
+                          supportedLocales: const [Locale('vi')],
+                          localizationsDelegates:
+                              GlobalMaterialLocalizations.delegates,
+                          home: _SecurityGate(
+                            guard: _guard,
+                            setup: _setup,
+                            connection: _connection,
+                          ),
                         ),
                       ),
                     ),
