@@ -648,3 +648,24 @@ code "owner leave" 403 -X POST $B/api/family/leave -H "Authorization: Bearer $OA
 code "owner removes dad" 204 -X DELETE $B/api/family/members/$DADID -H "Authorization: Bearer $OA"
 code "removed dad login" 401 -X POST $B/api/auth/login -H "$J" -d "{\"email\":\"$DADE\",\"password\":\"password123\"}"
 echo "swagger lists /api/family/join (expect True): $(curl -s $B/swagger/v1/swagger.json | py "['paths'].__contains__('/api/family/join')")"
+# --- Nền tảng và vận hành (API-14): /health, /api/v1, ProblemDetails, trần body, CORS, header phiên bản ---
+# Trần tần suất máy con mặc định 240/phút/máy: smoke gọi nhiều hơn nên nâng RateLimit__DevicePerMinute=100000 khi khởi động API.
+code "health anonymous" 200 $B/health
+echo "health body (expect status ok, apiVersion 1): $(curl -s $B/health | py "['status']") $(curl -s $B/health | py "['apiVersion']")"
+echo "X-Api-Version header (expect 1): $(curl -s -D - -o /dev/null $B/health | tr -d '\r' | grep -i '^x-api-version' | awk '{print $2}')"
+code "health with old X-App-Version" 200 $B/health -H "X-App-Version: 0.0.1"
+code "v1 alias with token" 200 $B/api/v1/devices -H "Authorization: Bearer $M1"
+code "old path still works" 200 $B/api/devices -H "Authorization: Bearer $M1"
+code "v1 alias no token" 401 $B/api/v1/devices
+code "v1 alias unknown" 404 $B/api/v1/khong-co -H "Authorization: Bearer $M1"
+V1R=$(curl -s -X POST $B/api/v1/auth/register -H "$J" -d "{\"email\":\"v1$RANDOM@x.com\",\"password\":\"password123\"}" | py "['accessToken'].__len__()")
+echo "register via /api/v1 returns a token (expect > 0): $V1R"
+NF=$(curl -s -D - $B/api/khong-co | tr -d '\r')
+echo "404 content-type (expect application/problem+json): $(echo "$NF" | grep -i '^content-type' | awk '{print $2}' | tr -d ';')"
+echo "404 body has error + traceId (expect True True): $(echo "$NF" | tail -1 | python -c "import sys,json;d=json.load(sys.stdin);print('error' in d, 'traceId' in d)")"
+echo "400 body has error field (expect True): $(curl -s -X POST $B/api/auth/login -H "$J" -d '{}' | python -c "import sys,json;print('error' in json.load(sys.stdin))")"
+python -c "print('{\"email\":\"' + 'a'*2200000 + '\"}')" > "${TMPDIR:-/tmp}/sf14big.json"
+code "body over 2 MB" 413 -X POST $B/api/auth/login -H "$J" --data-binary "@${TMPDIR:-/tmp}/sf14big.json"
+rm -f "${TMPDIR:-/tmp}/sf14big.json"
+echo "CORS preflight from a foreign origin has no Allow-Origin (expect 0): $(curl -s -D - -o /dev/null -X OPTIONS $B/api/devices -H 'Origin: https://trang-la.example' -H 'Access-Control-Request-Method: GET' | grep -ic '^access-control-allow-origin')"
+echo "swagger lists /health (expect True): $(curl -s $B/swagger/v1/swagger.json | py "['paths'].__contains__('/health')")"

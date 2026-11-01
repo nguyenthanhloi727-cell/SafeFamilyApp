@@ -15,7 +15,7 @@ class ConnectionSession extends ChangeNotifier {
   ConnectionSession({SecureStore? store})
     : _store = store ?? const FlutterSecureStore();
 
-  /// TODO(verify): domain MonsterASP tạm (ftempurl), người dùng sửa được trên
+  /// TODO(verify): domain MyASP.net tạm (ftempurl), người dùng sửa được trên
   /// màn kết nối.
   static const defaultBaseUrl = 'https://shamixd-001-site1.ftempurl.com';
 

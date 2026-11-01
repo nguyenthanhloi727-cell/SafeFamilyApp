@@ -54,6 +54,7 @@ Gói luật (schema `schemaVersion` 1): `{"schemaVersion":1,"timeLimit":{...},"a
 | 17 | PIN, mã khôi phục, sinh trắc (`core/security/`) | Máy | ➖ | Đã chốt chỉ lưu hash trên máy | – |
 | 18 | Báo thức giọng nói (`alarm/`) | Máy | ➖ | Không liên quan giám sát | – |
 | 19 | Thành viên nhóm (`team/`, `assets/team`) | Asset | ➖ | Dữ liệu tĩnh trong app | – |
+| 20 | Nền tảng server (`/health`, log, giới hạn, dọn dữ liệu, `/api/v1`) | Server | 🟡 | Code + test local xong (`GET /health`, HTTPS/HSTS, CORS chặt, JWT/băm mật khẩu, Serilog + ProblemDetails, trần máy con 240/phút và body 2 MB, dọn dữ liệu 6 giờ, `/api/v1`). Còn: publish MyASP.net + `smoke.sh` trên máy chủ thật | API-14 |
 | 20 | Chủ đề, ngôn ngữ (`theme_settings`, `app_languages`) | Máy | ➖ | – | – |
 | 21 | Kiểm thử tự động API (`SafeFamily.Api.Tests`, `smoke.sh`) | Server | ✅ | Test tích hợp 174 ca đạt; còn test máy thật theo `TEST_PLAN.md` | API-15 |
 
@@ -174,14 +175,18 @@ Mỗi task: endpoint/bảng cần thêm, phía Flutter/Kotlin cần nối, đi�
 - TODO(verify): (a) hộp xin quyền `CALL_PHONE` hiện được trên màn chặn (Xiaomi có thể chặn gọi từ app nền / cần quyền "Hiển thị cửa sổ pop-up khi chạy nền"); (b) `ACTION_CALL` từ Activity đang đè lên app bị chặn có gọi được trên Xiaomi T11 Pro; (c) máy con không có SIM thì `ACTION_CALL` báo lỗi, đã fallback `dial`; (d) nhãn quá 30 ký tự bị cắt âm thầm khi gửi.
 - Xong khi: mẹ đặt số SOS, màn chặn của con gọi đúng số (cần 2 máy thật, xem TASKS/TEST_PLAN.md "Bổ sung API-13").
 
-### API-14 Nền tảng và vận hành server
-- `GET /health` cho MyASP.net.
-- HTTPS bắt buộc, CORS, rà soát JWT và băm mật khẩu.
-- Ghi log lỗi phía server (Serilog ra file), trả lỗi dạng `ProblemDetails` thống nhất.
-- Giới hạn tần suất cho các endpoint con (polling), giới hạn kích thước body.
-- Tác vụ dọn dữ liệu định kỳ (vị trí, báo cáo, lệnh cũ, mã ghép hết hạn).
-- Versioning: tiền tố `/api/v1` hoặc header `X-App-Version`, để bản app cũ không làm hỏng server mới.
-- Publish MyASP.net, chạy `smoke.sh` trên máy chủ thật.
+### API-14 Nền tảng và vận hành server — code xong, test tự động + smoke đạt trên LocalDB; CHƯA publish MyASP.net
+- `GET /health` (không cần token): 200 `{status:"ok",apiVersion,time}` khi nối được CSDL, 503 khi không. Có trong Swagger. Dùng cho MyASP.net/giám sát.
+- HTTPS: `UseHttpsRedirection` + `UseHsts` (ngoài môi trường dev). Sau proxy ngược đặt `Proxy__ForwardedHeaders=true` để lấy IP/scheme thật. TODO(verify): MyASP.net có gửi `X-Forwarded-*` không (mặc định tắt vì header này giả được).
+- CORS chặt: mặc định KHÔNG bật (app di động không cần, Swagger cùng gốc); muốn cho trang web nào thì `Cors__Origins__0=https://...` (chỉ GET/POST/PUT/DELETE, header Authorization/Content-Type/X-App-Version).
+- JWT: bắt buộc hạn + ký, chỉ HS256, clock skew 60s → 30s; khóa < 32 ký tự vẫn bị từ chối lúc khởi động (như cũ). Băm mật khẩu PBKDF2-SHA256 nâng 120.000 → 600.000 vòng (OWASP); hash cũ vẫn đăng nhập được và tự băm lại sang số vòng mới khi đăng nhập đúng; hash hỏng không còn làm sập (trả sai mật khẩu).
+- Log: Serilog ra console + file `logs/safefamily-.log` (xoay ngày, giữ 14 file; `Logging__File__Path`, `Logging__File__Enabled=false` để tắt); chỉ mức Warning trở lên của ASP.NET/EF, không ghi body/token. `logs/` đã vào .gitignore. TODO(verify): thư mục ghi được trên MyASP.net.
+- Lỗi thống nhất `ProblemDetails` (`application/problem+json`): 400 kiểm kiểu, 404, 413, 429 (kèm `Retry-After`), 500 đều có `error` (câu tiếng Việt, app Flutter vẫn đọc `m['error']`) và `traceId` để tra log. Lỗi chưa bắt → 500 không lộ stack.
+- Giới hạn: endpoint máy con (`/api/devices/me/*`) 240 yêu cầu/phút/máy (`RateLimit__DevicePerMinute`; app polling 5 phút/lần nên rất rộng); body tối đa 2 MB → 413 (`Limits__MaxBodyBytes`). Bộ giới hạn chạy sau xác thực nên chia theo máy.
+- Dọn dữ liệu định kỳ (`DataCleanupService`, 6 giờ/lần, `Cleanup__IntervalSeconds`, 0 = tắt): vị trí quá hạn giữ, báo cáo sử dụng quá hạn, yêu cầu đã duyệt cũ, cảnh báo cũ, lệnh > 30 ngày, mã ghép / refresh token / mã đặt lại mật khẩu hết hạn hoặc đã dùng > 1 ngày.
+- Versioning: `/api/v1/...` là bí danh của `/api/...` (đường dẫn cũ giữ nguyên nên app/smoke.sh đã phát hành vẫn chạy); mọi phản hồi có `X-Api-Version: 1`; `X-App-Version` của app không dùng để từ chối. Chỉ tăng phiên bản khi đổi hợp đồng theo kiểu phá vỡ.
+- Test: `SafeFamily.Api.Tests/PlatformTests.cs` (12 ca), khối API-14 cuối `smoke.sh` (14 kiểm tra).
+- CHƯA làm: publish MyASP.net và chạy `smoke.sh` trên máy chủ thật (cần domain, kiểu publish Web Deploy/FTP + đăng nhập, chuỗi kết nối SQL Server, `Jwt__Key` mới; người dùng chọn làm sau). Xem TASKS/TEST_PLAN.md "Bổ sung API-14".
 
 ### API-15 Kiểm thử — test tự động API xong và đạt; test máy thật (TEST_PLAN) CHƯA chạy
 - Test tích hợp `SafeFamily.Api.Tests` (xUnit + `WebApplicationFactory<Program>`, 174 ca, chạy `dotnet test` trong thư mục `SafeFamily.Api.Tests`): mỗi lần chạy tạo một CSDL LocalDB tạm bằng `Migrate()` (kiểm luôn migration) và xóa khi xong; không đụng CSDL dev. Cần LocalDB (`sqllocaldb i` thấy `MSSQLLocalDB`).

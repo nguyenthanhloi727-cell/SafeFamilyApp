@@ -38,6 +38,7 @@ public class AuthController(AppDb db, TokenService tokens, JwtOptions jwt, IEmai
         // Cùng một thông báo cho sai email và sai mật khẩu.
         if (parent is null || !PasswordHasher.Verify(req.Password, parent.PasswordHash))
             return Unauthorized(new { error = "Email hoặc mật khẩu không đúng." });
+        if (PasswordHasher.NeedsRehash(parent.PasswordHash)) parent.PasswordHash = PasswordHasher.Hash(req.Password); // API-14: nâng số vòng băm
         return await Issue(parent);
     }
 

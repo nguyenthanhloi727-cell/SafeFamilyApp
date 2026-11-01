@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using SafeFamily.Api.Data;
 using SafeFamily.Api.Dtos;
@@ -336,6 +337,7 @@ public class DevicesController(AppDb db) : ApiBase
 [ApiController]
 [Route("api/devices/me")]
 [Authorize(Roles = Roles.Device)]
+[EnableRateLimiting("device")] // API-14: trần theo máy con (polling)
 public class DeviceSelfController(AppDb db) : ApiBase
 {
     /// <summary>Máy con xem tên máy, tên gia đình và phiên bản luật hiện có trên server (API-01). Không lộ email mẹ.</summary>

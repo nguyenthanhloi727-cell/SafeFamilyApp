@@ -13,7 +13,7 @@ namespace SafeFamily.Api.Tests;
 /// Chạy API thật trong bộ nhớ trên một CSDL LocalDB tạm (tên ngẫu nhiên, tạo bằng Migrate để kiểm luôn migration)
 /// và xóa khi xong. Không đụng CSDL dev. Cần LocalDB: <c>sqllocaldb i</c> phải thấy MSSQLLocalDB.
 /// </summary>
-public sealed class ApiFactory(int claimPer10Min = 100_000) : WebApplicationFactory<Program>
+public sealed class ApiFactory(int claimPer10Min = 100_000, int devicePerMinute = 100_000) :WebApplicationFactory<Program>
 {
     public const string JwtKey = "api-tests-jwt-key-api-tests-jwt-key-0123456789";
     readonly string _db = "SafeFamilyTest_" + Guid.NewGuid().ToString("N");
@@ -27,6 +27,9 @@ public sealed class ApiFactory(int claimPer10Min = 100_000) : WebApplicationFact
         builder.UseSetting("Jwt:Key", JwtKey);
         builder.UseSetting("RateLimit:AuthPerMinute", "100000");
         builder.UseSetting("RateLimit:ClaimPer10Min", claimPer10Min.ToString());
+        builder.UseSetting("RateLimit:DevicePerMinute", devicePerMinute.ToString());
+        builder.UseSetting("Logging:File:Enabled", "false"); // test không ghi file log
+        builder.UseSetting("Cleanup:IntervalSeconds", "0"); // tắt dọn định kỳ: test tự gọi DataCleanup nếu cần
         builder.UseSetting("Alerts:OfflineHours", "0"); // tắt tác vụ nền kiểm máy offline: test tự gọi OfflineAlerts nếu cần
     }
 

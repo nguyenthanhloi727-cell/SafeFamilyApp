@@ -47,7 +47,8 @@ public class TokenService(JwtOptions opt)
 /// <summary>PBKDF2-SHA256, định dạng "iter.salt.hash".</summary>
 public static class PasswordHasher
 {
-    const int Iterations = 120_000;
+    /// <summary>OWASP 2023 khuyến nghị 600.000 vòng cho PBKDF2-SHA256. Hash cũ (120.000) vẫn kiểm được; xem <see cref="NeedsRehash"/>.</summary>
+    const int Iterations = 600_000;
 
     public static string Hash(string password)
     {
@@ -59,10 +60,15 @@ public static class PasswordHasher
     public static bool Verify(string password, string stored)
     {
         var parts = stored.Split('.');
-        if (parts.Length != 3 || !int.TryParse(parts[0], out var iter)) return false;
-        var salt = Convert.FromBase64String(parts[1]);
-        var expected = Convert.FromBase64String(parts[2]);
+        if (parts.Length != 3 || !int.TryParse(parts[0], out var iter) || iter < 1) return false;
+        byte[] salt, expected;
+        try { salt = Convert.FromBase64String(parts[1]); expected = Convert.FromBase64String(parts[2]); }
+        catch (FormatException) { return false; }
         var actual = Rfc2898DeriveBytes.Pbkdf2(password, salt, iter, HashAlgorithmName.SHA256, expected.Length);
         return CryptographicOperations.FixedTimeEquals(actual, expected);
     }
+
+    /// <summary>Hash lưu với số vòng thấp hơn hiện hành: nên băm lại ngay khi đăng nhập đúng.</summary>
+    public static bool NeedsRehash(string stored) =>
+        int.TryParse(stored.Split('.')[0], out var iter) && iter < Iterations;
 }
