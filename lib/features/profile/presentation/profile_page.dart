@@ -19,7 +19,7 @@ import 'widgets/contact_card.dart';
 import 'widgets/contact_dialog.dart';
 import 'widgets/parent_name_dialog.dart';
 
-/// S02 — Cá nhân: hồ sơ phụ huynh, nút mở YouTube, danh bạ gia đình (mục 2).
+/// S02 — Cá nhân: hồ sơ phụ huynh, danh bạ gia đình (mục 2).
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key, this.repository, this.launcher});
 
@@ -73,11 +73,6 @@ class _ProfilePageState extends State<ProfilePage> {
     );
     if (name == null) return;
     await _save(() => _controller.renameParent(name), 'Đã lưu tên.');
-  }
-
-  Future<void> _openYouTube() async {
-    final ok = await _launcher.openYouTube();
-    if (!ok && mounted) _snack('Không mở được YouTube.');
   }
 
   Future<void> _onContactTap(FamilyContact contact) async {
@@ -206,14 +201,6 @@ class _ProfilePageState extends State<ProfilePage> {
           onEdit: _editParentName,
         ),
         const SizedBox(height: AppSpace.lg),
-        SizedBox(
-          width: double.infinity,
-          child: FilledButton.icon(
-            onPressed: _openYouTube,
-            icon: const Icon(Icons.smart_display_rounded, size: AppSize.iconLg),
-            label: const Text('Mở YouTube'),
-          ),
-        ),
         const SizedBox(height: AppSpace.xl),
         Row(
           children: [

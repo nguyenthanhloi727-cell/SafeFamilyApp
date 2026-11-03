@@ -7,17 +7,10 @@ class FakeLauncher implements ExternalLauncher {
   final bool succeed;
   final dialed = <String>[];
   final emailed = <String>[];
-  var youTubeOpened = 0;
 
   @override
   Future<bool> openDialer(String phone) async {
     dialed.add(phone);
-    return succeed;
-  }
-
-  @override
-  Future<bool> openYouTube() async {
-    youTubeOpened++;
     return succeed;
   }
 

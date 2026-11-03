@@ -160,24 +160,4 @@ void main() {
     expect(find.text('Nguyễn Thị Hoa'), findsOneWidget);
     expect(find.text('H'), findsOneWidget);
   });
-
-  testWidgets('bấm Mở YouTube', (tester) async {
-    await pumpPage(tester);
-
-    await tester.tap(find.text('Mở YouTube'));
-    await tester.pumpAndSettle();
-
-    expect(launcher.youTubeOpened, 1);
-  });
-
-  testWidgets('mở app ngoài thất bại thì báo SnackBar, không crash', (
-    tester,
-  ) async {
-    await pumpPage(tester, using: FakeLauncher(succeed: false));
-
-    await tester.tap(find.text('Mở YouTube'));
-    await tester.pump();
-
-    expect(find.text('Không mở được YouTube.'), findsOneWidget);
-  });
 }
