@@ -11,11 +11,11 @@
 ```
 lib/
   main.dart
-  app/                  # MaterialApp, cổng thiết lập lần đầu, khung 3 tab (BottomNavigationBar + IndexedStack)
+  app/                  # MaterialApp, cổng thiết lập lần đầu, khung 2 tab (BottomNavigationBar + IndexedStack): mẹ = Con + Tài khoản, con = Trang chủ + Cá nhân
   core/
     constants/          # AppInfo (tên app, applicationId), feature_flags
     security/           # ParentGuard, băm PIN, khóa khi sai, sinh trắc (biometric_storage), nhật ký
-      ui/               # bàn phím PIN, màn nhập PIN, ParentGate, dải chế độ trẻ em
+      ui/               # bàn phím PIN, màn nhập PIN, ParentGate
     services/           # ExternalLauncher (tel/YouTube/mailto), SystemSettings (mở Cài đặt)
     settings/           # giao diện sáng/tối, cờ thiết lập lần đầu
     theme/              # màu, chữ, khoảng cách, bo góc (theo DESIGN.md)
@@ -79,7 +79,7 @@ Manifest khai báo lại dịch vụ Trợ năng của app_blocker chỉ để �
 Màn hình **chỉ gọi `ParentGate`** (`core/security/ui/parent_gate.dart`), không tự viết logic:
 
 ```dart
-// Thao tác chỉ khóa khi đang ở chế độ trẻ em (sửa danh bạ, ảnh nhóm…)
+// Thao tác của phụ huynh: luôn hỏi vân tay/PIN (có phiên ngắn 1/5/15 phút)
 if (!await ParentGate.parentArea(context, 'Sửa danh bạ')) return;
 
 // Vào khu vực phụ huynh (cài đặt, nhật ký, quản lý): không hỏi lại nếu vừa xác thực
@@ -136,7 +136,7 @@ flutter analyze
 flutter test
 ```
 
-Test app-level (`test/widget_test.dart`) không dùng `pumpAndSettle` sau khi vào app (tab Nhóm đọc assets thật). Đồ giả: `test/helpers/` (launcher, kho bảo mật, sinh trắc, app_blocker). `SafeFamilyApp(appLock: …)` nhận controller giả; không truyền thì dùng app_blocker thật, lỗi kênh native trong test được bỏ qua.
+Test app-level (`test/widget_test.dart`) không dùng `pumpAndSettle` sau khi vào app (tránh chờ animation vô hạn). Đồ giả: `test/helpers/` (launcher, kho bảo mật, sinh trắc, app_blocker). `SafeFamilyApp(appLock: …)` nhận controller giả; không truyền thì dùng app_blocker thật, lỗi kênh native trong test được bỏ qua.
 
 ## 8. Quy trình git & phát hành
 

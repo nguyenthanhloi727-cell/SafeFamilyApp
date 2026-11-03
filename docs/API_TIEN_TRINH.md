@@ -2,7 +2,7 @@
 
 Mục tiêu: máy mẹ quản lý máy con từ xa qua server. Máy con vẫn tự chặn bằng code Kotlin hiện có; API chỉ chuyển luật/lệnh qua lại.
 
-Cập nhật lần cuối: 2026-11-01 (API-14) · Trạng thái chung: **Đợt 1, 2, 5 xong code; test tự động đạt trên LocalDB; chưa publish MyASP.net, chưa test 2 máy thật (TASKS/TEST_PLAN.md)**
+Cập nhật lần cuối: 2026-11-04 (tách giao diện máy mẹ / máy con, T1–T12 trong `task.md`) · Trạng thái chung: **Đợt 1, 2, 5 xong code; test tự động đạt trên LocalDB; chưa publish MyASP.net, chưa test 2 máy thật (TASKS/TEST_PLAN.md)**
 
 Ký hiệu: `[ ]` chưa làm · `[~]` đang làm · `[x]` xong
 
@@ -16,7 +16,7 @@ Ký hiệu: `[ ]` chưa làm · `[~]` đang làm · `[x]` xong
 - [x] Đồng bộ: máy con hỏi server định kỳ (polling) ở bản đầu, chưa dùng FCM
 - [x] Mô hình: server lưu luật/lệnh, máy con tải về và tự thi hành; offline vẫn chặn theo luật đã lưu
 - [x] PIN và mã khôi phục chỉ lưu hash trên máy, không gửi lên server
-- [x] Giữ chế độ "một máy" (local) song song với chế độ "kết nối"
+- [x] ~~Giữ chế độ "một máy"~~ **Đã bỏ (2026-11-04)**: máy mẹ chỉ quản lý máy con từ xa, máy con là một màn đơn giản; `ConnectionMode.local` chỉ còn trong enum để test dựng khung app
 
 - [x] Gia đình: tối đa 2 người giám hộ (mẹ + bố, API-02), nhiều con (mỗi con có thể là một máy)
 - [x] Đăng nhập phụ huynh: email + mật khẩu
@@ -67,7 +67,7 @@ API:
 
 Flutter (mẹ):
 - [x] Thêm tầng gọi API: `lib/core/network/` (`ApiClient`, `ConnectionSession`; tự refresh token, GET thử lại 3 lần, có test)
-- [x] Màn chọn vai trò "Một máy / Máy mẹ / Máy con" (`RolePage`, hiện sau wizard quyền)
+- [x] Màn chọn vai trò "Máy mẹ / Máy con" (`RolePage`, hiện sau PIN lần đầu, trước wizard quyền theo vai trò: mẹ chỉ xin Thông báo)
 - [x] Màn đăng nhập/đăng ký + tạo mã ghép đôi (`ParentLoginPage`, `ConnectionPage` trong Bảo mật → Kết nối gia đình)
 - [x] Đẩy cấu hình giới hạn giờ và khóa app lên server (`PolicySync`: `time_limit_page`, `app_lock_page`, nút "Gửi luật" ở `RemoteMonitorPage`; 409 thì tải lại và hỏi mẹ; có test tự động). `pause_card` là lệnh, không nằm trong policy: làm ở API-05
 
@@ -87,14 +87,14 @@ Cột mốc đợt 2: mẹ đặt giới hạn cho 1 app trên máy mẹ, máy c
 - [~] Con gửi nhật ký hoạt động (mở app bị chặn, sai PIN, mở khóa phụ huynh; T8, `ActivityLog.kt`). Server đã test tự động đạt; Kotlin con biên dịch được nhưng CHƯA chạy máy thật nên chưa tick; chưa có màn mẹ (T9)
 - [ ] Yêu cầu tạo lúc offline được xếp hàng trong máy và gửi khi có mạng (code đã có cho API-06/07/08/10 nhưng CHƯA test máy thật nên chưa tick)
 - [~] Cảnh báo cho mẹ: máy con mất kết nối lâu, chỉnh giờ máy, gỡ app, tắt trợ năng/Device Admin, thiếu quyền (`TimeChangeReceiver`, `UninstallGate`, `SettingsGuardService`, `TamperAlerts.kt`; API-10). Server + Flutter mẹ đã test tự động đạt (server tự phát hiện mất kết nối đã kiểm bằng SQL); Kotlin con biên dịch được nhưng CHƯA chạy máy thật nên chưa tick
-- [ ] Hồ sơ, liên hệ gia đình (`profile`, `team`) – làm cuối, cân nhắc quyền riêng tư
+- [x] Danh bạ của con (T10–T11): `contacts` trong policy `schemaVersion` 3, tối đa 20 liên hệ (nhãn 1–30 ký tự, số hợp lệ, `sos` bool, tối đa 3 SOS); mẹ sửa ở **Danh bạ của con**, máy con hiện **Gọi người nhà**. Máy con bản cũ gặp schema lớn hơn thì giữ luật cũ. Kotlin CHƯA chạy máy thật. Tab Nhóm (`team`) đã xóa (T1)
 
 ## Đợt 4 – Củng cố
 
 - [ ] HTTPS bắt buộc, rà soát bảo mật JWT, mật khẩu băm, CORS
 - [x] Test tích hợp API: `SafeFamily.Api.Tests` (xUnit + `WebApplicationFactory`, LocalDB tạm, 174 ca): phân quyền chéo gia đình, 409, mã ghép dùng lại, token bị thu hồi, kiểm kiểu / giới hạn, Swagger (API-15). Chạy: `cd SafeFamily.Api.Tests` rồi `dotnet test`. Test máy thật vẫn theo `TASKS/TEST_PLAN.md`.
 - [ ] Xử lý xung đột (số phiên bản) khi mẹ sửa lúc con offline
-- [ ] Thông báo / màn giải thích cho con biết app giám sát những gì
+- [~] Màn giải thích cho con biết app giám sát những gì: khối **Mẹ xem được gì?** trên màn chính máy con (T7) đã có; chưa có chính sách quyền riêng tư đầy đủ
 - [ ] Ghi log lỗi phía server
 - [ ] Test trên nhiều dòng máy Android (chế độ tiết kiệm pin có thể hạn chế polling)
 - [ ] Cân nhắc FCM nếu cần lệnh tức thời
