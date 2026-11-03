@@ -290,6 +290,29 @@ class AlertInfo {
   bool get isUnread => readAt == null;
 }
 
+/// Loại hoạt động của máy con (khớp `ActivityRules` ở server, T8).
+abstract final class ActivityKind {
+  static const blockedAppOpen = 'blocked_app_open';
+  static const parentAuthFailed = 'parent_auth_failed';
+  static const parentUnlocked = 'parent_unlocked';
+}
+
+/// Một dòng nhật ký hoạt động của máy con (`GET /api/devices/{id}/activity`). Chỉ có loại, tên gói (với
+/// `blocked_app_open`) và thời điểm.
+class ActivityInfo {
+  const ActivityInfo({
+    required this.id,
+    required this.kind,
+    required this.time,
+    this.detail,
+  });
+
+  final int id;
+  final String kind;
+  final String? detail;
+  final DateTime time;
+}
+
 class LocationInfo {
   const LocationInfo(this.lat, this.lng, this.accuracy, this.time);
   final double lat;
@@ -697,6 +720,35 @@ class ApiClient {
           detail: e['detail'] as String?,
           createdAt: createdAt,
           readAt: parseServerTime(e['readAt']),
+        ),
+      );
+    }
+    return out;
+  }
+
+  /// Nhật ký hoạt động của máy con, cũ trước, tối đa 100. [afterId] = 0: 100 dòng MỚI nhất; lớn hơn 0: các dòng kế
+  /// sau mốc đó. Dòng hỏng bị bỏ qua.
+  Future<List<ActivityInfo>> getActivity(int deviceId, {int afterId = 0}) async {
+    final query = afterId > 0 ? '?afterId=$afterId' : '';
+    final list = await _send(
+      'GET',
+      '/api/devices/$deviceId/activity$query',
+      null,
+      auth: _Auth.parent,
+    ) as List<dynamic>;
+    final out = <ActivityInfo>[];
+    for (final e in list) {
+      if (e is! Map<String, dynamic>) continue;
+      final id = e['id'];
+      final kind = e['kind'];
+      final time = parseServerTime(e['time']);
+      if (id is! num || kind is! String || time == null) continue;
+      out.add(
+        ActivityInfo(
+          id: id.toInt(),
+          kind: kind,
+          detail: e['detail'] as String?,
+          time: time,
         ),
       );
     }

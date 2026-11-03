@@ -60,6 +60,36 @@ String alertLabel(AlertInfo a) {
   }
 }
 
+/// Câu hiển thị cho mẹ về một dòng nhật ký hoạt động. [appLabels] (`tên gói -> tên app`, lấy từ danh sách app của
+/// máy con) để hiện "YouTube" thay vì tên gói; thiếu thì hiện nguyên tên gói. Loại lạ (máy con bản mới hơn) hiện
+/// nguyên chữ.
+String activityLabel(ActivityInfo a, [Map<String, String> appLabels = const {}]) {
+  switch (a.kind) {
+    case ActivityKind.blockedAppOpen:
+      final pkg = a.detail;
+      final name = pkg == null ? 'một ứng dụng' : (appLabels[pkg] ?? pkg);
+      return 'Con mở $name (đang bị chặn)';
+    case ActivityKind.parentAuthFailed:
+      return 'Có người nhập sai khóa phụ huynh trên máy con';
+    case ActivityKind.parentUnlocked:
+      return 'Khu phụ huynh trên máy con đã được mở khóa';
+    default:
+      return a.kind;
+  }
+}
+
+/// "Hôm nay" / "Hôm qua" / "dd/MM/yyyy" cho tiêu đề nhóm theo ngày (giờ máy này).
+String dayHeading(DateTime t, [DateTime? now]) {
+  final n = now ?? DateTime.now();
+  final today = DateTime(n.year, n.month, n.day);
+  final day = DateTime(t.year, t.month, t.day);
+  final diff = today.difference(day).inDays;
+  if (diff == 0) return 'Hôm nay';
+  if (diff == 1) return 'Hôm qua';
+  String two(int v) => v.toString().padLeft(2, '0');
+  return '${two(t.day)}/${two(t.month)}/${t.year}';
+}
+
 /// Mô tả ngắn một lệnh mẹ đã gửi, ví dụ "Mở tạm com.zing.zalo 15 phút".
 String commandLabel(CommandInfo c) {
   Map<String, dynamic> p = const {};

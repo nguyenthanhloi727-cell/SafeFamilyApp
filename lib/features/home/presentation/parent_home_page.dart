@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../../core/alerts/activity_seen.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/network/api_scope.dart';
 import '../../../core/network/child_status_text.dart';
@@ -12,6 +13,7 @@ import '../../../core/widgets/feature_card.dart';
 import '../../app_lock/presentation/app_lock_page.dart';
 import '../../connection/presentation/child_requests_page.dart';
 import '../../connection/presentation/connection_page.dart';
+import '../../connection/presentation/device_activity_page.dart';
 import '../../connection/presentation/remote_monitor_page.dart';
 import '../../new_app/presentation/new_apps_page.dart';
 import '../../report/presentation/report_page.dart';
@@ -34,6 +36,7 @@ class _ParentHomePageState extends State<ParentHomePage> {
   int _pendingRequests = 0;
   int _pendingNewApps = 0;
   int _unreadAlerts = 0;
+  int _newActivity = 0;
   bool _started = false;
 
   @override
@@ -88,6 +91,14 @@ class _ParentHomePageState extends State<ParentHomePage> {
       });
     } on ApiException {
       // Giữ số cũ; vào từng màn sẽ báo lỗi rõ hơn.
+    }
+    try {
+      final seen = await ActivitySeen.get(id);
+      final events = await api.getActivity(id);
+      if (!mounted) return;
+      setState(() => _newActivity = events.where((e) => e.id > seen).length);
+    } on ApiException {
+      // Như trên.
     }
   }
 
@@ -157,6 +168,19 @@ class _ParentHomePageState extends State<ParentHomePage> {
                     : 'Con xin thêm giờ, báo đã học xong',
                 onTap: () =>
                     _open('Yêu cầu của con', ChildRequestsPage(device: child)),
+              ),
+              const SizedBox(height: AppSpace.md),
+              FeatureCard(
+                key: const Key('home-activity'),
+                icon: Icons.history_rounded,
+                title: 'Hoạt động của con',
+                subtitle: _newActivity > 0
+                    ? '$_newActivity hoạt động mới trên máy ${child.name}'
+                    : 'Con mở app bị chặn, nhập sai khóa phụ huynh',
+                onTap: () => _open(
+                  'Hoạt động của con',
+                  DeviceActivityPage(device: child),
+                ),
               ),
               const SizedBox(height: AppSpace.md),
               FeatureCard(
