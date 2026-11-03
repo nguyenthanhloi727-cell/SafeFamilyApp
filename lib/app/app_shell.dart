@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../core/network/connection_session.dart';
 import '../features/home/presentation/home_page.dart';
 import '../features/profile/presentation/profile_page.dart';
 
@@ -23,26 +24,40 @@ class AppShell extends StatefulWidget {
 }
 
 class _AppShellState extends State<AppShell> {
-  static const _tabs = [
+  static const _childTabs = [
     _AppTab('Trang chủ', Icons.home_outlined, Icons.home, HomePage()),
     _AppTab('Cá nhân', Icons.person_outline, Icons.person, ProfilePage()),
+  ];
+
+  /// Máy mẹ: **Con** (bảng điều khiển máy con) và **Tài khoản**.
+  static const _parentTabs = [
+    _AppTab('Con', Icons.child_care_outlined, Icons.child_care, HomePage()),
+    _AppTab(
+      'Tài khoản',
+      Icons.account_circle_outlined,
+      Icons.account_circle,
+      ProfilePage(),
+    ),
   ];
 
   int _currentIndex = 0;
 
   @override
   Widget build(BuildContext context) {
+    final tabs = ConnectionScope.maybeOf(context)?.mode == ConnectionMode.parent
+        ? _parentTabs
+        : _childTabs;
     return Scaffold(
       body: IndexedStack(
         index: _currentIndex,
-        children: [for (final tab in _tabs) tab.page],
+        children: [for (final tab in tabs) tab.page],
       ),
       bottomNavigationBar: BottomNavigationBar(
         type: BottomNavigationBarType.fixed,
         currentIndex: _currentIndex,
         onTap: (index) => setState(() => _currentIndex = index),
         items: [
-          for (final tab in _tabs)
+          for (final tab in tabs)
             BottomNavigationBarItem(
               icon: Icon(tab.icon),
               activeIcon: Icon(tab.activeIcon),

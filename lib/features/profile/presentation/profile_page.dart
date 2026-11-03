@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/network/api_scope.dart';
+import '../../../core/network/connection_session.dart';
 import '../../../core/network/policy_sync.dart';
 import '../../../core/security/parent_guard.dart';
 import '../../../core/security/ui/parent_gate.dart';
@@ -11,6 +13,8 @@ import '../../../core/widgets/initial_avatar.dart';
 import '../data/family_contact.dart';
 import '../data/local_profile_repository.dart';
 import '../data/profile_repository.dart';
+import '../../connection/presentation/account_pages.dart';
+import '../../connection/presentation/guardians_page.dart';
 import '../../parental/presentation/device_protection_page.dart';
 import '../../parental/presentation/security_settings_page.dart';
 import '../../parental/presentation/unlock_log_page.dart';
@@ -21,6 +25,9 @@ import 'widgets/contact_dialog.dart';
 import 'widgets/parent_name_dialog.dart';
 
 /// S02 — Cá nhân: hồ sơ phụ huynh, danh bạ gia đình (mục 2).
+///
+/// Trên máy mẹ đã đăng nhập đây là tab **Tài khoản**: thêm email đăng nhập,
+/// người giám hộ thứ 2, đổi mật khẩu, đăng xuất, xóa tài khoản.
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key, this.repository, this.launcher});
 
@@ -171,10 +178,42 @@ class _ProfilePageState extends State<ProfilePage> {
     if (mounted && contact.emergency) PolicySyncScope.notifyChanged(context);
   }
 
+  bool get _isParentAccount {
+    final connection = ConnectionScope.maybeOf(context);
+    return connection != null &&
+        connection.mode == ConnectionMode.parent &&
+        connection.isParentLoggedIn;
+  }
+
+  /// API-03: thu hồi phiên trên server rồi xóa phiên cục bộ; app tự về màn đăng nhập.
+  Future<void> _logout() async {
+    final api = ApiScope.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    if (!await ParentGate.always(context, 'Đăng xuất máy mẹ')) return;
+    final revoked = await api.logout();
+    if (!revoked) {
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Đã đăng xuất trên máy này, nhưng chưa báo được cho máy chủ '
+            '(không có mạng).',
+          ),
+        ),
+      );
+    }
+  }
+
+  /// API-03: xóa tài khoản + toàn bộ dữ liệu gia đình (khóa phụ huynh, rồi nhập lại mật khẩu).
+  Future<void> _deleteAccount() async {
+    if (!await ParentGate.always(context, 'Xóa tài khoản')) return;
+    if (!mounted) return;
+    await showDeleteAccountDialog(context);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Cá nhân')),
+      appBar: AppBar(title: Text(_isParentAccount ? 'Tài khoản' : 'Cá nhân')),
       body: ListenableBuilder(
         listenable: _controller,
         builder: (context, _) {
@@ -196,6 +235,19 @@ class _ProfilePageState extends State<ProfilePage> {
     return ListView(
       padding: const EdgeInsets.all(AppSpace.lg),
       children: [
+        if (_isParentAccount) ...[
+          _AccountCard(
+            email: ConnectionScope.of(context).email ?? 'Máy mẹ',
+            onGuardians: () =>
+                _openParentArea('Người giám hộ', const GuardiansPage()),
+            onChangePassword: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => const ChangePasswordPage(),
+              ),
+            ),
+          ),
+          const SizedBox(height: AppSpace.lg),
+        ],
         _ParentHeader(
           name: _controller.parentName,
           hasName: _controller.hasParentName,
@@ -255,6 +307,26 @@ class _ProfilePageState extends State<ProfilePage> {
             onTap: () => _openParentArea('Mở Cài đặt', const SettingsPage()),
           ),
         ),
+        if (_isParentAccount) ...[
+          const SizedBox(height: AppSpace.md),
+          OutlinedButton(
+            key: const Key('account-logout'),
+            onPressed: _logout,
+            child: const Text('Đăng xuất máy mẹ'),
+          ),
+          ListTile(
+            key: const Key('account-delete'),
+            leading: Icon(
+              Icons.delete_forever_rounded,
+              color: theme.colorScheme.error,
+            ),
+            title: const Text('Xóa tài khoản'),
+            subtitle: const Text(
+              'Xóa vĩnh viễn mọi dữ liệu gia đình trên máy chủ.',
+            ),
+            onTap: _deleteAccount,
+          ),
+        ],
       ],
     );
   }
@@ -264,6 +336,53 @@ class _ProfilePageState extends State<ProfilePage> {
     final navigator = Navigator.of(context);
     if (!await ParentGate.parentArea(context, action)) return;
     await navigator.push(MaterialPageRoute<void>(builder: (_) => page));
+  }
+}
+
+/// Tài khoản máy mẹ: email đăng nhập, người giám hộ, đổi mật khẩu.
+class _AccountCard extends StatelessWidget {
+  const _AccountCard({
+    required this.email,
+    required this.onGuardians,
+    required this.onChangePassword,
+  });
+
+  final String email;
+  final VoidCallback onGuardians;
+  final VoidCallback onChangePassword;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        children: [
+          ListTile(
+            key: const Key('account-email'),
+            leading: const Icon(Icons.account_circle_rounded),
+            title: Text(email),
+            subtitle: const Text('Email đăng nhập · Máy mẹ'),
+          ),
+          const Divider(height: 1),
+          ListTile(
+            key: const Key('account-guardians'),
+            leading: const Icon(Icons.group_add_outlined),
+            title: const Text('Người giám hộ thứ 2'),
+            subtitle: const Text('Mời bố/mẹ còn lại cùng quản lý'),
+            trailing: const Icon(Icons.chevron_right_rounded),
+            onTap: onGuardians,
+          ),
+          const Divider(height: 1),
+          ListTile(
+            key: const Key('account-change-password'),
+            leading: const Icon(Icons.password_rounded),
+            title: const Text('Đổi mật khẩu'),
+            trailing: const Icon(Icons.chevron_right_rounded),
+            onTap: onChangePassword,
+          ),
+        ],
+      ),
+    );
   }
 }
 
