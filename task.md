@@ -33,7 +33,7 @@ Ký hiệu: `[ ]` chưa làm · `[~]` đang làm / làm dở · `[x]` xong (ghi 
 - [x] T4 — Cấp quyền theo vai trò (commit 4d6098a, 2026-11-04)
 - [x] T5 — Máy mẹ: tab Con + Tài khoản (commit 1246810, 2026-11-04)
 - [x] T6 — Máy con: xin thêm giờ / học xong (commit 3328341, 2026-11-04)
-- [ ] T7 — Máy con: đồng bộ lần cuối, mất mạng, minh bạch
+- [x] T7 — Máy con: đồng bộ lần cuối, mất mạng, minh bạch (commit 94d0a2d, 2026-11-04)
 - [ ] T8 — Server + máy con: nhật ký hoạt động
 - [ ] T9 — Máy mẹ: màn Hoạt động
 - [ ] T10 — Danh bạ của con: server + schema
