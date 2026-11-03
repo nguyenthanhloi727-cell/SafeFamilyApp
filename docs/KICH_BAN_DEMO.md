@@ -11,7 +11,7 @@ Tên nút bên dưới lấy từ code (`lib/`). Máy thật có thể khác ch�
 | Việc | Ghi chú |
 |---|---|
 | 2 máy Android: **máy mẹ**, **máy con** | Cả hai cài cùng bản APK mới nhất |
-| Server API chạy được và cả 2 máy tới được | Server **chưa publish MyASP.net** (docs/API_TIEN_TRINH.md). Chạy local trên laptop, 2 máy + laptop chung Wi-Fi, nhập địa chỉ ở ô địa chỉ máy chủ |
+| Server API chạy được và cả 2 máy tới được | Server đã chạy trên MyASP.net (`https://shamixd-001-site1.ftempurl.com`, là địa chỉ mặc định trong app). Cả 2 máy cần có mạng. Trước demo mở `/health` trên điện thoại kiểm tra; gói ftempurl là miễn phí nên có thể chậm hoặc ngủ, gọi thử trước vài phút |
 | Máy con: cấp đủ quyền | Trang chủ không còn dòng *"Còn thiếu N quyền"*; Trợ năng, Báo thức & lời nhắc, Truy cập dữ liệu sử dụng, Vị trí **Luôn cho phép** |
 | Đã ghép đôi sẵn | Máy mẹ: **Kết nối gia đình** → **Tạo mã ghép đôi** → máy con nhập **Mã 6 số** → **Kết nối** (mã hạn 10 phút, dùng 1 lần) |
 | Máy con có YouTube, một app game/mạng xã hội | Dùng làm vật chặn |
@@ -94,7 +94,7 @@ Máy mẹ → màn máy con:
 
 | Sự cố | Cách xử |
 |---|---|
-| Server/mạng chết | Dùng **chế độ "Dùng một máy"** (không cần tài khoản/mạng): chạy lại Cảnh 2 và 3 trên 1 máy với **Chặn ứng dụng**, README mục *Kịch bản demo* |
+| Server/mạng chết | Mở Swagger của server cho khán giả xem API thật; sau đó Dùng **chế độ "Dùng một máy"** (không cần tài khoản/mạng): chạy lại Cảnh 2 và 3 trên 1 máy với **Chặn ứng dụng**, README mục *Kịch bản demo* |
 | Lệnh tới chậm | Nói rõ polling 5 phút; chuyển sang cảnh khác chờ, quay lại sau |
 | GPS không nhúc nhích | Phát video quay sẵn Cảnh 6 bước 4 |
 | Xiaomi giết app nền | Kiểm lại tự khởi động + pin *Không giới hạn* trước giờ demo |
@@ -103,7 +103,7 @@ Máy mẹ → màn máy con:
 
 - Chặn app là **chặn mềm** (dựa Trợ năng): con có thể vào Cài đặt tắt. Bù lại, mẹ nhận cảnh báo. Chặn cứng cần Device Owner, đang phát triển.
 - Chưa dùng push (FCM): lệnh trễ tối đa vài phút.
-- Chưa test trên 2 máy thật với server publish; app chỉ phát hành bằng APK, không lên Google Play.
+- Chưa test trên 2 máy thật với server MyASP.net; app chỉ phát hành bằng APK, không lên Google Play.
 
 ## Việc cần kiểm trước khi demo
 

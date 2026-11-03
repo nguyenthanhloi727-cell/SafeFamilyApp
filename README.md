@@ -41,12 +41,12 @@ Máy mẹ đăng nhập, tạo **mã ghép đôi 6 số** (hạn 10 phút, dùng
 
 Chi tiết API: [docs/API_DAY_DU.md](docs/API_DAY_DU.md), tiến trình: [docs/API_TIEN_TRINH.md](docs/API_TIEN_TRINH.md). **Kịch bản demo:** [docs/KICH_BAN_DEMO.md](docs/KICH_BAN_DEMO.md).
 
-> Trạng thái: server đã có test tự động, **chưa publish MyASP.net** và **chưa test trên 2 máy thật**.
+> Server đang chạy trên MyASP.net: [Swagger](https://shamixd-001-site1.ftempurl.com/swagger/index.html) (là địa chỉ mặc định trong app, sửa được ở ô địa chỉ máy chủ). Server đã có test tự động; **chưa test trên 2 máy thật**.
 
 ## Đang phát triển
 
 - **Chặn cứng** (con không tự tắt được) bằng chế độ Device Owner.
-- Đưa server lên MyASP.net; thông báo đẩy (hiện dùng hỏi định kỳ).
+- Thông báo đẩy (hiện dùng hỏi định kỳ).
 
 ---
 
