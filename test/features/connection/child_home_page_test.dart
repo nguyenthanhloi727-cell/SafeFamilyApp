@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:safe_family_app/core/network/connection_session.dart';
 import 'package:safe_family_app/core/theme/app_theme.dart';
 import 'package:safe_family_app/features/app_lock/data/app_lock_store.dart';
 import 'package:safe_family_app/features/app_lock/presentation/app_lock_controller.dart';
@@ -12,6 +13,7 @@ import 'package:shared_preferences_platform_interface/in_memory_shared_preferenc
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 
 import '../../helpers/app_lock_fakes.dart';
+import '../../helpers/security_fakes.dart';
 
 class _Platform implements TimeLimitPlatform {
   _Platform({this.pause = 0, this.limit, this.used = 0});
@@ -54,6 +56,7 @@ void main() {
     TimeLimitPlatform platform, {
     Set<String> blocked = const {},
     FamilyPlatform? family,
+    ConnectionSession? session,
   }) async {
     final controller = AppLockController(
       platform: FakeAppLockPlatform(blocked: {...blocked}),
@@ -62,14 +65,17 @@ void main() {
     addTearDown(controller.dispose);
     await controller.refresh();
     await tester.pumpWidget(
-      AppLockScope(
-        controller: controller,
-        child: MaterialApp(
-          theme: AppTheme.light,
-          home: ChildHomePage(
-            platform: platform,
-            family: family ?? _Family(),
-            refreshEvery: const Duration(days: 1),
+      ConnectionScope(
+        session: session ?? ConnectionSession(store: InMemorySecureStore()),
+        child: AppLockScope(
+          controller: controller,
+          child: MaterialApp(
+            theme: AppTheme.light,
+            home: ChildHomePage(
+              platform: platform,
+              family: family ?? _Family(),
+              refreshEvery: const Duration(days: 1),
+            ),
           ),
         ),
       ),
@@ -113,6 +119,24 @@ void main() {
     await t.tap(find.byKey(const Key('child-sync')));
     await t.pumpAndSettle();
     expect(find.text('Chưa đồng bộ được. Kiểm tra mạng rồi thử lại.'), findsOneWidget);
+  });
+
+  testWidgets('Dành cho phụ huynh mở menu; Ngắt kết nối xóa phiên máy con', (
+    t,
+  ) async {
+    final session = ConnectionSession(store: InMemorySecureStore());
+    await session.load();
+    await session.setMode(ConnectionMode.child);
+    await pump(t, _Platform(), session: session);
+
+    await t.tap(find.byKey(const Key('child-parent-area')));
+    await t.pumpAndSettle();
+    expect(find.text('Mở ứng dụng đầy đủ'), findsOneWidget);
+    expect(find.text('Ngắt kết nối với máy mẹ'), findsOneWidget);
+
+    await t.tap(find.byKey(const Key('parent-disconnect')));
+    await t.pumpAndSettle();
+    expect(session.mode, ConnectionMode.unset);
   });
 }
 

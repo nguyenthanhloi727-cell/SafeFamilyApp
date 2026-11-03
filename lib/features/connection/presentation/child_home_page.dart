@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../../app/app_shell.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/network/api_scope.dart';
+import '../../../core/network/connection_session.dart';
 import '../../../core/security/ui/parent_gate.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../app_lock/presentation/app_lock_controller.dart';
@@ -135,9 +136,40 @@ class _ChildHomePageState extends State<ChildHomePage>
   Future<void> _openParentArea() async {
     if (!await ParentGate.always(context, 'Mở khu vực phụ huynh')) return;
     if (!mounted) return;
-    await Navigator.of(context)
-        .push(MaterialPageRoute<void>(builder: (_) => const AppShell()));
-    if (mounted) unawaited(_reload());
+    final choice = await showModalBottomSheet<_ParentChoice>(
+      context: context,
+      builder: (sheet) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              key: const Key('parent-open-app'),
+              leading: const Icon(Icons.apps_rounded),
+              title: const Text('Mở ứng dụng đầy đủ'),
+              onTap: () => Navigator.pop(sheet, _ParentChoice.openApp),
+            ),
+            ListTile(
+              key: const Key('parent-disconnect'),
+              leading: const Icon(Icons.link_off_rounded),
+              title: const Text('Ngắt kết nối với máy mẹ'),
+              onTap: () => Navigator.pop(sheet, _ParentChoice.disconnect),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (!mounted) return;
+    switch (choice) {
+      case _ParentChoice.openApp:
+        await Navigator.of(context)
+            .push(MaterialPageRoute<void>(builder: (_) => const AppShell()));
+        if (mounted) unawaited(_reload());
+      case _ParentChoice.disconnect:
+        // Đã qua khóa phụ huynh ở trên; reset đưa app về màn chọn vai trò.
+        await ConnectionScope.of(context).reset();
+      case null:
+        break;
+    }
   }
 
   @override
@@ -306,6 +338,8 @@ class _ChildHomePageState extends State<ChildHomePage>
     ),
   );
 }
+
+enum _ParentChoice { openApp, disconnect }
 
 /// "1 giờ 5 phút", "45 phút".
 String _minutes(int m) {
