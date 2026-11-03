@@ -36,7 +36,7 @@ Ký hiệu: `[ ]` chưa làm · `[~]` đang làm / làm dở · `[x]` xong (ghi 
 - [x] T7 — Máy con: đồng bộ lần cuối, mất mạng, minh bạch (commit 94d0a2d, 2026-11-04)
 - [x] T8 — Server + máy con: nhật ký hoạt động (commit 1e0be05, 2026-11-04)
 - [x] T9 — Máy mẹ: màn Hoạt động (commit 9e84acd, 2026-11-04)
-- [ ] T10 — Danh bạ của con: server + schema
+- [x] T10 — Danh bạ của con: server + schema (commit 32ee36c, 2026-11-04)
 - [ ] T11 — Danh bạ của con: màn mẹ + máy con gọi
 - [ ] T12 — README, docs, kịch bản demo
 
