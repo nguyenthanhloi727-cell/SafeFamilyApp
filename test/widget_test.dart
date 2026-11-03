@@ -11,13 +11,11 @@ import 'package:safe_family_app/core/settings/setup_settings.dart';
 import 'package:safe_family_app/features/parental/presentation/first_run_setup_page.dart';
 import 'package:safe_family_app/features/home/presentation/home_page.dart';
 import 'package:safe_family_app/features/profile/presentation/profile_page.dart';
-import 'package:safe_family_app/features/team/presentation/team_page.dart';
 
 import 'helpers/security_fakes.dart';
 
 const _tabs = <(String, Type)>[
   ('Trang chủ', HomePage),
-  ('Nhóm', TeamPage),
   ('Cá nhân', ProfilePage),
 ];
 
@@ -28,9 +26,9 @@ Future<void> _tapTab(WidgetTester tester, String label) async {
       matching: find.text(label),
     ),
   );
-  // Không dùng pumpAndSettle: IndexedStack dựng cả 3 tab ngay từ đầu, tab Nhóm
-  // đọc assets thật (IO thật) nên vòng loading chưa dừng trong thời gian giả
-  // của test. Chỉ cần xong hiệu ứng chuyển tab.
+  // Không dùng pumpAndSettle: IndexedStack dựng cả các tab ngay từ đầu nên
+  // vòng loading có thể chưa dừng trong thời gian giả của test. Chỉ cần xong
+  // hiệu ứng chuyển tab.
   await tester.pump();
   await tester.pump(const Duration(milliseconds: 500));
 }
@@ -151,7 +149,7 @@ void main() {
     expect(find.text('Đang ở chế độ trẻ em'), findsOneWidget);
   });
 
-  testWidgets('BottomNavigationBar chuyển đủ 3 tab', (tester) async {
+  testWidgets('BottomNavigationBar chuyển đủ 2 tab', (tester) async {
     await pumpApp(tester);
 
     final barFinder = find.byType(BottomNavigationBar);
@@ -185,7 +183,7 @@ void main() {
     final before = tester.state(profile);
 
     await _tapTab(tester, 'Cá nhân');
-    await _tapTab(tester, 'Nhóm');
+    await _tapTab(tester, 'Trang chủ');
     await _tapTab(tester, 'Cá nhân');
     expect(
       identical(tester.state(profile), before),

@@ -4,7 +4,6 @@ import '../core/security/parent_guard.dart';
 import '../core/security/ui/child_mode_banner.dart';
 import '../features/home/presentation/home_page.dart';
 import '../features/profile/presentation/profile_page.dart';
-import '../features/team/presentation/team_page.dart';
 
 class _AppTab {
   const _AppTab(this.label, this.icon, this.activeIcon, this.page);
@@ -15,7 +14,7 @@ class _AppTab {
   final Widget page;
 }
 
-/// Khung điều hướng chính: 3 tab bằng [BottomNavigationBar].
+/// Khung điều hướng chính: 2 tab bằng [BottomNavigationBar].
 ///
 /// [IndexedStack] giữ nguyên trạng thái từng tab khi chuyển qua lại.
 class AppShell extends StatefulWidget {
@@ -28,7 +27,6 @@ class AppShell extends StatefulWidget {
 class _AppShellState extends State<AppShell> {
   static const _tabs = [
     _AppTab('Trang chủ', Icons.home_outlined, Icons.home, HomePage()),
-    _AppTab('Nhóm', Icons.groups_outlined, Icons.groups, TeamPage()),
     _AppTab('Cá nhân', Icons.person_outline, Icons.person, ProfilePage()),
   ];
 

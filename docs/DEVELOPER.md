@@ -22,7 +22,6 @@ lib/
     widgets/            # widget dùng chung
   features/
     home/               # Trang chủ, Quản lý thiết bị (giữ chỗ)
-    team/{data,presentation}           # members.json, ảnh thành viên
     profile/{data,presentation}        # danh bạ gia đình, Cài đặt
     parental/presentation              # thiết lập lần đầu, đổi PIN, bảo mật, nhật ký
     new_app/{data,presentation}        # Duyệt app mới cài (native: NewApps.kt, kênh safefamily/new_apps)
@@ -32,7 +31,6 @@ lib/
       data/                            #   app_blocker + kênh safefamily/app_lock, lưu hạn mở tạm
       presentation/                    #   AppLockController, màn Khóa ứng dụng, màn Thiết lập
 assets/fonts/           # Be Vietnam Pro + OFL.txt
-assets/team/            # members.json + ảnh cố định <id>.jpg (xem assets/team/README.md)
 test/                   # unit + widget test; test/helpers = đồ giả dùng chung
 ```
 
@@ -203,16 +201,6 @@ Import trong `lib/` đang dùng `package:safe_family_app_...`. Đổi sang đư�
 ### Build lần đầu tự tải *Android SDK Platform 35* và *CMake 3.22.1*
 
 Bình thường — plugin `image_picker`/`path_provider` cần hai gói này, Gradle tự cài vào thư mục SDK. Nếu bước tự cài báo lỗi `sdkmanager ... 0xC0000409` (xem lỗi đầu mục 9), cài tay trong Android Studio: **SDK Platforms** → *Android 15.0 (API 35)*; **SDK Tools** → *Show Package Details* → **CMake** → *3.22.1*.
-
-### Thêm ảnh vào `assets/team/` hoặc sửa `members.json` mà app không đổi
-
-- Phải **build lại** bằng `flutter run` (dừng hẳn rồi chạy lại) — hot reload / hot restart không nhận file mới trong `assets/`.
-- Tên ảnh phải đúng `id` + `.jpg`, chữ thường: `hongocphu.jpg` ✓ — `HoNgocPhu.jpg` ✗ — `hongocphu.png` ✗ — `hongocphu.JPG` ✗.
-- `members.json` sai cú pháp JSON (thiếu dấu phẩy, ngoặc kép…) thì tab Nhóm báo *"Không đọc được thông tin nhóm"* — kiểm tra lại file bằng một trình kiểm tra JSON.
-
-### Bấm email thành viên báo *"Không mở được app mail"*
-
-Máy chưa có app mail nào (Gmail, Outlook…) hoặc app mail đang bị tắt. Cài/bật một app mail rồi thử lại.
 
 ### Chạm thẻ danh bạ báo *"Không mở được app Điện thoại"* / bấm YouTube báo *"Không mở được YouTube"*
 
