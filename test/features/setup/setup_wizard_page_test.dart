@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:safe_family_app/core/network/connection_session.dart';
 import 'package:safe_family_app/core/permissions/permission_registry.dart';
 import 'package:safe_family_app/core/settings/setup_settings.dart';
 import 'package:safe_family_app/core/theme/app_theme.dart';
@@ -25,6 +26,7 @@ class _Platform implements PermissionPlatform {
 }
 
 void main() {
+  wizardStepsByRole();
   late _Platform platform;
   late PermissionRegistry registry;
   var finished = 0;
@@ -102,5 +104,33 @@ void main() {
     final second = SetupSettings();
     await second.load();
     expect(second.isDone, isTrue);
+  });
+}
+
+void wizardStepsByRole() {
+  group('wizardSteps theo vai trò', () {
+    test('máy mẹ chỉ có bước Thông báo, không có bước hướng dẫn', () async {
+      final platform = _Platform();
+      final registry = PermissionRegistry(platform: platform);
+      await registry.refresh();
+      expect(wizardSteps(registry, mode: ConnectionMode.parent), [
+        AppPermission.notifications,
+      ]);
+    });
+
+    test('máy mẹ đã cấp Thông báo thì không còn bước nào', () async {
+      final platform = _Platform()..granted = {'notifications': true};
+      final registry = PermissionRegistry(platform: platform);
+      await registry.refresh();
+      expect(wizardSteps(registry, mode: ConnectionMode.parent), isEmpty);
+    });
+
+    test('máy con có hướng dẫn rồi đủ mọi quyền', () async {
+      final registry = PermissionRegistry(platform: _Platform());
+      await registry.refresh();
+      final steps = wizardSteps(registry, mode: ConnectionMode.child);
+      expect(steps.first, isNull);
+      expect(steps.skip(1), AppPermission.values);
+    });
   });
 }

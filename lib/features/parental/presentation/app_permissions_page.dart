@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/network/connection_session.dart';
 import '../../../core/permissions/permission_registry.dart';
 import '../../../core/security/ui/parent_area_guard.dart';
 import '../../../core/security/ui/parent_gate.dart';
@@ -16,6 +17,7 @@ class AppPermissionsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final registry = PermissionRegistryScope.of(context);
+    final mode = ConnectionScope.maybeOf(context)?.mode ?? ConnectionMode.child;
     return ParentAreaGuard(
       child: Scaffold(
         appBar: AppBar(title: const Text('Quyền ứng dụng')),
@@ -37,7 +39,8 @@ class AppPermissionsPage extends StatelessWidget {
                 ),
                 const SizedBox(height: AppSpace.md),
                 for (final entry in registry.entries)
-                  _PermissionTile(registry: registry, entry: entry),
+                  if (entry.permission.neededFor(mode))
+                    _PermissionTile(registry: registry, entry: entry),
               ],
             );
           },

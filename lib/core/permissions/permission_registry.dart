@@ -2,6 +2,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
+import '../network/connection_session.dart';
+
 /// Một quyền SafeFamily thật sự dùng (đã đối chiếu AndroidManifest + code).
 enum AppPermission {
   accessibility('accessibility', 'Trợ năng (chặn ứng dụng)'),
@@ -17,6 +19,11 @@ enum AppPermission {
   /// Trùng khóa phía Kotlin (`permissionsChannel`).
   final String id;
   final String label;
+
+  /// Quyền máy này cần theo vai trò. Máy mẹ quản lý qua server nên chỉ cần
+  /// Thông báo (cảnh báo cho mẹ); máy con (và máy chưa chọn vai trò) cần đủ.
+  bool neededFor(ConnectionMode mode) =>
+      mode != ConnectionMode.parent || this == AppPermission.notifications;
 }
 
 /// Lớp nói chuyện với Android (kênh `safefamily/permissions`).

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../core/network/connection_session.dart';
 import '../../core/permissions/permission_registry.dart';
 import '../../core/services/system_settings.dart';
 import '../../core/theme/app_tokens.dart';
@@ -25,9 +26,20 @@ const permissionReasons = <AppPermission, String>{
 
 /// Các bước của wizard: bước hướng dẫn "cài đặt bị hạn chế" (nếu còn quyền
 /// thiếu) rồi tới từng quyền chưa cấp. Bước null = hướng dẫn.
-List<AppPermission?> wizardSteps(PermissionRegistry registry) {
-  final missing = [for (final e in registry.missing) e.permission];
+///
+/// Chỉ tính quyền [mode] cần ([AppPermission.neededFor]): máy mẹ chỉ có bước
+/// Thông báo, không có hướng dẫn "cài đặt bị hạn chế" (chỉ liên quan Trợ năng
+/// và Quản trị thiết bị).
+List<AppPermission?> wizardSteps(
+  PermissionRegistry registry, {
+  ConnectionMode mode = ConnectionMode.child,
+}) {
+  final missing = [
+    for (final e in registry.missing)
+      if (e.permission.neededFor(mode)) e.permission,
+  ];
   if (missing.isEmpty) return const [];
+  if (mode == ConnectionMode.parent) return missing;
   return [null, ...missing];
 }
 
@@ -35,9 +47,16 @@ List<AppPermission?> wizardSteps(PermissionRegistry registry) {
 /// lại tự kiểm tra rồi sang bước kế. Mỗi bước có "Để sau". Đi hết hoặc bỏ qua
 /// đều gọi [onFinished] (nơi gọi lưu cờ `setup_done` / đóng màn).
 class SetupWizardPage extends StatefulWidget {
-  const SetupWizardPage({super.key, required this.onFinished});
+  const SetupWizardPage({
+    super.key,
+    required this.onFinished,
+    this.mode = ConnectionMode.child,
+  });
 
   final VoidCallback onFinished;
+
+  /// Vai trò máy: quyết định những quyền nào được hỏi.
+  final ConnectionMode mode;
 
   @override
   State<SetupWizardPage> createState() => _SetupWizardPageState();
@@ -75,7 +94,7 @@ class _SetupWizardPageState extends State<SetupWizardPage> {
     if (!registry.isLoaded || _finished) return;
     if (_steps == null) {
       // Chốt danh sách bước một lần, lúc đã đọc xong trạng thái quyền.
-      _steps = wizardSteps(registry);
+      _steps = wizardSteps(registry, mode: widget.mode);
       if (_steps!.isEmpty) {
         _finish();
         return;

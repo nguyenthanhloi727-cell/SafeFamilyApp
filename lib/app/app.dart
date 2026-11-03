@@ -327,8 +327,8 @@ class _SafeFamilyAppState extends State<SafeFamilyApp> {
   }
 }
 
-/// Chưa đặt PIN → màn thiết lập lần đầu; đặt PIN rồi → wizard cấp quyền (1 lần,
-/// cờ `setup_done`); rồi chọn vai trò máy; xong → app chính.
+/// Chưa đặt PIN → màn thiết lập lần đầu; đặt PIN rồi → chọn vai trò máy; rồi
+/// wizard cấp quyền theo vai trò (1 lần, cờ `setup_done`); xong → app chính.
 class _SecurityGate extends StatelessWidget {
   const _SecurityGate({
     required this.guard,
@@ -351,11 +351,14 @@ class _SecurityGate extends StatelessWidget {
           );
         }
         if (!guard.isConfigured) return FirstRunSetupPage(guard: guard);
-        if (!setup.isDone) {
-          return SetupWizardPage(onFinished: setup.markDone);
-        }
-        // Chọn vai trò (mẹ / con) sau khi cấp quyền, trước app chính.
+        // Chọn vai trò (mẹ / con) trước, rồi xin quyền theo vai trò.
         if (!connection.isChosen) return const RolePage();
+        if (!setup.isDone) {
+          return SetupWizardPage(
+            mode: connection.mode,
+            onFinished: setup.markDone,
+          );
+        }
         // Máy con đã ghép đôi: chỉ màn đơn giản; app đầy đủ nằm sau "Dành cho phụ huynh".
         if (connection.mode == ConnectionMode.child) {
           return const ChildHomePage();

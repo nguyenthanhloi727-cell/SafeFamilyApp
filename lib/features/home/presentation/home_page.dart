@@ -40,7 +40,10 @@ class HomePage extends StatelessWidget {
     if (!await ParentGate.parentArea(context, 'Thiết lập quyền')) return;
     await navigator.push(
       MaterialPageRoute<void>(
-        builder: (_) => SetupWizardPage(onFinished: navigator.pop),
+        builder: (_) => SetupWizardPage(
+          mode: ConnectionScope.maybeOf(context)?.mode ?? ConnectionMode.child,
+          onFinished: navigator.pop,
+        ),
       ),
     );
   }
@@ -57,7 +60,10 @@ class HomePage extends StatelessWidget {
     final theme = Theme.of(context);
     final registry = PermissionRegistryScope.maybeOf(context);
     final setupDone = SetupSettingsScope.maybeOf(context)?.isDone ?? true;
-    final missingCount = registry?.missing.length ?? 0;
+    final mode = connection?.mode ?? ConnectionMode.child;
+    final missingCount =
+        registry?.missing.where((e) => e.permission.neededFor(mode)).length ??
+        0;
     final appLock = AppLockScope.maybeOf(context);
     final lockedCount = appLock?.lockedCount ?? 0;
     return Scaffold(
