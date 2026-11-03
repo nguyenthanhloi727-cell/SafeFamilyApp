@@ -222,3 +222,10 @@ Mỗi task: endpoint/bảng cần thêm, phía Flutter/Kotlin cần nối, đi�
 3. ~~Chấp nhận trễ 15 phút cho thông báo ở máy mẹ, hay đổi quyết định không dùng FCM (API-12)?~~ Đã chốt 2026-10-31: giữ 15 phút, không FCM.
 4. ~~Có gửi liên hệ khẩn cấp lên server không (API-13)?~~ Đã chốt 2026-10-31: có, tối đa 3 số, gọi thẳng.
 5. MyASP.net có SMTP để làm quên mật khẩu không (API-03)? — Đã trả lời "có", hạn mã 30 phút; còn thiếu host, port, tài khoản gửi, địa chỉ From thật (xem `API_TIEN_TRINH.md`, mục Cấu hình).
+
+### T10 — Danh bạ của con trong luật (`schemaVersion` 3)
+- Chốt với người dùng (2026-11-04): tối đa **20** liên hệ; SOS vẫn tối đa **3**.
+- `policy.contacts` giờ là danh bạ của con: `[{"label","phone","sos"}]`, tối đa 20 mục, trong đó tối đa 3 mục `sos:true`. Nhãn 1–30 ký tự, số `+?` + 9–12 chữ số. Thiếu `sos`: gói `schemaVersion` < 3 coi là true (schema 2 chỉ chứa SOS), gói từ 3 coi là false.
+- Server: `Services/PolicyRules.cs` (`MaxContacts` 20, `MaxSos` 3); quá 20 mục hoặc quá 3 SOS → 400, phiên bản luật không đổi. Không endpoint/migration mới. Test: `ValidationTests.Policy_Contacts_Max20_AndMax3Sos`.
+- Flutter: `PolicySchema.version` 3, `PolicySchema.contactsJson` thay `sosJson` (SOS thừa thành `sos:false`). Tới T11 `PolicySync` vẫn chỉ gửi các số SOS của danh bạ cục bộ; chưa có giao diện danh bạ của con.
+- Kotlin con: `SUPPORTED_SCHEMA` 3; `parseSos` kiểm ≤20 mục, ≤3 SOS, chỉ giữ mục SOS vào `GuardPrefs.setSos` (T11 mới lưu cả danh bạ). Máy con bản cũ (≤2) gặp schema 3 thì giữ luật cũ, nên cần cập nhật app con trước khi mẹ gửi luật mới.

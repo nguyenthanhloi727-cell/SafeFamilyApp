@@ -57,7 +57,7 @@ public class DevicesController(AppDb db) : ApiBase
 
     /// <summary>
     /// Ghi luật. Phiên bản mẹ gửi (ExpectedVersion) phải bằng phiên bản hiện tại, lệch thì 409.
-    /// Nếu luật có <c>contacts</c> (số SOS, API-13): tối đa 3 mục, nhãn 1–30 ký tự, số 9–12 chữ số; sai thì 400.
+    /// Nếu luật có <c>contacts</c> (danh bạ của con, schema 3): tối đa 20 mục, tối đa 3 mục sos:true, nhãn 1–30 ký tự, số 9–12 chữ số; sai thì 400.
     /// </summary>
     [HttpPut("{id:int}/policy")]
     public async Task<ActionResult<PolicyDto>> PutPolicy(int id, PutPolicyRequest req)
@@ -72,7 +72,7 @@ public class DevicesController(AppDb db) : ApiBase
             using var doc = System.Text.Json.JsonDocument.Parse(req.Json);
             if (doc.RootElement.ValueKind != System.Text.Json.JsonValueKind.Object)
                 return BadRequest(new { error = "Luật phải là một đối tượng JSON." });
-            var bad = PolicyRules.Validate(doc.RootElement); // contacts SOS (API-13)
+            var bad = PolicyRules.Validate(doc.RootElement); // contacts (API-13, T10)
             if (bad is not null) return BadRequest(new { error = bad });
         }
         catch (System.Text.Json.JsonException) { return BadRequest(new { error = "Json không hợp lệ." }); }

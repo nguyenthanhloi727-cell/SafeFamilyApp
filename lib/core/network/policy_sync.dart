@@ -171,7 +171,10 @@ class PolicySync {
     if (!active || id == null) return PolicyPushResult.skipped;
     try {
       // Lỗi đọc danh bạ thì ném tiếp để KHÔNG gửi gói thiếu số SOS (máy con sẽ xóa SOS cũ).
-      final sos = PolicySchema.sosJson(await loadContacts?.call() ?? const []);
+      // Tới T11 nguồn vẫn là danh bạ cục bộ của máy mẹ: chỉ gửi các số SOS, chưa gửi cả danh bạ.
+      final sos = PolicySchema.contactsJson(
+        (await loadContacts?.call() ?? const []).where((c) => c.emergency),
+      );
       await _edit(id, (policy) {
         policy['contacts'] = sos;
         if (((policy['schemaVersion'] as num?) ?? 1) < PolicySchema.version) {

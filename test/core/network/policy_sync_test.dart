@@ -68,35 +68,48 @@ Future<({_Server server, ConnectionSession session, PolicySync sync})> _setup({
 }
 
 void main() {
-  test('PolicySchema.sosJson: chỉ số SOS có số, tối đa 3, nhãn ≤30', () {
-    FamilyContact c(
-      String id,
-      String phone, {
-      String label = 'A',
-      bool sos = true,
-    }) => FamilyContact(
-      id: id,
-      label: label,
-      phone: phone,
-      order: 0,
-      emergency: sos,
-    );
-    final out = PolicySchema.sosJson([
-      c('1', '0901234561'),
-      c('2', '0901234562', sos: false), // không phải SOS
-      c('3', ''), // không có số
-      c('4', '+84901234564', label: 'x' * 40),
-      c('5', '0901234565'),
-      c('6', '0901234566'), // thứ 4 hợp lệ: bị cắt
-    ]);
-    expect(out.map((e) => e['phone']), [
-      '0901234561',
-      '+84901234564',
-      '0901234565',
-    ]);
-    expect(out[1]['label'], 'x' * 30);
-    expect(out.every((e) => e.keys.length == 3), isTrue); // không lộ id/thứ tự
-  });
+  test(
+    'PolicySchema.contactsJson: có số, tối đa 20, SOS tối đa 3, nhãn ≤30',
+    () {
+      FamilyContact c(
+        String id,
+        String phone, {
+        String label = 'A',
+        bool sos = true,
+      }) => FamilyContact(
+        id: id,
+        label: label,
+        phone: phone,
+        order: 0,
+        emergency: sos,
+      );
+      final out = PolicySchema.contactsJson([
+        c('1', '0901234561'),
+        c('2', '0901234562', sos: false), // không phải SOS nhưng vẫn là liên hệ
+        c('3', ''), // không có số: bỏ
+        c('4', '+84901234564', label: 'x' * 40),
+        c('5', '0901234565'),
+        c('6', '0901234566'), // SOS thứ 4: giữ liên hệ nhưng sos=false
+      ]);
+      expect(out.map((e) => e['phone']), [
+        '0901234561',
+        '0901234562',
+        '+84901234564',
+        '0901234565',
+        '0901234566',
+      ]);
+      expect(out.map((e) => e['sos']), [true, false, true, true, false]);
+      expect(out[2]['label'], 'x' * 30);
+      expect(
+        out.every((e) => e.keys.length == 3),
+        isTrue,
+      ); // không lộ id/thứ tự
+      final many = PolicySchema.contactsJson([
+        for (var i = 0; i < 25; i++) c('$i', '090123${4500 + i}', sos: false),
+      ]);
+      expect(many.length, PolicySchema.maxContacts);
+    },
+  );
 
   test('blockedIn / timeLimitIn đọc đúng và chịu được JSON hỏng', () {
     const json =
@@ -223,7 +236,7 @@ void main() {
 
       expect(await t.runAsync(s.sync.pushNow), PolicyPushResult.pushed);
       final sent = jsonDecode(s.server.json) as Map<String, dynamic>;
-      expect(sent['schemaVersion'], 2);
+      expect(sent['schemaVersion'], 3);
       expect(sent['timeLimit'], {'enabled': true});
       expect(sent['appLock']['blocked'], ['x.app']);
       expect(sent['contacts'], [

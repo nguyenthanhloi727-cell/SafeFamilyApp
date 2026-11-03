@@ -57,7 +57,7 @@ object FamilySync {
     private const val REQUEST_NOTIFICATION_ID = 0x57D2
 
     /** Bản schema gói luật máy con hiểu (xem lib/core/network/policy_schema.dart). */
-    private const val SUPPORTED_SCHEMA = 2
+    private const val SUPPORTED_SCHEMA = 3
 
     private fun prefs(context: Context) =
         context.applicationContext.getSharedPreferences(FILE, Context.MODE_PRIVATE)
@@ -530,19 +530,20 @@ object FamilySync {
             }
             out
         } else null
-        return ParsedPolicy(version, timeLimit, blocked, parseSos(policy))
+        return ParsedPolicy(version, timeLimit, blocked, parseSos(policy, schema))
     }
 
     private val sosPhone = Regex("""^\+?[0-9]{9,12}$""")
 
     /**
-     * `contacts` (schema 2, API-13): số SOS mẹ chọn. `null` = gói không nhắc tới (giữ nguyên). Có thì phải
-     * hợp lệ HẾT (tối đa 3, nhãn 1–30 ký tự, số 9–12 chữ số) nếu không cả gói bị bỏ; mục `sos:false` bị lọc.
+     * `contacts` (schema 2 API-13: số SOS; schema 3 T10: danh bạ của con, tối đa 20, trong đó tối đa 3 `sos:true`).
+     * `null` = gói không nhắc tới (giữ nguyên). Có thì phải hợp lệ HẾT (nhãn 1–30 ký tự, số 9–12 chữ số) nếu không
+     * cả gói bị bỏ. Chỉ các mục SOS được giữ lại; thiếu `sos` thì schema < 3 là true, từ 3 là false.
      */
-    private fun parseSos(policy: JSONObject): List<GuardPrefs.Contact>? {
+    private fun parseSos(policy: JSONObject, schema: Int): List<GuardPrefs.Contact>? {
         if (!policy.has("contacts")) return null
         val array = policy.getJSONArray("contacts")
-        require(array.length() <= 3) { "quá 3 số SOS" }
+        require(array.length() <= 20) { "quá 20 liên hệ" }
         val out = mutableListOf<GuardPrefs.Contact>()
         for (i in 0 until array.length()) {
             val o = array.getJSONObject(i)
@@ -550,8 +551,9 @@ object FamilySync {
             val phone = o.get("phone")
             require(label is String && label.trim().length in 1..30) { "nhãn SOS không hợp lệ" }
             require(phone is String && sosPhone.matches(phone)) { "số SOS không hợp lệ" }
-            if (o.optBoolean("sos", true)) out.add(GuardPrefs.Contact(label.trim(), phone, true))
+            if (o.optBoolean("sos", schema < 3)) out.add(GuardPrefs.Contact(label.trim(), phone, true))
         }
+        require(out.size <= 3) { "quá 3 số SOS" }
         return out
     }
 

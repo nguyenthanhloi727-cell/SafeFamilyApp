@@ -45,6 +45,29 @@ public class ValidationTests(SharedApi shared) : TestBase(shared)
         Assert.Equal(0, (await Api.Json(await mom.Get(url))).GetProperty("version").GetInt32());
     }
 
+    static string Contacts(int total, int sos, int schema = 3) =>
+        JsonSerializer.Serialize(new
+        {
+            schemaVersion = schema,
+            contacts = Enumerable.Range(0, total).Select(i => new { label = $"Người {i}", phone = $"09012345{i:D2}", sos = i < sos }),
+        });
+
+    [Fact]
+    public async Task Policy_Contacts_Max20_AndMax3Sos()
+    {
+        var (mom, kid) = await World();
+        var url = kid.Url("/policy");
+        await Expect(HttpStatusCode.OK, mom.Api.Send(HttpMethod.Put, url, mom.Access, PolicyBody(Contacts(20, 3), 0)), "20 liên hệ, 3 SOS");
+        await Expect(HttpStatusCode.BadRequest, mom.Api.Send(HttpMethod.Put, url, mom.Access, PolicyBody(Contacts(21, 0), 1)), "21 liên hệ");
+        await Expect(HttpStatusCode.BadRequest, mom.Api.Send(HttpMethod.Put, url, mom.Access, PolicyBody(Contacts(10, 4), 1)), "4 SOS");
+        // Schema 2 (máy mẹ cũ): thiếu sos coi là SOS nên 4 mục không sos vượt 3.
+        var noFlag = """{"schemaVersion":2,"contacts":[{"label":"a","phone":"0901234561"},{"label":"b","phone":"0901234562"},{"label":"c","phone":"0901234563"},{"label":"d","phone":"0901234564"}]}""";
+        await Expect(HttpStatusCode.BadRequest, mom.Api.Send(HttpMethod.Put, url, mom.Access, PolicyBody(noFlag, 1)), "schema 2 thiếu sos");
+        // Schema 3: thiếu sos coi là false nên 4 mục đều qua.
+        await Expect(HttpStatusCode.OK, mom.Api.Send(HttpMethod.Put, url, mom.Access, PolicyBody(noFlag.Replace(@"""schemaVersion"":2", @"""schemaVersion"":3"), 1)), "schema 3 thiếu sos");
+        Assert.Equal(2, (await Api.Json(await mom.Get(url))).GetProperty("version").GetInt32());
+    }
+
     [Fact]
     public async Task Policy_Size_IsMeasuredInBytes_Max64KiB()
     {
