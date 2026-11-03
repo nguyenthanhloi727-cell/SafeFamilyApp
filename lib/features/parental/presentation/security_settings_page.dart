@@ -133,7 +133,7 @@ class SecuritySettingsPage extends StatelessWidget {
               title: const Text('Quên mã PIN?'),
               onTap: () => showForgotPinDialog(context),
             ),
-            section('Chống tắt và chống gỡ'),
+            section('Bảo vệ máy'),
             DeviceProtectionSection(guard: guard),
             UninstallTile(guard: guard),
             section('Giới hạn cần biết'),

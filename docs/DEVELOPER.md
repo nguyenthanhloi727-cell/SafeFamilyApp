@@ -80,7 +80,7 @@ Màn hình **chỉ gọi `ParentGate`** (`core/security/ui/parent_gate.dart`), k
 
 ```dart
 // Thao tác chỉ khóa khi đang ở chế độ trẻ em (sửa danh bạ, ảnh nhóm…)
-if (!await ParentGate.childAction(context, 'Sửa danh bạ')) return;
+if (!await ParentGate.parentArea(context, 'Sửa danh bạ')) return;
 
 // Vào khu vực phụ huynh (cài đặt, nhật ký, quản lý): không hỏi lại nếu vừa xác thực
 if (!await ParentGate.parentArea(context, 'Mở Cài đặt')) return;

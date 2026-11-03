@@ -19,12 +19,12 @@ void main() {
   Future<ParentGuard> guardWith({
     FakeBiometrics? biometrics,
     bool biometricEnabled = false,
-    bool childMode = false,
+    bool sessionOpen = true,
   }) => configuredGuard(
     store: store,
     biometrics: biometrics,
     biometricEnabled: biometricEnabled,
-    childMode: childMode,
+    sessionOpen: sessionOpen,
     clock: clock,
   );
 
@@ -269,51 +269,6 @@ void main() {
     });
   });
 
-  group('Chế độ trẻ em', () {
-    test('bật không cần xác thực, thoát phải xác thực', () async {
-      final guard = await guardWith();
-      final prompt = ScriptedPinPrompt([]);
-
-      expect(await guard.setChildMode(true, promptPin: prompt.call), isTrue);
-      expect(prompt.sessions, isEmpty);
-
-      expect(await guard.setChildMode(false, promptPin: prompt.call), isFalse);
-      expect(guard.childMode, isTrue, reason: 'hủy thì vẫn ở chế độ trẻ em');
-
-      expect(
-        await guard.setChildMode(
-          false,
-          promptPin: ScriptedPinPrompt([testPin]).call,
-        ),
-        isTrue,
-      );
-      expect(guard.childMode, isFalse);
-    });
-
-    test('tắt app mở lại vẫn giữ chế độ trẻ em', () async {
-      await guardWith(childMode: true);
-      expect((await guardWith()).childMode, isTrue);
-    });
-
-    test('requireInChildMode: ngoài chế độ trẻ em thì cho qua', () async {
-      final guard = await guardWith();
-      final prompt = ScriptedPinPrompt([]);
-      expect(
-        await guard.requireInChildMode('x', promptPin: prompt.call),
-        isTrue,
-      );
-      expect(prompt.sessions, isEmpty);
-    });
-
-    test('requireInChildMode: trong chế độ trẻ em thì luôn hỏi', () async {
-      final guard = await guardWith(childMode: true);
-      final prompt = ScriptedPinPrompt([testPin, testPin]);
-      await guard.requireInChildMode('a', promptPin: prompt.call);
-      await guard.requireInChildMode('b', promptPin: prompt.call);
-      expect(prompt.sessions, hasLength(2), reason: 'không dùng lại phiên');
-    });
-  });
-
   group('Khu vực phụ huynh + thời gian chờ', () {
     test(
       'mở app: lần đầu vào phải hỏi, vừa xác thực thì vào lại không hỏi',
@@ -367,11 +322,16 @@ void main() {
       expect((await guardWith()).timeoutMinutes, 15);
     });
 
-    test('bật chế độ trẻ em thì khép khu vực phụ huynh', () async {
-      final guard = await guardWith();
-      expect(guard.hasParentSession, isTrue); // vừa đặt PIN
-      await guard.setChildMode(true, promptPin: ScriptedPinPrompt([]).call);
+    test('khu vực phụ huynh luôn khóa: hết phiên là phải hỏi lại', () async {
+      final guard = await guardWith(sessionOpen: false);
       expect(guard.hasParentSession, isFalse);
+      final prompt = ScriptedPinPrompt([]);
+      expect(
+        await guard.requireParentArea('x', promptPin: prompt.call),
+        isFalse,
+        reason: 'hủy thì không vào được',
+      );
+      expect(prompt.sessions, hasLength(1));
     });
   });
 

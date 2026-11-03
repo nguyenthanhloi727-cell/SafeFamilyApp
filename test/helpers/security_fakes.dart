@@ -68,7 +68,7 @@ const testPin = '2580';
 Future<ParentGuard> configuredGuard({
   SecureStore? store,
   BiometricAuthenticator? biometrics,
-  bool childMode = false,
+  bool sessionOpen = true,
   bool biometricEnabled = false,
   DateTime Function()? clock,
 }) async {
@@ -81,9 +81,7 @@ Future<ParentGuard> configuredGuard({
   await guard.load();
   if (!guard.isConfigured) await guard.setupPin(testPin);
   if (biometricEnabled) await guard.enableBiometricAfterSetup();
-  if (childMode) {
-    await guard.setChildMode(true, promptPin: (_) async => false);
-  }
+  if (!sessionOpen) guard.endParentSession();
   return guard;
 }
 

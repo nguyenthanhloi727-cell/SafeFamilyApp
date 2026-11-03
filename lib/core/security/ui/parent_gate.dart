@@ -6,12 +6,6 @@ import 'pin_prompt_page.dart';
 /// Chỗ gọi duy nhất cho giao diện: mỗi thao tác cần khóa chỉ gọi 1 dòng,
 /// không tự viết lại logic. Không có [ParentGuardScope] (test màn lẻ) → cho qua.
 abstract final class ParentGate {
-  /// Chỉ hỏi khi đang ở chế độ trẻ em (sửa danh bạ, ảnh nhóm…).
-  static Future<bool> childAction(BuildContext context, String action) =>
-      _run(context, (guard, prompt) {
-        return guard.requireInChildMode(action, promptPin: prompt);
-      });
-
   /// Vào khu vực phụ huynh (cài đặt, bảo mật, nhật ký, quản lý thiết bị).
   static Future<bool> parentArea(BuildContext context, String action) =>
       _run(context, (guard, prompt) {

@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../core/security/parent_guard.dart';
-import '../core/security/ui/child_mode_banner.dart';
 import '../features/home/presentation/home_page.dart';
 import '../features/profile/presentation/profile_page.dart';
 
@@ -34,27 +32,11 @@ class _AppShellState extends State<AppShell> {
 
   @override
   Widget build(BuildContext context) {
-    final childMode = ParentGuardScope.maybeOf(context)?.childMode ?? false;
-    final pages = IndexedStack(
-      index: _currentIndex,
-      children: [for (final tab in _tabs) tab.page],
-    );
     return Scaffold(
-      body: childMode
-          ? Column(
-              children: [
-                const ChildModeBanner(),
-                // Dải báo đã chiếm phần tai thỏ/thanh trạng thái.
-                Expanded(
-                  child: MediaQuery.removePadding(
-                    context: context,
-                    removeTop: true,
-                    child: pages,
-                  ),
-                ),
-              ],
-            )
-          : pages,
+      body: IndexedStack(
+        index: _currentIndex,
+        children: [for (final tab in _tabs) tab.page],
+      ),
       bottomNavigationBar: BottomNavigationBar(
         type: BottomNavigationBarType.fixed,
         currentIndex: _currentIndex,

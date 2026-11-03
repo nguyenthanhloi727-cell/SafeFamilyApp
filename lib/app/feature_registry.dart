@@ -61,7 +61,6 @@ class FeatureRegistry {
     final limitOff = await timeLimit.totalLimitDisabledUntil();
     final pauseLeft = await timeLimit.pauseMinutesLeft();
     final device = await deviceGuard.status();
-    final guard = parentGuard;
     final lock = appLock;
 
     final limitToday = config.totalFor(now.weekday);
@@ -123,15 +122,6 @@ class FeatureRegistry {
                   await lock.setLocked(package, false);
                 }
               }),
-      ),
-      RestrictionFeature(
-        id: 'child_mode',
-        name: 'Chế độ trẻ em',
-        isActive: guard?.childMode ?? false,
-        // setChildMode(false) tự xác thực, không bọc thêm lần nữa.
-        disable: guard == null
-            ? null
-            : (promptPin) => guard.setChildMode(false, promptPin: promptPin),
       ),
       RestrictionFeature(
         id: 'settings_guard',

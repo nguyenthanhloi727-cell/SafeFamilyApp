@@ -11,6 +11,7 @@ import '../../../core/widgets/initial_avatar.dart';
 import '../data/family_contact.dart';
 import '../data/local_profile_repository.dart';
 import '../data/profile_repository.dart';
+import '../../parental/presentation/device_protection_page.dart';
 import '../../parental/presentation/security_settings_page.dart';
 import '../../parental/presentation/unlock_log_page.dart';
 import 'profile_controller.dart';
@@ -65,7 +66,7 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Future<void> _editParentName() async {
-    if (!await ParentGate.childAction(context, 'Sửa tên phụ huynh')) return;
+    if (!await ParentGate.parentArea(context, 'Sửa tên phụ huynh')) return;
     if (!mounted) return;
     final name = await ParentNameDialog.show(
       context,
@@ -83,7 +84,7 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Future<void> _addContact() async {
-    if (!await ParentGate.childAction(context, 'Thêm liên hệ')) return;
+    if (!await ParentGate.parentArea(context, 'Thêm liên hệ')) return;
     if (!mounted) return;
     final draft = await ContactDialog.show(context);
     if (draft == null) return;
@@ -97,7 +98,7 @@ class _ProfilePageState extends State<ProfilePage> {
     FamilyContact contact, {
     bool focusPhone = false,
   }) async {
-    if (!await ParentGate.childAction(
+    if (!await ParentGate.parentArea(
       context,
       'Sửa liên hệ ${contact.label}',
     )) {
@@ -120,7 +121,7 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Future<void> _toggleEmergency(FamilyContact contact) async {
-    if (!await ParentGate.childAction(context, 'Đổi liên hệ khẩn cấp')) {
+    if (!await ParentGate.parentArea(context, 'Đổi liên hệ khẩn cấp')) {
       return;
     }
     if (!mounted) return;
@@ -150,7 +151,7 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Future<void> _deleteContact(FamilyContact contact) async {
-    if (!await ParentGate.childAction(
+    if (!await ParentGate.parentArea(
       context,
       'Xóa liên hệ ${contact.label}',
     )) {
@@ -266,7 +267,7 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 }
 
-/// Khóa phụ huynh: chế độ trẻ em, bảo mật, nhật ký mở khóa.
+/// Khóa phụ huynh: bảo vệ máy, bảo mật, nhật ký mở khóa.
 class _ParentalControlsCard extends StatelessWidget {
   const _ParentalControlsCard({required this.guard, required this.onOpen});
 
@@ -279,19 +280,13 @@ class _ParentalControlsCard extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       child: Column(
         children: [
-          SwitchListTile(
-            secondary: const Icon(Icons.child_care_rounded),
-            title: const Text('Chế độ trẻ em'),
-            subtitle: Text(
-              guard.childMode
-                  ? 'Đang bật — thoát cần xác thực phụ huynh.'
-                  : 'Bật khi đưa máy cho con. Thoát cần vân tay/PIN.',
-            ),
-            value: guard.childMode,
-            onChanged: (on) => guard.setChildMode(
-              on,
-              promptPin: ParentGate.promptFor(context),
-            ),
+          ListTile(
+            leading: const Icon(Icons.security_rounded),
+            title: const Text('Bảo vệ máy'),
+            subtitle: const Text('Chống tắt Trợ năng, chống gỡ SafeFamily'),
+            trailing: const Icon(Icons.chevron_right_rounded),
+            onTap: () =>
+                onOpen('Mở Bảo vệ máy', DeviceProtectionPage(guard: guard)),
           ),
           const Divider(height: 1),
           ListTile(

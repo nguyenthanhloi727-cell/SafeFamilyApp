@@ -55,8 +55,8 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('chế độ trẻ em: sửa danh bạ bắt xác thực PIN', (tester) async {
-    final guard = await configuredGuard(childMode: true);
+  testWidgets('sửa danh bạ bắt xác thực PIN', (tester) async {
+    final guard = await configuredGuard(sessionOpen: false);
     await pumpProfile(tester, guard);
 
     await tester.tap(find.widgetWithText(TextButton, 'Thêm'));
@@ -82,8 +82,8 @@ void main() {
     expect(log[1].result, UnlockResult.failure);
   });
 
-  testWidgets('chế độ trẻ em: bấm gọi người nhà KHÔNG bị khóa', (tester) async {
-    final guard = await configuredGuard(childMode: true);
+  testWidgets('bấm gọi người nhà KHÔNG bị khóa', (tester) async {
+    final guard = await configuredGuard(sessionOpen: false);
     await pumpProfile(tester, guard);
 
     await tester.tap(find.text('Ông'));
@@ -94,13 +94,13 @@ void main() {
   });
 
   testWidgets(
-    'chế độ trẻ em + đã bật vân tay: mở khóa bằng vân tay, không hỏi PIN',
+    'đã bật vân tay: mở khóa bằng vân tay, không hỏi PIN',
     (tester) async {
       final bio = FakeBiometrics();
       final guard = await configuredGuard(
         biometrics: bio,
         biometricEnabled: true,
-        childMode: true,
+        sessionOpen: false,
       );
       await guard.refreshCapability();
       await pumpProfile(tester, guard);
@@ -116,7 +116,9 @@ void main() {
     },
   );
 
-  testWidgets('ngoài chế độ trẻ em: sửa danh bạ không hỏi gì', (tester) async {
+  testWidgets('phiên phụ huynh còn hạn: sửa danh bạ không hỏi lại', (
+    tester,
+  ) async {
     final guard = await configuredGuard();
     await pumpProfile(tester, guard);
 
@@ -127,24 +129,16 @@ void main() {
     expect(find.text('Thêm liên hệ'), findsOneWidget);
   });
 
-  testWidgets('công tắc chế độ trẻ em: bật ngay, thoát phải nhập PIN', (
+  testWidgets('không còn công tắc chế độ trẻ em, có mục Bảo vệ máy', (
     tester,
   ) async {
     final guard = await configuredGuard();
     await pumpProfile(tester, guard);
 
-    final toggle = find.widgetWithText(SwitchListTile, 'Chế độ trẻ em');
-    await tester.ensureVisible(toggle);
+    expect(find.text('Chế độ trẻ em'), findsNothing);
+    final tile = find.widgetWithText(ListTile, 'Bảo vệ máy');
+    await tester.ensureVisible(tile);
     await tester.pumpAndSettle();
-    await tester.tap(toggle);
-    await tester.pumpAndSettle();
-    expect(guard.childMode, isTrue);
-    expect(find.text('Nhập mã PIN phụ huynh'), findsNothing);
-
-    await tester.tap(toggle);
-    await tester.pumpAndSettle();
-    expect(find.text('để: Thoát chế độ trẻ em'), findsOneWidget);
-    await enterPin(tester, testPin);
-    expect(guard.childMode, isFalse);
+    expect(tile, findsOneWidget);
   });
 }

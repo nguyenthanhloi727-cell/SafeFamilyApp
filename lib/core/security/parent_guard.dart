@@ -70,8 +70,7 @@ const defaultParentAreaTimeoutMinutes = 5;
 /// - [require]: luôn hỏi xác thực — ưu tiên sinh trắc (nếu máy hỗ trợ và đã
 ///   bật), không được thì nhập PIN.
 /// - [requireParentArea]: vào khu vực phụ huynh; không hỏi lại nếu vừa xác
-///   thực và app chưa vào nền quá thời gian chờ (ngoài chế độ trẻ em).
-/// - [requireInChildMode]: chỉ hỏi khi đang ở chế độ trẻ em.
+///   thực và app chưa vào nền quá thời gian chờ.
 class ParentGuard extends ChangeNotifier {
   ParentGuard({
     required SecureStore store,
@@ -89,7 +88,6 @@ class ParentGuard extends ChangeNotifier {
   static const recoveryKey = 'guard.recovery';
   static const biometricKey = 'guard.biometric';
   static const timeoutKey = 'guard.timeout_minutes';
-  static const childModeKey = 'guard.child_mode';
 
   final SecureStore _store;
   final BiometricAuthenticator _biometrics;
@@ -106,7 +104,6 @@ class ParentGuard extends ChangeNotifier {
   DateTime? _lockedUntil;
   bool _biometricEnabled = false;
   int _timeoutMinutes = defaultParentAreaTimeoutMinutes;
-  bool _childMode = false;
   BiometricCapability _capability = BiometricCapability.none;
 
   DateTime? _sessionStartedAt;
@@ -124,7 +121,6 @@ class ParentGuard extends ChangeNotifier {
 
   /// Lớp chống bypass phía Android (đồng hồ, chặn Cài đặt, quản trị thiết bị).
   DeviceGuardPlatform get device => _device;
-  bool get childMode => _childMode;
   bool get biometricEnabled => _biometricEnabled;
   int get timeoutMinutes => _timeoutMinutes;
   BiometricCapability get capability => _capability;
@@ -152,7 +148,6 @@ class ParentGuard extends ChangeNotifier {
     _timeoutMinutes = parentAreaTimeoutChoices.contains(timeout)
         ? timeout!
         : defaultParentAreaTimeoutMinutes;
-    _childMode = await _store.read(childModeKey) == 'true';
     await refreshCapability();
     unawaited(_device.setProtection(isConfigured));
     _loaded = true;
@@ -444,32 +439,8 @@ class ParentGuard extends ChangeNotifier {
     String action, {
     required PinPrompt promptPin,
   }) async {
-    if (!_childMode && hasParentSession) return true;
+    if (hasParentSession) return true;
     return require(action, promptPin: promptPin);
-  }
-
-  /// Thao tác chỉ cần khóa khi đang ở chế độ trẻ em.
-  Future<bool> requireInChildMode(
-    String action, {
-    required PinPrompt promptPin,
-  }) async {
-    if (!_childMode) return true;
-    return require(action, promptPin: promptPin);
-  }
-
-  // ------------------------------------------------------ Chế độ trẻ em
-
-  /// Bật: không cần xác thực. Thoát: bắt buộc xác thực.
-  Future<bool> setChildMode(bool on, {required PinPrompt promptPin}) async {
-    if (on == _childMode) return true;
-    if (!on && !await require('Thoát chế độ trẻ em', promptPin: promptPin)) {
-      return false;
-    }
-    _childMode = on;
-    if (on) _sessionStartedAt = null; // con cầm máy → khép khu vực phụ huynh
-    await _store.write(childModeKey, '$on');
-    _notify();
-    return true;
   }
 
   // -------------------------------------------------- Cài đặt bảo mật
@@ -550,6 +521,13 @@ class ParentGuard extends ChangeNotifier {
 
   void _startSession() {
     _sessionStartedAt = _clock();
+    _notify();
+  }
+
+  /// Khóa lại khu vực phụ huynh ngay (lần sau phải xác thực).
+  void endParentSession() {
+    if (_sessionStartedAt == null) return;
+    _sessionStartedAt = null;
     _notify();
   }
 

@@ -59,8 +59,8 @@ void main() {
   });
 
   /// App đã thiết lập PIN (bỏ qua màn thiết lập lần đầu).
-  Future<void> pumpApp(WidgetTester tester, {bool childMode = false}) async {
-    final guard = await configuredGuard(childMode: childMode);
+  Future<void> pumpApp(WidgetTester tester) async {
+    final guard = await configuredGuard();
     final setup = SetupSettings();
     await setup.load();
     await setup.markDone(); // Bỏ qua wizard cấp quyền.
@@ -142,11 +142,6 @@ void main() {
     await tester.pump();
     expect(find.text('Thiết lập quyền'), findsOneWidget);
     expect(find.byType(BottomNavigationBar), findsNothing);
-  });
-
-  testWidgets('chế độ trẻ em: có dải báo ở đầu màn hình', (tester) async {
-    await pumpApp(tester, childMode: true);
-    expect(find.text('Đang ở chế độ trẻ em'), findsOneWidget);
   });
 
   testWidgets('BottomNavigationBar chuyển đủ 2 tab', (tester) async {
