@@ -9,7 +9,6 @@ import 'package:safe_family_app/core/permissions/permission_registry.dart';
 import 'package:safe_family_app/core/security/parent_guard.dart';
 import 'package:safe_family_app/core/settings/setup_settings.dart';
 import 'package:safe_family_app/features/parental/presentation/first_run_setup_page.dart';
-import 'package:safe_family_app/features/alarm/presentation/alarm_page.dart';
 import 'package:safe_family_app/features/home/presentation/home_page.dart';
 import 'package:safe_family_app/features/profile/presentation/profile_page.dart';
 import 'package:safe_family_app/features/team/presentation/team_page.dart';
@@ -18,7 +17,6 @@ import 'helpers/security_fakes.dart';
 
 const _tabs = <(String, Type)>[
   ('Trang chủ', HomePage),
-  ('Báo thức', AlarmPage),
   ('Nhóm', TeamPage),
   ('Cá nhân', ProfilePage),
 ];
@@ -30,7 +28,7 @@ Future<void> _tapTab(WidgetTester tester, String label) async {
       matching: find.text(label),
     ),
   );
-  // Không dùng pumpAndSettle: IndexedStack dựng cả 4 tab ngay từ đầu, tab Nhóm
+  // Không dùng pumpAndSettle: IndexedStack dựng cả 3 tab ngay từ đầu, tab Nhóm
   // đọc assets thật (IO thật) nên vòng loading chưa dừng trong thời gian giả
   // của test. Chỉ cần xong hiệu ứng chuyển tab.
   await tester.pump();
@@ -153,7 +151,7 @@ void main() {
     expect(find.text('Đang ở chế độ trẻ em'), findsOneWidget);
   });
 
-  testWidgets('BottomNavigationBar chuyển đủ 4 tab', (tester) async {
+  testWidgets('BottomNavigationBar chuyển đủ 3 tab', (tester) async {
     await pumpApp(tester);
 
     final barFinder = find.byType(BottomNavigationBar);
@@ -162,7 +160,7 @@ void main() {
     expect(bar.type, BottomNavigationBarType.fixed);
     expect(bar.items.map((item) => item.label), _tabs.map((tab) => tab.$1));
 
-    // Đi 1 → 5 rồi quay lại tab đầu.
+    // Đi hết các tab rồi quay lại tab đầu.
     for (final (index, (label, page)) in [..._tabs, _tabs.first].indexed) {
       await _tapTab(tester, label);
       final expected = index % _tabs.length;
@@ -183,17 +181,16 @@ void main() {
   ) async {
     await pumpApp(tester);
 
-    await _tapTab(tester, 'Báo thức');
-    final typed = find.byKey(const Key('typed-command'));
-    await tester.enterText(typed, 'Đặt báo thức 6 giờ');
-    await tester.pump();
+    final profile = find.byType(ProfilePage, skipOffstage: false);
+    final before = tester.state(profile);
 
+    await _tapTab(tester, 'Cá nhân');
     await _tapTab(tester, 'Nhóm');
-    await _tapTab(tester, 'Báo thức');
+    await _tapTab(tester, 'Cá nhân');
     expect(
-      tester.widget<TextField>(typed).controller!.text,
-      'Đặt báo thức 6 giờ',
-      reason: 'Quay lại tab Báo thức phải giữ câu đã gõ',
+      identical(tester.state(profile), before),
+      isTrue,
+      reason: 'Quay lại tab Cá nhân phải giữ nguyên State, không dựng lại',
     );
   });
 }

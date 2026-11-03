@@ -360,7 +360,6 @@ class MainActivity : FlutterFragmentActivity() {
                             "Bật để con không gỡ được SafeFamily.",
                         )
                 }
-            "microphone" -> appDetails
             else -> null
         }
     }

@@ -56,7 +56,7 @@ void main() {
   ) async {
     await pump(tester);
     expect(find.text('Cho phép cài đặt bị hạn chế'), findsOneWidget);
-    expect(find.text('Bước 1/9'), findsOneWidget);
+    expect(find.text('Bước 1/8'), findsOneWidget);
 
     for (var i = 0; i < 9; i++) {
       await tester.ensureVisible(find.byKey(const Key('wizard-skip')));
@@ -82,7 +82,7 @@ void main() {
     await registry.refresh();
     await tester.pump();
     expect(find.text(AppPermission.settingsGuard.label), findsOneWidget);
-    expect(find.text('Bước 3/9'), findsOneWidget);
+    expect(find.text('Bước 3/8'), findsOneWidget);
   });
 
   testWidgets('đủ quyền rồi thì không hiện bước nào, kết thúc ngay', (

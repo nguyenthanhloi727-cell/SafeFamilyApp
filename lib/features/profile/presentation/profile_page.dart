@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
 
-import '../../../core/constants/app_languages.dart';
 import '../../../core/network/policy_sync.dart';
 import '../../../core/security/parent_guard.dart';
 import '../../../core/security/ui/parent_gate.dart';
 import '../../../core/services/external_launcher.dart';
-import '../../../core/settings/voice_language_settings.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/widgets/app_snack_bar.dart';
 import '../../../core/widgets/confirm_delete_dialog.dart';
@@ -264,10 +262,7 @@ class _ProfilePageState extends State<ProfilePage> {
           child: ListTile(
             leading: const Icon(Icons.settings_outlined),
             title: const Text('Cài đặt'),
-            subtitle: Text(
-              'Ngôn ngữ giọng nói: '
-              '${(VoiceLanguageScope.maybeOf(context)?.language ?? AppLanguage.defaultVoice).nativeName}',
-            ),
+            subtitle: const Text('Giao diện, giới thiệu'),
             trailing: const Icon(Icons.chevron_right_rounded),
             onTap: () => _openParentArea('Mở Cài đặt', const SettingsPage()),
           ),

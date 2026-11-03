@@ -1,6 +1,6 @@
 # SafeFamily
 
-**SafeFamily** là ứng dụng Android giúp **phụ huynh có con dưới 13 tuổi** yên tâm khi đưa điện thoại cho con: con vẫn gọi được cho người nhà, còn các thao tác quan trọng (sửa danh bạ, đặt báo thức, cài đặt…) được **khóa bằng vân tay / khuôn mặt hoặc mã PIN của phụ huynh**.
+**SafeFamily** là ứng dụng Android giúp **phụ huynh có con dưới 13 tuổi** yên tâm khi đưa điện thoại cho con: con vẫn gọi được cho người nhà, còn các thao tác quan trọng (sửa danh bạ, cài đặt…) được **khóa bằng vân tay / khuôn mặt hoặc mã PIN của phụ huynh**.
 
 Đồ án nhóm môn Flutter — sản phẩm chung của cả nhóm (xem [Nhóm thực hiện](#nhóm-thực-hiện)). Phiên bản thử nghiệm: **v0.6.0**.
 
@@ -13,9 +13,8 @@
 | Tính năng | Mô tả |
 |---|---|
 | 🔒 **Khóa phụ huynh bằng vân tay / khuôn mặt** | Thiết lập mã PIN lần đầu, bật vân tay/khuôn mặt; **chế độ trẻ em** (thoát phải xác thực); khu vực phụ huynh tự khóa lại khi app ở nền quá 1/5/15 phút; sai PIN 5 lần khóa 30 giây (tăng dần); nhật ký mở khóa |
-| Điều hướng 4 tab | `BottomNavigationBar`: Trang chủ – Báo thức – Nhóm – Cá nhân, giữ trạng thái từng tab |
+| Điều hướng 3 tab | `BottomNavigationBar`: Trang chủ – Nhóm – Cá nhân, giữ trạng thái từng tab |
 | Cá nhân | Hồ sơ phụ huynh; **danh bạ gia đình** (chạm để gọi, thêm/sửa/xóa); nút **Mở YouTube**; Cài đặt |
-| Báo thức bằng giọng nói | Nói hoặc gõ câu đặt giờ bằng **5 ngôn ngữ** (Việt, Anh, Nhật, Trung, Hàn) → xác nhận → mở **app Đồng hồ của máy** với giờ điền sẵn |
 | Nhóm | Thẻ thành viên lướt ngang (ảnh, họ tên, MSSV, email, vai trò, lớp); tải ảnh từ thư viện |
 | ⛔ **Khóa ứng dụng** | Phụ huynh chọn app con không được mở (ô tìm kiếm, nút **chặn nhanh YouTube**); con mở app bị chặn → màn chặn *"Con làm xong bài tập chưa?"*; mẹ **mở tạm 15 phút** bằng vân tay/khuôn mặt/PIN, hết giờ tự chặn lại; quyền bị tắt → cảnh báo đỏ ở Trang chủ + ghi nhật ký |
 
@@ -23,11 +22,11 @@
 
 | Bị khóa — cần vân tay/khuôn mặt hoặc PIN | Không khóa |
 |---|---|
-| Thoát chế độ trẻ em; thêm/sửa/xóa danh bạ, sửa tên phụ huynh; đặt/sửa báo thức, đổi ngôn ngữ; tải/đổi/xóa ảnh nhóm; mọi cài đặt; bảo mật, nhật ký, quản lý thiết bị; **chặn / bỏ chặn / mở tạm app khác** (luôn hỏi, kể cả ngoài chế độ trẻ em) | **Bấm gọi người nhà**, xem tab Nhóm, mở YouTube |
+| Thoát chế độ trẻ em; thêm/sửa/xóa danh bạ, sửa tên phụ huynh; tải/đổi/xóa ảnh nhóm; mọi cài đặt; bảo mật, nhật ký, quản lý thiết bị; **chặn / bỏ chặn / mở tạm app khác** (luôn hỏi, kể cả ngoài chế độ trẻ em) | **Bấm gọi người nhà**, xem tab Nhóm, mở YouTube |
 
 ## Đang phát triển
 
-- **Quản lý từ xa**: máy bố mẹ kết nối và quản lý máy con (ví dụ đặt báo thức từ xa).
+- **Quản lý từ xa**: máy bố mẹ kết nối và quản lý máy con (ví dụ chặn / mở app từ xa).
 - **Giới hạn thời gian dùng máy** theo ngày, tổng và từng app: đã có (`lib/features/time_limit/`, thực thi ở `TimeLimits.kt`).
 - **Chặn cứng** (con không tự tắt được) bằng chế độ Device Owner.
 
@@ -103,9 +102,8 @@ Tên ô ghi đúng như trên màn hình app (đã kiểm trên Xiaomi 11T Pro).
 2. Cá nhân → bật **Chế độ trẻ em** → dải "Đang ở chế độ trẻ em" hiện ở đầu màn hình.
 3. Bấm **Thêm** cạnh *Danh bạ gia đình* → hiện hộp thoại vân tay **Xác thực phụ huynh**.
 4. **Quét vân tay** → mở màn **Thêm liên hệ**. Lần sau bấm **Dùng mã PIN** trong hộp thoại → nhập PIN cũng vào được. Bấm gọi người nhà → gọi được ngay, không cần mở khóa.
-5. Báo thức → nói *"Đặt báo thức 6 giờ 30 sáng"* → Đặt báo thức (xác thực) → app Đồng hồ mở với 06:30.
-6. Thoát chế độ trẻ em (xác thực) → Cá nhân → **Nhật ký mở khóa** xem lại các lần mở khóa.
-7. Thiết lập khóa ứng dụng (mục trên) → chặn YouTube → mở YouTube → hiện màn chặn → mẹ mở tạm bằng vân tay → dùng được YouTube, 15 phút sau bị chặn lại.
+5. Thoát chế độ trẻ em (xác thực) → Cá nhân → **Nhật ký mở khóa** xem lại các lần mở khóa.
+6. Thiết lập khóa ứng dụng (mục trên) → chặn YouTube → mở YouTube → hiện màn chặn → mẹ mở tạm bằng vân tay → dùng được YouTube, 15 phút sau bị chặn lại.
 
 ## Giới hạn đã biết
 
@@ -117,7 +115,6 @@ Tên ô ghi đúng như trên màn hình app (đã kiểm trên Xiaomi 11T Pro).
 - **Mở tạm** tính theo phút và không qua nửa đêm (mở lúc 23:50 thì chặn lại lúc 23:59). **Khởi động lại máy** trong lúc đang mở tạm → app đó mở tới khi SafeFamily được mở lại.
 - App dùng **quyền Trợ năng** để chặn app khác nên **không phát hành trên Google Play** ở dạng này, chỉ cài bằng file APK.
 - **Quên mã PIN** chỉ đặt lại được bằng cách xóa dữ liệu app (mất danh bạ, ảnh, cài đặt). Không có câu hỏi bảo mật vì con dễ đoán.
-- Báo thức do **app Đồng hồ của máy** phát; nhận giọng nói cần dịch vụ của Google (có thể cần mạng / tải gói ngôn ngữ).
 - Bản thử nghiệm, mới thử trên Xiaomi 11T Pro (Android 14); APK ký bằng khóa debug.
 
 ## Nhóm thực hiện

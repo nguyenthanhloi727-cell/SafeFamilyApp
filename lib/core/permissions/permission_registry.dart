@@ -10,8 +10,7 @@ enum AppPermission {
   notifications('notifications', 'Thông báo'),
   exactAlarm('exact_alarm', 'Báo thức chính xác'),
   battery('battery', 'Bỏ tối ưu pin'),
-  deviceAdmin('device_admin', 'Quản trị thiết bị (chống gỡ app)'),
-  microphone('microphone', 'Micro (báo thức bằng giọng nói)');
+  deviceAdmin('device_admin', 'Quản trị thiết bị (chống gỡ app)');
 
   const AppPermission(this.id, this.label);
 

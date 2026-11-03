@@ -11,18 +11,17 @@
 ```
 lib/
   main.dart
-  app/                  # MaterialApp, cổng thiết lập lần đầu, khung 4 tab (BottomNavigationBar + IndexedStack)
+  app/                  # MaterialApp, cổng thiết lập lần đầu, khung 3 tab (BottomNavigationBar + IndexedStack)
   core/
-    constants/          # AppInfo (tên app, applicationId), AppLanguage, feature_flags
+    constants/          # AppInfo (tên app, applicationId), feature_flags
     security/           # ParentGuard, băm PIN, khóa khi sai, sinh trắc (biometric_storage), nhật ký
       ui/               # bàn phím PIN, màn nhập PIN, ParentGate, dải chế độ trẻ em
     services/           # ExternalLauncher (tel/YouTube/mailto), SystemSettings (mở Cài đặt)
-    settings/           # VoiceLanguageSettings (ngôn ngữ giọng nói dùng chung)
+    settings/           # giao diện sáng/tối, cờ thiết lập lần đầu
     theme/              # màu, chữ, khoảng cách, bo góc (theo DESIGN.md)
     widgets/            # widget dùng chung
   features/
     home/               # Trang chủ, Quản lý thiết bị (giữ chỗ)
-    alarm/{domain,data,presentation}   # bộ hiểu giờ 5 ngôn ngữ (Dart thuần), speech_to_text, SET_ALARM
     team/{data,presentation}           # members.json, ảnh thành viên
     profile/{data,presentation}        # danh bạ gia đình, Cài đặt
     parental/presentation              # thiết lập lần đầu, đổi PIN, bảo mật, nhật ký
@@ -45,12 +44,11 @@ Phiên bản: xem `pubspec.yaml`.
 
 | Package | Dùng cho | Link |
 |---|---|---|
-| shared_preferences | Lưu danh bạ, tên phụ huynh, ngôn ngữ, đường dẫn ảnh | [pub.dev](https://pub.dev/packages/shared_preferences) |
+| shared_preferences | Lưu danh bạ, tên phụ huynh, giao diện, đường dẫn ảnh | [pub.dev](https://pub.dev/packages/shared_preferences) |
 | url_launcher | Mở màn quay số, YouTube, app mail | [pub.dev](https://pub.dev/packages/url_launcher) |
 | image_picker | Chọn ảnh thành viên từ thư viện | [pub.dev](https://pub.dev/packages/image_picker) |
 | path_provider | Thư mục riêng của app để chép ảnh | [pub.dev](https://pub.dev/packages/path_provider) |
-| speech_to_text | Nhận giọng nói (Báo thức) | [pub.dev](https://pub.dev/packages/speech_to_text) |
-| android_intent_plus | Intent `SET_ALARM`, mở trang Cài đặt | [pub.dev](https://pub.dev/packages/android_intent_plus) |
+| android_intent_plus | Mở các trang Cài đặt của Android | [pub.dev](https://pub.dev/packages/android_intent_plus) |
 | biometric_storage | Khóa phụ huynh bằng vân tay: kho mã hóa Keystore chỉ mở được sau khi quét sinh trắc mạnh. **Bản 6.0.0-dev.5 (tiền phát hành)** — bản ổn định 5.0.1 xung đột `win32` với flutter_secure_storage 11 | [pub.dev](https://pub.dev/packages/biometric_storage) |
 | flutter_secure_storage | Lưu PIN đã băm, trạng thái khóa, nhật ký (Android Keystore) | [pub.dev](https://pub.dev/packages/flutter_secure_storage) |
 | crypto | HMAC-SHA256 cho PBKDF2 băm PIN | [pub.dev](https://pub.dev/packages/crypto) |
@@ -62,9 +60,7 @@ Phiên bản: xem `pubspec.yaml`.
 
 | Quyền | Lý do |
 |---|---|
-| `RECORD_AUDIO` | Nói giờ báo thức; chỉ hỏi khi bấm micro lần đầu |
-| `INTERNET` | Dịch vụ nhận giọng nói có thể dùng máy chủ |
-| `com.android.alarm.permission.SET_ALARM` | Gửi giờ sang app Đồng hồ (không hỏi người dùng) |
+| `INTERNET` | Kết nối gia đình: gọi Web API |
 | `USE_BIOMETRIC` | Khóa phụ huynh bằng vân tay / khuôn mặt |
 | `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` | Khóa ứng dụng: nút "Tắt tối ưu pin" hỏi thẳng (không cần tìm trong Cài đặt) |
 | `QUERY_ALL_PACKAGES` *(app_blocker tự thêm)* | Liệt kê app đã cài để chọn chặn; tìm app Điện thoại / Cài đặt / launcher |
@@ -74,7 +70,7 @@ Phiên bản: xem `pubspec.yaml`.
 | Dịch vụ Trợ năng `AppBlockerAccessibilityService` *(app_blocker)* | Phát hiện app bị chặn lên màn hình; người dùng bật tay trong Cài đặt → Trợ năng |
 
 **Không** xin `CALL_PHONE` (chỉ mở màn quay số) và không xin quyền Bluetooth.
-`<queries>`: `tel`, `https`, `mailto`, `android.speech.RecognitionService`, `SET_ALARM` (Android 11+).
+`<queries>`: `tel`, `https`, `mailto` (Android 11+).
 `MainActivity` là `FlutterFragmentActivity` (biometric_storage yêu cầu — hộp thoại BiometricPrompt) và có 2 MethodChannel: `safefamily/biometric_hardware` (máy có vân tay/khuôn mặt) và `safefamily/app_lock` (trạng thái từng quyền khóa ứng dụng; package của app Điện thoại / Cài đặt / launcher). `LaunchTheme` dùng `Theme.AppCompat.DayNight.NoActionBar`.
 Manifest khai báo lại dịch vụ Trợ năng của app_blocker chỉ để đổi nhãn (`tools:replace="android:label"`, chữ trong `res/values/strings.xml`; cùng file ghi đè mô tả `accessibility_service_description`).
 
@@ -85,7 +81,7 @@ Manifest khai báo lại dịch vụ Trợ năng của app_blocker chỉ để �
 Màn hình **chỉ gọi `ParentGate`** (`core/security/ui/parent_gate.dart`), không tự viết logic:
 
 ```dart
-// Thao tác chỉ khóa khi đang ở chế độ trẻ em (sửa danh bạ, đặt báo thức…)
+// Thao tác chỉ khóa khi đang ở chế độ trẻ em (sửa danh bạ, ảnh nhóm…)
 if (!await ParentGate.childAction(context, 'Sửa danh bạ')) return;
 
 // Vào khu vực phụ huynh (cài đặt, nhật ký, quản lý): không hỏi lại nếu vừa xác thực
@@ -203,27 +199,6 @@ Thiếu NDK đúng bản **28.2.13676358** — cài như trên. Cài bản NDK k
 ### Lint báo `prefer_relative_imports`
 
 Import trong `lib/` đang dùng `package:safe_family_app_...`. Đổi sang đường dẫn tương đối, ví dụ `import '../../core/theme/app_tokens.dart';`.
-
-### Tab Báo thức: *"Chưa có quyền dùng micro"*
-
-Đã từ chối quyền micro. Bấm **Mở Cài đặt** → **Quyền → Micro → Cho phép** → quay lại bấm **Thử lại**. Trong lúc đó vẫn dùng được ô **gõ câu lệnh**.
-
-### Tab Báo thức: *"Máy không có dịch vụ nhận giọng nói"*
-
-Máy chưa có/đã tắt dịch vụ nhận giọng nói. Cài hoặc bật app **Google** (Cài đặt → Ứng dụng → Google → Bật), rồi bấm **Thử lại**.
-
-### Tab Báo thức: *"Máy chưa có gói nhận giọng nói tiếng X"*
-
-Tải gói: Cài đặt → Hệ thống → Ngôn ngữ & nhập liệu → Nhận dạng giọng nói trên thiết bị (hoặc app Google → Cài đặt → Giọng nói → Nhận dạng giọng nói ngoại tuyến), hoặc bấm *Mở cài đặt giọng nói* trên thông báo. Chưa tải vẫn thử nói được khi có mạng.
-
-### Tab Báo thức: nói xong báo *"Không hiểu giờ"*
-
-- Kiểm tra chip ngôn ngữ đúng với tiếng đang nói.
-- Nói rõ giờ theo câu mẫu hiện trên màn Báo thức; xem dòng *"Bạn nói: …"* để biết máy nghe thành chữ gì.
-
-### Bấm *Đặt báo thức* báo *"Máy không có app Đồng hồ nhận lệnh đặt báo thức"*
-
-App Đồng hồ của máy không hỗ trợ lệnh chuẩn `SET_ALARM` hoặc đã bị tắt. Bật lại app Đồng hồ, hoặc mở app Đồng hồ và đặt tay theo giờ app hiện.
 
 ### Build lần đầu tự tải *Android SDK Platform 35* và *CMake 3.22.1*
 

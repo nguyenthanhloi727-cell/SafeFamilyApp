@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/permissions/permission_registry.dart';
+import '../../core/services/system_settings.dart';
 import '../../core/theme/app_tokens.dart';
 import '../../core/widgets/app_snack_bar.dart';
 import '../../core/widgets/status_banner.dart';
@@ -15,12 +16,11 @@ const permissionReasons = <AppPermission, String>{
       'Để biết con dùng máy bao lâu, áp giới hạn thời gian và làm báo cáo.',
   AppPermission.notifications:
       'Để báo khi đến giờ học, con cài app mới hoặc xin thêm giờ.',
-  AppPermission.exactAlarm: 'Để báo thức kêu đúng giờ.',
+  AppPermission.exactAlarm: 'Để tự chặn lại ứng dụng đúng giờ khi hết thời gian mở tạm.',
   AppPermission.battery:
       'Để máy không tự tắt SafeFamily khi chạy nền, tránh mất chặn.',
   AppPermission.deviceAdmin:
       'Để con không gỡ được SafeFamily. Gỡ app phải đi qua phụ huynh.',
-  AppPermission.microphone: 'Để đặt báo thức bằng giọng nói.',
 };
 
 /// Các bước của wizard: bước hướng dẫn "cài đặt bị hạn chế" (nếu còn quyền
@@ -111,6 +111,13 @@ class _SetupWizardPageState extends State<SetupWizardPage> {
     }
   }
 
+  Future<void> _openAppInfo() async {
+    final opened = await const AndroidSystemSettings().openAppSettings();
+    if (!opened && mounted) {
+      showAppSnackBar(context, 'Máy không mở được trang cài đặt này.');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final steps = _steps;
@@ -155,7 +162,7 @@ class _SetupWizardPageState extends State<SetupWizardPage> {
                 key: const Key('wizard-open'),
                 onPressed: isHelp
                     // Trang "Thông tin ứng dụng" cũng là nơi có menu ⋮.
-                    ? () => _open(AppPermission.microphone)
+                    ? _openAppInfo
                     : () => _open(step),
                 child: Text(isHelp ? 'Mở thông tin ứng dụng' : 'Mở Cài đặt'),
               ),

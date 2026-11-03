@@ -6,7 +6,6 @@ import android.app.NotificationManager
 import android.app.admin.DevicePolicyManager
 import android.content.ComponentName
 import android.content.Context
-import android.content.pm.PackageManager
 import android.os.Build
 import android.os.PowerManager
 import android.provider.Settings
@@ -23,9 +22,6 @@ object PermissionStatus {
     private const val BLOCKER_SERVICE =
         "com.khanhtq.app_blocker.blocking.AppBlockerAccessibilityService"
 
-    /** Micro chỉ phục vụ báo thức giọng nói, không liên quan giám sát nên không báo mẹ là "thiếu quyền". */
-    private val NOT_REPORTED = setOf("microphone")
-
     fun snapshot(context: Context): Map<String, Boolean> = mapOf(
         "accessibility" to isBlockerServiceEnabled(context),
         "settings_guard" to isServiceRunning(context, SETTINGS_GUARD_SERVICE),
@@ -34,15 +30,11 @@ object PermissionStatus {
         "exact_alarm" to canScheduleExactAlarms(context),
         "battery" to isIgnoringBatteryOptimizations(context),
         "device_admin" to isDeviceAdminActive(context),
-        "microphone" to (
-            context.checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) ==
-                PackageManager.PERMISSION_GRANTED
-            ),
     )
 
-    /** Id các quyền còn thiếu, đã bỏ quyền không liên quan giám sát. */
+    /** Id các quyền còn thiếu. */
     fun missing(context: Context): List<String> =
-        snapshot(context).filter { (id, granted) -> !granted && id !in NOT_REPORTED }.keys.toList()
+        snapshot(context).filter { (_, granted) -> !granted }.keys.toList()
 
     fun areNotificationsEnabled(context: Context): Boolean =
         (context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager).areNotificationsEnabled()
