@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/network/connection_session.dart';
 import '../../../core/permissions/permission_registry.dart';
 import '../../../core/security/ui/parent_gate.dart';
 import '../../../core/settings/setup_settings.dart';
@@ -16,6 +17,7 @@ import '../../report/presentation/usage_summary_card.dart';
 import '../../time_limit/presentation/pause_card.dart';
 import 'active_restrictions_page.dart';
 import 'device_management_page.dart';
+import 'parent_home_page.dart';
 
 /// S01 — Trang chủ: lối vào "Quản lý thiết bị của con" (có cổng xác thực),
 /// thẻ Ứng dụng bị chặn, cảnh báo đỏ khi khóa ứng dụng bị vô hiệu hóa.
@@ -45,6 +47,13 @@ class HomePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Máy mẹ đã đăng nhập: Trang chủ là bảng điều khiển máy con.
+    final connection = ConnectionScope.maybeOf(context);
+    if (connection != null &&
+        connection.mode == ConnectionMode.parent &&
+        connection.isParentLoggedIn) {
+      return const ParentHomePage();
+    }
     final theme = Theme.of(context);
     final registry = PermissionRegistryScope.maybeOf(context);
     final setupDone = SetupSettingsScope.maybeOf(context)?.isDone ?? true;

@@ -18,18 +18,24 @@ http.Response _json(Object? body, [int status = 200]) => http.Response(
   headers: {'content-type': 'application/json'},
 );
 
-const _timeLimit = '{"enabled":true,"total":[60,60,60,60,60,60,60],"apps":{}}';
-
 class _Server {
   int version = 0;
   String json = '{}';
   final puts = <Map<String, dynamic>>[];
+
+  /// Số lần PUT tới sẽ bị trả 409 (giả lập nơi khác vừa sửa).
+  int conflicts = 0;
 
   Future<http.Response> handle(http.Request r) async {
     if (r.url.path != '/api/devices/5/policy') return _json({}, 404);
     if (r.method == 'GET') return _json({'version': version, 'json': json});
     final body = jsonDecode(r.body) as Map<String, dynamic>;
     puts.add(body);
+    if (conflicts > 0) {
+      conflicts--;
+      version++; // nơi khác đã ghi
+      return _json({'error': 'Luật đã đổi ở nơi khác.'}, 409);
+    }
     if (body['expectedVersion'] != version) {
       return _json({'error': 'Luật đã đổi ở nơi khác.'}, 409);
     }
@@ -39,15 +45,7 @@ class _Server {
   }
 }
 
-Future<
-  ({
-    _Server server,
-    ConnectionSession session,
-    PolicySync sync,
-    Widget app,
-  })
->
-_setup({
+Future<({_Server server, ConnectionSession session, PolicySync sync})> _setup({
   ConnectionMode mode = ConnectionMode.parent,
   int? child = 5,
   List<FamilyContact> contacts = const [],
@@ -59,82 +57,134 @@ _setup({
   await session.setMode(mode);
   await session.saveParentTokens(access: 'a', refresh: 'r');
   await session.selectChild(child);
-  final key = GlobalKey<NavigatorState>();
   final sync = PolicySync(
     api: ApiClient(session: session, client: MockClient(server.handle)),
     session: session,
-    navigatorKey: key,
-    loadTimeLimit: () async => _timeLimit,
+    navigatorKey: GlobalKey<NavigatorState>(),
     loadContacts: () async => contacts,
     debounce: const Duration(milliseconds: 10),
   );
-  return (
-    server: server,
-    session: session,
-    sync: sync,
-    app: MaterialApp(
-      navigatorKey: key,
-      home: const Scaffold(body: SizedBox()),
-    ),
-  );
+  return (server: server, session: session, sync: sync);
 }
 
 void main() {
-  test('PolicySchema.build: có schemaVersion, appLock.blocked đã sắp xếp', () {
-    final json = jsonDecode(
-      PolicySchema.build(
-        timeLimit: {'enabled': true},
-        blocked: ['b.app', 'a.app', 'b.app'],
-      ),
+  test('PolicySchema.sosJson: chỉ số SOS có số, tối đa 3, nhãn ≤30', () {
+    FamilyContact c(
+      String id,
+      String phone, {
+      String label = 'A',
+      bool sos = true,
+    }) => FamilyContact(
+      id: id,
+      label: label,
+      phone: phone,
+      order: 0,
+      emergency: sos,
     );
-    expect(json['schemaVersion'], 2);
-    expect(json['contacts'], isEmpty);
-    expect(json['timeLimit'], {'enabled': true});
-    expect(json['appLock'], {
-      'blocked': ['a.app', 'b.app'],
-      'schedules': [],
-    });
-  });
-
-  test('PolicySchema.build: contacts chỉ gồm số SOS có số, tối đa 3, nhãn ≤30', () {
-    FamilyContact c(String id, String phone, {bool sos = true, String? label}) =>
-        FamilyContact(
-          id: id,
-          label: label ?? 'L$id',
-          phone: phone,
-          order: 0,
-          emergency: sos,
-        );
-    final json = jsonDecode(
-      PolicySchema.build(
-        timeLimit: {},
-        blocked: [],
-        sosContacts: [
-          c('1', '0901234561'),
-          c('2', '0901234562', sos: false), // không phải SOS: không gửi
-          c('3', '', label: 'chưa có số'), // chưa có số: không gửi
-          c('4', '+84901234564', label: 'x' * 40),
-          c('5', '0901234565'),
-          c('6', '0901234566'), // thứ 4 hợp lệ: bị cắt
-        ],
-      ),
-    );
-    final contacts = json['contacts'] as List;
-    expect(contacts.map((e) => e['phone']), [
+    final out = PolicySchema.sosJson([
+      c('1', '0901234561'),
+      c('2', '0901234562', sos: false), // không phải SOS
+      c('3', ''), // không có số
+      c('4', '+84901234564', label: 'x' * 40),
+      c('5', '0901234565'),
+      c('6', '0901234566'), // thứ 4 hợp lệ: bị cắt
+    ]);
+    expect(out.map((e) => e['phone']), [
       '0901234561',
       '+84901234564',
       '0901234565',
     ]);
-    expect(contacts[1]['label'], 'x' * 30);
-    expect(contacts.every((e) => e['sos'] == true), isTrue);
-    expect(contacts.every((e) => (e as Map).keys.length == 3), isTrue); // không lộ id/thứ tự
+    expect(out[1]['label'], 'x' * 30);
+    expect(out.every((e) => e.keys.length == 3), isTrue); // không lộ id/thứ tự
   });
 
-  test('PolicySchema.sameContent bỏ qua thứ tự khóa và khoảng trắng', () {
-    expect(PolicySchema.sameContent('{"a":1,"b":[1,2]}', '{ "b":[1,2], "a":1 }'),
-        isTrue);
-    expect(PolicySchema.sameContent('{"a":1}', '{"a":2}'), isFalse);
-    expect(PolicySchema.sameContent('không phải json', '{}'), isFalse);
+  test('blockedIn / timeLimitIn đọc đúng và chịu được JSON hỏng', () {
+    const json =
+        '{"timeLimit":{"enabled":true},"appLock":{"blocked":["a","b",3]}}';
+    expect(PolicySync.blockedIn(json), {'a', 'b'});
+    expect(PolicySync.timeLimitIn(json), '{"enabled":true}');
+    expect(PolicySync.blockedIn('không phải json'), isEmpty);
+    expect(PolicySync.timeLimitIn('{}'), isNull);
+  });
+
+  testWidgets(
+    'setBlocked: chỉ sửa appLock.blocked của máy con, giữ phần còn lại',
+    (t) async {
+      final s = await _setup();
+      s.server.version = 2;
+      s.server.json = '{"schemaVersion":2,"timeLimit":{"enabled":true},"appLock":{"blocked":["b.app"],"schedules":[]},"contacts":[]}';
+
+      final after = await t.runAsync(
+        () => s.sync.setBlocked(5, 'com.google.android.youtube', true),
+      );
+      expect(after, {'b.app', 'com.google.android.youtube'});
+      expect(s.server.puts.single['expectedVersion'], 2);
+      final sent = jsonDecode(s.server.json) as Map<String, dynamic>;
+      expect(sent['appLock']['blocked'], [
+        'b.app',
+        'com.google.android.youtube',
+      ]);
+      expect(sent['timeLimit'], {'enabled': true});
+      expect(s.session.policyVersionOf(5), 3);
+
+      final removed = await t.runAsync(
+        () => s.sync.setBlocked(5, 'b.app', false),
+      );
+      expect(removed, {'com.google.android.youtube'});
+    },
+  );
+
+  testWidgets('setBlocked khi server chưa có luật: tạo luật chỉ có appLock', (
+    t,
+  ) async {
+    final s = await _setup();
+    await t.runAsync(() => s.sync.setBlocked(5, 'a.app', true));
+    expect(s.server.puts.single['expectedVersion'], 0);
+    final sent = jsonDecode(s.server.json) as Map<String, dynamic>;
+    expect(sent['appLock']['blocked'], ['a.app']);
+    expect(sent.containsKey('timeLimit'), isFalse);
+  });
+
+  testWidgets('setTimeLimit: ghi timeLimit, giữ danh sách chặn', (t) async {
+    final s = await _setup();
+    s.server.version = 1;
+    s.server.json =
+        '{"schemaVersion":2,"appLock":{"blocked":["x.app"],"schedules":[]}}';
+    await t.runAsync(
+      () => s.sync.setTimeLimit(5, '{"enabled":true,"total":[60]}'),
+    );
+    final sent = jsonDecode(s.server.json) as Map<String, dynamic>;
+    expect(sent['timeLimit'], {
+      'enabled': true,
+      'total': [60],
+    });
+    expect(sent['appLock']['blocked'], ['x.app']);
+  });
+
+  testWidgets('lệch phiên bản (409): đọc lại và ghi lại, không ghi đè mù', (
+    t,
+  ) async {
+    final s = await _setup();
+    s.server.conflicts = 1;
+    await t.runAsync(() => s.sync.setBlocked(5, 'a.app', true));
+    expect(s.server.puts, hasLength(2));
+    expect(s.server.puts.last['expectedVersion'], 1);
+    expect(PolicySync.blockedIn(s.server.json), {'a.app'});
+  });
+
+  testWidgets('409 liên tục: ném ApiException, không treo', (t) async {
+    final s = await _setup();
+    s.server.conflicts = 5;
+    final error = await t.runAsync(() async {
+      try {
+        await s.sync.setBlocked(5, 'a.app', true);
+        return null;
+      } on ApiException catch (e) {
+        return e;
+      }
+    });
+    expect(error?.isConflict, isTrue);
+    expect(s.server.puts, hasLength(2));
   });
 
   testWidgets('không làm gì khi không phải máy mẹ hoặc chưa chọn máy con', (
@@ -148,153 +198,51 @@ void main() {
     expect(noChild.server.puts, isEmpty);
   });
 
-  testWidgets('lần đầu (server chưa có luật) gửi expectedVersion 0 rồi nhớ phiên bản', (
-    t,
-  ) async {
-    final s = await _setup();
-    await t.pumpWidget(s.app);
+  testWidgets(
+    'gửi số SOS: chỉ đổi contacts, giữ giới hạn và danh sách chặn của máy con',
+    (t) async {
+      final s = await _setup(
+        contacts: [
+          const FamilyContact(
+            id: 'a',
+            label: 'Mẹ',
+            phone: '0901234567',
+            order: 0,
+            emergency: true,
+          ),
+          const FamilyContact(
+            id: 'b',
+            label: 'Ông',
+            phone: '0907654321',
+            order: 1,
+          ),
+        ],
+      );
+      s.server.version = 1;
+      s.server.json = '{"schemaVersion":1,"timeLimit":{"enabled":true},"appLock":{"blocked":["x.app"],"schedules":[]}}';
 
-    final result = await s.sync.pushNow();
-    expect(result, PolicyPushResult.pushed);
-    expect(s.server.puts.single['expectedVersion'], 0);
-    final sent = jsonDecode(s.server.puts.single['json'] as String);
-    expect(sent['schemaVersion'], 2);
-    expect(sent['appLock']['blocked'], isEmpty);
-    expect(sent['timeLimit']['enabled'], isTrue);
-    expect(s.session.policyVersionOf(5), 1);
-  });
-
-  testWidgets('setBlocked: chỉ sửa appLock.blocked của máy con, giữ phần còn lại', (
-    t,
-  ) async {
-    final s = await _setup();
-    s.server.version = 2;
-    s.server.json =
-        '{"schemaVersion":2,"timeLimit":{"enabled":true},"appLock":{"blocked":["b.app"],"schedules":[]},"contacts":[]}';
-
-    final after = await t.runAsync(
-      () => s.sync.setBlocked(5, 'com.google.android.youtube', true),
-    );
-    expect(after, {'b.app', 'com.google.android.youtube'});
-    expect(s.server.puts.single['expectedVersion'], 2);
-    final sent = jsonDecode(s.server.json) as Map<String, dynamic>;
-    expect(sent['appLock']['blocked'], ['b.app', 'com.google.android.youtube']);
-    expect(sent['timeLimit'], {'enabled': true});
-    expect(s.session.policyVersionOf(5), 3);
-
-    final removed = await t.runAsync(() => s.sync.setBlocked(5, 'b.app', false));
-    expect(removed, {'com.google.android.youtube'});
-  });
-
-  testWidgets('setBlocked khi server chưa có luật: tạo luật chỉ có appLock', (
-    t,
-  ) async {
-    final s = await _setup();
-    await t.runAsync(() => s.sync.setBlocked(5, 'a.app', true));
-    expect(s.server.puts.single['expectedVersion'], 0);
-    final sent = jsonDecode(s.server.json) as Map<String, dynamic>;
-    expect(sent['appLock']['blocked'], ['a.app']);
-    expect(sent.containsKey('timeLimit'), isFalse);
-  });
-
-  testWidgets('gói luật gửi từ máy mẹ giữ nguyên danh sách chặn của máy con', (
-    t,
-  ) async {
-    final s = await _setup();
-    await t.pumpWidget(s.app);
-    s.server.version = 1;
-    s.server.json =
-        '{"schemaVersion":2,"appLock":{"blocked":["x.app"],"schedules":[]}}';
-    await s.session.setPolicyVersion(5, 1);
-
-    await s.sync.pushNow();
-    final sent = jsonDecode(s.server.puts.single['json'] as String);
-    expect(sent['appLock']['blocked'], ['x.app']);
-  });
-
-  testWidgets('gói luật gửi kèm số SOS mẹ chọn từ danh bạ máy mẹ', (t) async {
-    final s = await _setup(
-      contacts: [
-        const FamilyContact(id: 'a', label: 'Mẹ', phone: '0901234567', order: 0, emergency: true),
-        const FamilyContact(id: 'b', label: 'Ông', phone: '0907654321', order: 1),
-      ],
-    );
-    await t.pumpWidget(s.app);
-    await s.sync.pushNow();
-    final sent = jsonDecode(s.server.puts.single['json'] as String);
-    expect(sent['contacts'], [
-      {'label': 'Mẹ', 'phone': '0901234567', 'sos': true},
-    ]);
-  });
+      expect(await t.runAsync(s.sync.pushNow), PolicyPushResult.pushed);
+      final sent = jsonDecode(s.server.json) as Map<String, dynamic>;
+      expect(sent['schemaVersion'], 2);
+      expect(sent['timeLimit'], {'enabled': true});
+      expect(sent['appLock']['blocked'], ['x.app']);
+      expect(sent['contacts'], [
+        {'label': 'Mẹ', 'phone': '0901234567', 'sos': true},
+      ]);
+    },
+  );
 
   testWidgets('changed() gom nhiều lần sửa thành một lần gửi', (t) async {
     final s = await _setup();
-    await t.pumpWidget(s.app);
     s.sync
       ..changed()
       ..changed()
       ..changed();
     await t.pump(const Duration(milliseconds: 200));
-    await t.pump();
+    await t.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 50)),
+    );
     expect(s.server.puts, hasLength(1));
-  });
-
-  testWidgets('409 và server khác máy mẹ: hỏi, "Giữ" thì không ghi đè', (t) async {
-    final s = await _setup();
-    await t.pumpWidget(s.app);
-    await s.sync.pushNow(); // v1
-    s.server.version = 4; // nơi khác đổi
-    s.server.json = '{"schemaVersion":1,"timeLimit":{"enabled":false}}';
-    s.server.puts.clear();
-
-    final future = s.sync.pushNow();
-    await t.pumpAndSettle();
-    expect(find.text('Luật trên máy con đã đổi ở nơi khác'), findsOneWidget);
-    await t.tap(find.byKey(const Key('policy-keep-server')));
-    await t.pumpAndSettle();
-
-    expect(await future, PolicyPushResult.keptServer);
-    // Chỉ có lần PUT lệch phiên bản (bị 409); không có lần PUT ghi đè nào.
-    expect(s.server.puts, hasLength(1));
-    expect(s.server.version, 4);
-    expect(s.server.json, contains('"enabled":false'));
-    expect(s.session.policyVersionOf(5), 4);
-  });
-
-  testWidgets('409 rồi mẹ chọn "Ghi đè": PUT lại với phiên bản server', (t) async {
-    final s = await _setup();
-    await t.pumpWidget(s.app);
-    await s.sync.pushNow();
-    s.server.version = 4;
-    s.server.json = '{"schemaVersion":1,"timeLimit":{"enabled":false}}';
-    s.server.puts.clear();
-
-    final future = s.sync.pushNow();
-    await t.pumpAndSettle();
-    await t.tap(find.byKey(const Key('policy-overwrite')));
-    await t.pumpAndSettle();
-
-    expect(await future, PolicyPushResult.pushed);
-    expect(s.server.puts.last['expectedVersion'], 4);
-    expect(s.server.version, 5);
-    expect(s.session.policyVersionOf(5), 5);
-  });
-
-  testWidgets('409 nhưng server đã có đúng luật này: không hỏi, không ghi đè', (
-    t,
-  ) async {
-    final s = await _setup();
-    await t.pumpWidget(s.app);
-    await s.sync.pushNow();
-    s.server.version = 3; // ai đó gửi đúng luật y hệt
-    s.server.puts.clear();
-
-    final result = await s.sync.pushNow();
-    await t.pumpAndSettle();
-    expect(find.byKey(const Key('policy-overwrite')), findsNothing);
-    expect(result, PolicyPushResult.pushed);
-    expect(s.server.puts, hasLength(1)); // chỉ lần bị 409
-    expect(s.session.policyVersionOf(5), 3);
   });
 
   testWidgets('mất mạng: báo failed, không ném lỗi', (t) async {
@@ -307,7 +255,6 @@ void main() {
       ),
       session: s.session,
       navigatorKey: GlobalKey<NavigatorState>(),
-      loadTimeLimit: () async => _timeLimit,
     );
     expect(await t.runAsync(offline.pushNow), PolicyPushResult.failed);
   });

@@ -7,8 +7,6 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../core/network/api_client.dart';
 import '../../../core/network/api_scope.dart';
 import '../../../core/network/child_status_text.dart';
-import '../../../core/network/connection_session.dart';
-import '../../../core/network/policy_sync.dart';
 import '../../../core/security/ui/parent_gate.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../../core/widgets/app_snack_bar.dart';
@@ -156,17 +154,6 @@ class _RemoteMonitorPageState extends State<RemoteMonitorPage> {
     } on ApiException catch (e) {
       if (mounted) showAppSnackBar(context, e.message);
     }
-  }
-
-  /// Gửi luật của máy này (schema: `PolicySchema`). Lệch phiên bản thì
-  /// `PolicySync` tải lại và hỏi mẹ, không ghi đè im lặng.
-  Future<void> _pushPolicy() async {
-    final sync = PolicySyncScope.maybeOf(context);
-    if (sync == null) return;
-    final session = ConnectionScope.maybeOf(context);
-    if (!await ParentGate.always(context, 'Gửi luật cho máy con')) return;
-    await session?.selectChild(_id);
-    await sync.pushNow();
   }
 
   // ---- Quyền riêng tư vị trí (API-11) ----
@@ -436,13 +423,6 @@ class _RemoteMonitorPageState extends State<RemoteMonitorPage> {
             ),
             icon: const Icon(Icons.history_rounded),
             label: const Text('Lệnh đã gửi'),
-          ),
-          const SizedBox(height: AppSpace.sm),
-          OutlinedButton.icon(
-            key: const Key('push-policy'),
-            onPressed: _pushPolicy,
-            icon: const Icon(Icons.cloud_upload_rounded),
-            label: const Text('Gửi luật của máy này (giờ + khóa app)'),
           ),
         ],
       ),

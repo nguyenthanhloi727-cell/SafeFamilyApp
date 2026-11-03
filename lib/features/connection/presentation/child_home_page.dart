@@ -93,7 +93,9 @@ class _ChildHomePageState extends State<ChildHomePage>
       ...config.apps.keys,
       ...?usage?.apps.keys,
     }.toList();
-    final labels = packages.isEmpty ? <String, String>{} : await p.appLabels(packages);
+    final labels = packages.isEmpty
+        ? <String, String>{}
+        : await p.appLabels(packages);
     if (!mounted) return;
     setState(() {
       _config = config;
@@ -111,9 +113,8 @@ class _ChildHomePageState extends State<ChildHomePage>
   Future<void> _openParentArea() async {
     if (!await ParentGate.always(context, 'Mở khu vực phụ huynh')) return;
     if (!mounted) return;
-    await Navigator.of(context).push(
-      MaterialPageRoute<void>(builder: (_) => const AppShell()),
-    );
+    await Navigator.of(context)
+        .push(MaterialPageRoute<void>(builder: (_) => const AppShell()));
     if (mounted) unawaited(_reload());
   }
 
@@ -121,8 +122,9 @@ class _ChildHomePageState extends State<ChildHomePage>
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final controller = AppLockScope.maybeOf(context);
-    final blocked = [...?controller?.lockedPackages]
-      ..sort((a, b) => _name(a).toLowerCase().compareTo(_name(b).toLowerCase()));
+    final blocked = [
+      ...?controller?.lockedPackages,
+    ]..sort((a, b) => _name(a).toLowerCase().compareTo(_name(b).toLowerCase()));
     return Scaffold(
       appBar: AppBar(title: const Text('SafeFamily')),
       body: RefreshIndicator(
@@ -144,7 +146,8 @@ class _ChildHomePageState extends State<ChildHomePage>
             if (blocked.isEmpty)
               const Text('Hiện chưa có ứng dụng nào bị chặn.')
             else
-              for (final package in blocked) _blockedTile(theme, controller!, package),
+              for (final package in blocked)
+                _blockedTile(theme, controller!, package),
             const SizedBox(height: AppSpace.xl),
             OutlinedButton.icon(
               key: const Key('child-parent-area'),
@@ -158,7 +161,11 @@ class _ChildHomePageState extends State<ChildHomePage>
     );
   }
 
-  Widget _blockedTile(ThemeData theme, AppLockController controller, String package) {
+  Widget _blockedTile(
+    ThemeData theme,
+    AppLockController controller,
+    String package,
+  ) {
     final until = controller.unlockedUntil(package);
     final left = until?.difference(DateTime.now());
     return ListTile(
@@ -168,7 +175,9 @@ class _ChildHomePageState extends State<ChildHomePage>
         left != null && !left.isNegative
             ? Icons.lock_open_rounded
             : Icons.block_rounded,
-        color: left != null && !left.isNegative ? null : theme.colorScheme.error,
+        color: left != null && !left.isNegative
+            ? null
+            : theme.colorScheme.error,
       ),
       title: Text(_name(package)),
       subtitle: left != null && !left.isNegative
@@ -210,7 +219,9 @@ class _ChildHomePageState extends State<ChildHomePage>
         _card(
           Icons.bedtime_rounded,
           'Đang trong giờ ngủ',
-          w == null ? 'Nghỉ ngơi thôi con.' : 'Tới ${formatClock(w.endMinute)}.',
+          w == null
+              ? 'Nghỉ ngơi thôi con.'
+              : 'Tới ${formatClock(w.endMinute)}.',
         ),
       );
     }
@@ -221,7 +232,9 @@ class _ChildHomePageState extends State<ChildHomePage>
       cards.add(
         _card(
           Icons.timer_rounded,
-          left > 0 ? 'Hôm nay còn ${_minutes(left)}' : 'Hôm nay đã hết giờ dùng máy',
+          left > 0
+              ? 'Hôm nay còn ${_minutes(left)}'
+              : 'Hôm nay đã hết giờ dùng máy',
           'Đã dùng ${_minutes(used)} / ${_minutes(limit + _bonus)}.',
         ),
       );
@@ -249,7 +262,10 @@ class _ChildHomePageState extends State<ChildHomePage>
         );
       }
     }
-    return [...cards, if (cards.isNotEmpty) const SizedBox(height: AppSpace.lg)];
+    return [
+      ...cards,
+      if (cards.isNotEmpty) const SizedBox(height: AppSpace.lg),
+    ];
   }
 
   Widget _card(IconData icon, String title, String subtitle) => Card(

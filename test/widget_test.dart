@@ -45,11 +45,11 @@ class _NoPermissions implements PermissionPlatform {
   Future<bool> removeDeviceAdmin() async => true;
 }
 
-/// Máy đã chọn "Dùng một máy" (bỏ qua màn chọn vai trò).
+/// Máy đã chọn vai trò (bỏ qua màn chọn vai trò) để test khung app.
 Future<ConnectionSession> localConnection() async {
   final connection = ConnectionSession(store: InMemorySecureStore());
-  await connection.setMode(ConnectionMode.local);
   await connection.load();
+  await connection.setMode(ConnectionMode.local); // chế độ cũ chỉ còn dùng để test khung app
   return connection;
 }
 

@@ -1,31 +1,20 @@
 import 'package:flutter/material.dart';
 
-import '../../../core/network/connection_session.dart';
 import '../../../core/theme/app_tokens.dart';
 import 'child_pair_page.dart';
 import 'parent_login_page.dart';
 
-/// Lần đầu cài: máy này dùng một mình, là máy mẹ, hay là máy con.
-/// Chọn "Dùng một máy" thì app chạy như trước, không cần mạng.
+/// Lần đầu cài: máy này là máy mẹ (quản lý máy con từ xa) hay là máy con (bị quản lý).
 class RolePage extends StatelessWidget {
   const RolePage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final session = ConnectionScope.of(context);
     return Scaffold(
       appBar: AppBar(title: const Text('Máy này dùng để làm gì?')),
       body: ListView(
         padding: const EdgeInsets.all(AppSpace.lg),
         children: [
-          _RoleCard(
-            key: const Key('role-local'),
-            icon: Icons.phone_android_rounded,
-            title: 'Dùng một máy',
-            subtitle:
-                'Quản lý ngay trên máy này, không cần tài khoản hay mạng.',
-            onTap: () => session.setMode(ConnectionMode.local),
-          ),
           _RoleCard(
             key: const Key('role-parent'),
             icon: Icons.supervisor_account_rounded,

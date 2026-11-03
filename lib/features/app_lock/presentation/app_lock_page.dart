@@ -144,8 +144,7 @@ class _AppLockPageState extends State<AppLockPage> {
       child,
       'app_relock',
       payloadJson: RemoteCommands.packagePayload(app.packageName),
-      done:
-          'Đã gửi lệnh chặn lại ${app.label}. Máy con nhận ở lần đồng bộ kế.',
+      done: 'Đã gửi lệnh chặn lại ${app.label}. Máy con nhận ở lần đồng bộ kế.',
     );
     if (sent && mounted) setState(() => _relockSent.add(app.packageName));
   }
@@ -322,23 +321,24 @@ class _AppLockPageState extends State<AppLockPage> {
       );
     }
     final query = _query.toLowerCase();
-    final visible = [
-      for (final app in apps)
-        if ((!widget.onlyLocked ||
-                _childBlocked.contains(app.packageName) ||
-                _remoteUnlocked.containsKey(app.packageName)) &&
-            (query.isEmpty ||
-                app.label.toLowerCase().contains(query) ||
-                app.packageName.toLowerCase().contains(query)))
-          app,
-    ]..sort((a, b) {
-        final locked =
-            (_childBlocked.contains(b.packageName) ? 1 : 0) -
-            (_childBlocked.contains(a.packageName) ? 1 : 0);
-        return locked != 0
-            ? locked
-            : a.label.toLowerCase().compareTo(b.label.toLowerCase());
-      });
+    final visible =
+        [
+          for (final app in apps)
+            if ((!widget.onlyLocked ||
+                    _childBlocked.contains(app.packageName) ||
+                    _remoteUnlocked.containsKey(app.packageName)) &&
+                (query.isEmpty ||
+                    app.label.toLowerCase().contains(query) ||
+                    app.packageName.toLowerCase().contains(query)))
+              app,
+        ]..sort((a, b) {
+          final locked =
+              (_childBlocked.contains(b.packageName) ? 1 : 0) -
+              (_childBlocked.contains(a.packageName) ? 1 : 0);
+          return locked != 0
+              ? locked
+              : a.label.toLowerCase().compareTo(b.label.toLowerCase());
+        });
     final youtube = apps
         .where((app) => app.packageName == youtubePackage)
         .firstOrNull;

@@ -115,35 +115,30 @@ void main() {
     },
   );
 
-  testWidgets(
-    'app_lock_page: mở tạm gửi lệnh cho máy con',
-    (tester) async {
-      final server = _ChildServer()
-        ..version = 1
-        ..policy =
-            '{"schemaVersion":2,"appLock":{"blocked":["com.google.android.youtube"],"schedules":[]}}';
-      final sent = <http.Request>[];
-      await tester.pumpWidget(
-        _wrapChild(await _session(), sent, server, const AppLockPage()),
-      );
-      await tester.pumpAndSettle();
+  testWidgets('app_lock_page: mở tạm gửi lệnh cho máy con', (tester) async {
+    final server = _ChildServer()
+      ..version = 1
+      ..policy =
+          '{"schemaVersion":2,"appLock":{"blocked":["com.google.android.youtube"],"schedules":[]}}';
+    final sent = <http.Request>[];
+    await tester.pumpWidget(
+      _wrapChild(await _session(), sent, server, const AppLockPage()),
+    );
+    await tester.pumpAndSettle();
 
-      await tester.tap(find.byIcon(Icons.timer_outlined));
-      await tester.pumpAndSettle();
+    await tester.tap(find.byIcon(Icons.timer_outlined));
+    await tester.pumpAndSettle();
 
-      final commands = sent.where(
-        (r) => r.url.path == '/api/devices/5/commands',
-      );
-      expect(commands, hasLength(1));
-      final body = jsonDecode(commands.single.body) as Map<String, dynamic>;
-      expect(body['type'], 'app_unlock_temp');
-      expect(jsonDecode(body['payloadJson'] as String), {
-        'package': 'com.google.android.youtube',
-        'minutes': tempUnlockMinutes,
-      });
-      expect(server.puts, isEmpty);
-    },
-  );
+    final commands = sent.where((r) => r.url.path == '/api/devices/5/commands');
+    expect(commands, hasLength(1));
+    final body = jsonDecode(commands.single.body) as Map<String, dynamic>;
+    expect(body['type'], 'app_unlock_temp');
+    expect(jsonDecode(body['payloadJson'] as String), {
+      'package': 'com.google.android.youtube',
+      'minutes': tempUnlockMinutes,
+    });
+    expect(server.puts, isEmpty);
+  });
 
   testWidgets(
     'app_lock_page: chưa chọn máy con thì mở tạm trên máy này như cũ',
@@ -202,103 +197,111 @@ void main() {
     expect(sent.where((r) => r.method == 'POST'), hasLength(2));
   });
 
-  testWidgets('pause_card: máy con đang tạm dừng → thẻ đổi sang "Tiếp tục", chạm là gửi unpause', (
-    tester,
-  ) async {
-    final sent = <http.Request>[];
-    await tester.pumpWidget(
-      _wrap(
-        await _session(),
-        sent,
-        const Scaffold(body: PauseCard()),
-        status: _status(isPaused: true),
-      ),
-    );
-    await tester.pumpAndSettle();
-    expect(find.text('Tiếp tục dùng máy con'), findsOneWidget);
-    expect(find.textContaining('đang tạm dừng'), findsOneWidget);
-
-    await tester.tap(find.text('Tiếp tục dùng máy con'));
-    await tester.pumpAndSettle();
-    // Không hiện hộp chọn thời lượng: biết chắc máy con đang tạm dừng.
-    expect(find.text('15 phút'), findsNothing);
-    final posts = sent.where((r) => r.method == 'POST').toList();
-    expect(posts, hasLength(1));
-    expect((jsonDecode(posts.single.body) as Map)['type'], 'unpause');
-    // Đã gửi mà máy con chưa báo lại: không giả vờ là đã tiếp tục.
-    expect(find.textContaining('chờ máy con'), findsOneWidget);
-  });
-
-  testWidgets('pause_card: máy con không tạm dừng → chỉ hỏi thời lượng, không có mục tiếp tục', (
-    tester,
-  ) async {
-    final sent = <http.Request>[];
-    await tester.pumpWidget(
-      _wrap(
-        await _session(),
-        sent,
-        const Scaffold(body: PauseCard()),
-        status: _status(isPaused: false),
-      ),
-    );
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Tạm dừng máy con'));
-    await tester.pumpAndSettle();
-    expect(find.text('30 phút'), findsOneWidget);
-    expect(find.text('Tiếp tục dùng máy (hết tạm dừng)'), findsNothing);
-  });
-
-  testWidgets('app_lock_page: app đang mở tạm trên máy con có nút "Chặn lại ngay" gửi app_relock', (
-    tester,
-  ) async {
-    final server = _ChildServer()
-      ..version = 1
-      ..policy =
-          '{"schemaVersion":2,"appLock":{"blocked":["com.google.android.youtube"],"schedules":[]}}'
-      ..status = _status(
-        tempUnlocked: [
-          {
-            'package': 'com.google.android.youtube',
-            'until': DateTime.now()
-                .toUtc()
-                .add(const Duration(minutes: 10))
-                .toIso8601String(),
-          },
-        ],
+  testWidgets(
+    'pause_card: máy con đang tạm dừng → thẻ đổi sang "Tiếp tục", chạm là gửi unpause',
+    (tester) async {
+      final sent = <http.Request>[];
+      await tester.pumpWidget(
+        _wrap(
+          await _session(),
+          sent,
+          const Scaffold(body: PauseCard()),
+          status: _status(isPaused: true),
+        ),
       );
-    final sent = <http.Request>[];
-    await tester.pumpWidget(
-      _wrapChild(await _session(), sent, server, const AppLockPage()),
-    );
-    await tester.pumpAndSettle();
+      await tester.pumpAndSettle();
+      expect(find.text('Tiếp tục dùng máy con'), findsOneWidget);
+      expect(find.textContaining('đang tạm dừng'), findsOneWidget);
 
-    expect(find.textContaining('Đang mở tạm tới'), findsOneWidget);
-    await tester.tap(find.byTooltip('Chặn lại ngay'));
-    await tester.pumpAndSettle();
+      await tester.tap(find.text('Tiếp tục dùng máy con'));
+      await tester.pumpAndSettle();
+      // Không hiện hộp chọn thời lượng: biết chắc máy con đang tạm dừng.
+      expect(find.text('15 phút'), findsNothing);
+      final posts = sent.where((r) => r.method == 'POST').toList();
+      expect(posts, hasLength(1));
+      expect((jsonDecode(posts.single.body) as Map)['type'], 'unpause');
+      // Đã gửi mà máy con chưa báo lại: không giả vờ là đã tiếp tục.
+      expect(find.textContaining('chờ máy con'), findsOneWidget);
+    },
+  );
 
-    final posts = sent.where((r) => r.method == 'POST').toList();
-    expect(posts, hasLength(1));
-    final body = jsonDecode(posts.single.body) as Map<String, dynamic>;
-    expect(body['type'], 'app_relock');
-    expect(jsonDecode(body['payloadJson'] as String), {
-      'package': 'com.google.android.youtube',
-    });
-    expect(find.textContaining('chờ máy con (đang mở tạm'), findsOneWidget);
-  });
+  testWidgets(
+    'pause_card: máy con không tạm dừng → chỉ hỏi thời lượng, không có mục tiếp tục',
+    (tester) async {
+      final sent = <http.Request>[];
+      await tester.pumpWidget(
+        _wrap(
+          await _session(),
+          sent,
+          const Scaffold(body: PauseCard()),
+          status: _status(isPaused: false),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Tạm dừng máy con'));
+      await tester.pumpAndSettle();
+      expect(find.text('30 phút'), findsOneWidget);
+      expect(find.text('Tiếp tục dùng máy (hết tạm dừng)'), findsNothing);
+    },
+  );
 
-  testWidgets('app_lock_page: máy con không có app mở tạm → không có nút "Chặn lại ngay"', (
-    tester,
-  ) async {
-    final server = _ChildServer()
-      ..version = 1
-      ..policy =
-          '{"schemaVersion":2,"appLock":{"blocked":["com.google.android.youtube"],"schedules":[]}}';
-    await tester.pumpWidget(
-      _wrapChild(await _session(), <http.Request>[], server, const AppLockPage()),
-    );
-    await tester.pumpAndSettle();
-    expect(find.byTooltip('Chặn lại ngay'), findsNothing);
-  });
+  testWidgets(
+    'app_lock_page: app đang mở tạm trên máy con có nút "Chặn lại ngay" gửi app_relock',
+    (tester) async {
+      final server = _ChildServer()
+        ..version = 1
+        ..policy = '{"schemaVersion":2,"appLock":{"blocked":["com.google.android.youtube"],"schedules":[]}}'
+        ..status = _status(
+          tempUnlocked: [
+            {
+              'package': 'com.google.android.youtube',
+              'until': DateTime.now()
+                  .toUtc()
+                  .add(const Duration(minutes: 10))
+                  .toIso8601String(),
+            },
+          ],
+        );
+      final sent = <http.Request>[];
+      await tester.pumpWidget(
+        _wrapChild(await _session(), sent, server, const AppLockPage()),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('Đang mở tạm tới'), findsOneWidget);
+      await tester.tap(find.byTooltip('Chặn lại ngay'));
+      await tester.pumpAndSettle();
+
+      final posts = sent.where((r) => r.method == 'POST').toList();
+      expect(posts, hasLength(1));
+      final body = jsonDecode(posts.single.body) as Map<String, dynamic>;
+      expect(body['type'], 'app_relock');
+      expect(jsonDecode(body['payloadJson'] as String), {
+        'package': 'com.google.android.youtube',
+      });
+      expect(find.textContaining('chờ máy con (đang mở tạm'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'app_lock_page: máy con không có app mở tạm → không có nút "Chặn lại ngay"',
+    (tester) async {
+      final server = _ChildServer()
+        ..version = 1
+        ..policy =
+            '{"schemaVersion":2,"appLock":{"blocked":["com.google.android.youtube"],"schedules":[]}}';
+      await tester.pumpWidget(
+        _wrapChild(
+          await _session(),
+          <http.Request>[],
+          server,
+          const AppLockPage(),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byTooltip('Chặn lại ngay'), findsNothing);
+    },
+  );
 }
 
 Map<String, Object?> _status({
@@ -386,7 +389,6 @@ Widget _wrapChild(
     api: api,
     session: session,
     navigatorKey: GlobalKey<NavigatorState>(),
-    loadTimeLimit: () async => '{}',
   );
   return ConnectionScope(
     session: session,

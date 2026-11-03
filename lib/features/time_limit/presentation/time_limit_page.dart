@@ -1,12 +1,17 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/network/api_client.dart';
+import '../../../core/network/api_scope.dart';
 import '../../../core/network/policy_sync.dart';
+import '../../../core/network/remote_commands.dart';
 import '../../../core/security/parent_guard.dart';
 import '../../../core/security/ui/parent_area_guard.dart';
 import '../../../core/security/ui/parent_gate.dart';
 import '../../../core/theme/app_tokens.dart';
+import '../../../core/widgets/app_snack_bar.dart';
 import '../../../core/widgets/status_banner.dart';
 import '../../app_lock/data/app_lock_platform.dart';
+import '../data/remote_time_limit_platform.dart';
 import '../data/time_limit_platform.dart';
 import '../domain/age_profile.dart';
 import '../domain/time_limit_config.dart';
@@ -18,13 +23,10 @@ const studySessionChoices = [30, 60, 90];
 /// Giới hạn thời gian dùng máy theo ngày: tổng và từng app, khác nhau theo thứ.
 /// Việc đếm giờ và chặn chạy ở native; màn này chỉ cấu hình và hiển thị.
 class TimeLimitPage extends StatefulWidget {
-  const TimeLimitPage({
-    super.key,
-    this.platform = const MethodChannelTimeLimit(),
-    this.loadApps,
-  });
+  const TimeLimitPage({super.key, this.platform, this.loadApps});
 
-  final TimeLimitPlatform platform;
+  /// Mặc định: máy mẹ đã chọn máy con thì sửa luật của máy con (từ xa); còn lại là máy này.
+  final TimeLimitPlatform? platform;
 
   /// Danh sách app để chọn thêm giới hạn riêng (mặc định: app_blocker).
   final Future<List<InstalledApp>> Function()? loadApps;
@@ -43,10 +45,35 @@ class _TimeLimitPageState extends State<TimeLimitPage>
   DateTime? _limitOffUntil;
   List<InstalledApp>? _apps;
 
+  late TimeLimitPlatform _platform;
+
+  /// Máy mẹ đã chọn máy con: màn này sửa luật của máy con, không đụng máy mẹ.
+  bool _remote = false;
+  bool _started = false;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_started) return;
+    _started = true;
+    final child = RemoteCommands.targetOf(context);
+    final sync = PolicySyncScope.maybeOf(context);
+    final api = ApiScope.maybeOf(context);
+    if (widget.platform == null &&
+        child != null &&
+        sync != null &&
+        api != null) {
+      _remote = true;
+      _platform = RemoteTimeLimitPlatform(api: api, sync: sync, childId: child);
+    } else {
+      _platform = widget.platform ?? const MethodChannelTimeLimit();
+    }
     _load();
   }
 
@@ -61,12 +88,34 @@ class _TimeLimitPageState extends State<TimeLimitPage>
     if (state == AppLifecycleState.resumed) _refreshUsage();
   }
 
+  Future<List<InstalledApp>> _childApps() async {
+    final api = ApiScope.of(context);
+    final child = RemoteCommands.targetOf(context)!;
+    return [
+      for (final a in await api.getDeviceApps(child))
+        InstalledApp(packageName: a.packageName, name: a.label),
+    ];
+  }
+
   Future<void> _load() async {
-    final config = await widget.platform.load();
+    final TimeLimitConfig config;
+    try {
+      config = await _platform.load();
+    } on ApiException catch (e) {
+      if (mounted) {
+        showAppSnackBar(
+          context,
+          'Chưa tải được luật của máy con: ${e.message}',
+        );
+      }
+      return;
+    }
     if (!mounted) return;
     setState(() => _config = config);
     await _refreshUsage();
-    final loader = widget.loadApps ?? AppBlockerPlatform().installedApps;
+    final loader =
+        widget.loadApps ??
+        (_remote ? _childApps : AppBlockerPlatform().installedApps);
     try {
       final apps = await loader();
       if (mounted) setState(() => _apps = apps);
@@ -76,11 +125,11 @@ class _TimeLimitPageState extends State<TimeLimitPage>
   }
 
   Future<void> _refreshUsage() async {
-    final access = await widget.platform.hasUsageAccess();
-    final usage = access ? await widget.platform.usageToday() : null;
-    final bonus = await widget.platform.bonusMinutes();
-    final study = await widget.platform.studyStatus();
-    final limitOff = await widget.platform.totalLimitDisabledUntil();
+    final access = await _platform.hasUsageAccess();
+    final usage = access ? await _platform.usageToday() : null;
+    final bonus = await _platform.bonusMinutes();
+    final study = await _platform.studyStatus();
+    final limitOff = await _platform.totalLimitDisabledUntil();
     if (!mounted) return;
     setState(() {
       _usageAccess = access;
@@ -122,7 +171,7 @@ class _TimeLimitPageState extends State<TimeLimitPage>
       disabling
           ? 'Tắt giới hạn cả ngày hôm nay'
           : 'Bật lại giới hạn thời gian hôm nay',
-      () => widget.platform.setTotalLimitDisabledToday(disabling),
+      () => _platform.setTotalLimitDisabledToday(disabling),
       authenticate: disabling,
     );
   }
@@ -130,7 +179,7 @@ class _TimeLimitPageState extends State<TimeLimitPage>
   Future<void> _addTime() async {
     final added = await grantExtraTime(
       context,
-      platform: widget.platform,
+      platform: _platform,
       guard: ParentGuardScope.maybeOf(context),
     );
     if (added != null) await _refreshUsage();
@@ -139,9 +188,13 @@ class _TimeLimitPageState extends State<TimeLimitPage>
   Future<void> _update(TimeLimitConfig config) async {
     setState(() => _config = config);
     try {
-      await widget.platform.save(config);
-      // Máy mẹ đã chọn máy con thì đẩy luật mới lên server (không làm gì nếu không).
-      if (mounted) PolicySyncScope.notifyChanged(context);
+      await _platform.save(config);
+      if (mounted && _remote) {
+        showAppSnackBar(
+          context,
+          'Đã lưu luật cho máy con. Máy con áp dụng ở lần đồng bộ kế (tối đa vài phút).',
+        );
+      }
     } on Object {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -248,7 +301,21 @@ class _TimeLimitPageState extends State<TimeLimitPage>
       );
       if (!ok) return;
     }
-    await run();
+    try {
+      await run();
+    } on ApiException catch (e) {
+      if (mounted) showAppSnackBar(context, e.message);
+      return;
+    } on UnsupportedError catch (e) {
+      if (mounted) showAppSnackBar(context, e.message ?? 'Chưa hỗ trợ.');
+      return;
+    }
+    if (_remote && mounted) {
+      showAppSnackBar(
+        context,
+        'Đã gửi cho máy con. Máy con nhận ở lần đồng bộ kế.',
+      );
+    }
     await _refreshUsage();
   }
 
@@ -269,7 +336,7 @@ class _TimeLimitPageState extends State<TimeLimitPage>
     if (minutes == null) return;
     await _guarded(
       'Bắt đầu giờ học $minutes phút',
-      () => widget.platform.startStudy(minutes),
+      () => _platform.startStudy(minutes),
       authenticate: false,
     );
   }
@@ -314,7 +381,7 @@ class _TimeLimitPageState extends State<TimeLimitPage>
       stopSession = choice;
     }
     await _guarded('Tắt giờ học', () async {
-      if (stopSession) await widget.platform.stopStudy();
+      if (stopSession) await _platform.stopStudy();
       await _update(config.copyWith(studyEnabled: false));
     });
   }
@@ -352,7 +419,7 @@ class _TimeLimitPageState extends State<TimeLimitPage>
                           'trong danh sách rồi bật.',
                       actions: [
                         TextButton(
-                          onPressed: widget.platform.openUsageAccess,
+                          onPressed: _platform.openUsageAccess,
                           child: const Text('Cấp quyền'),
                         ),
                       ],
@@ -525,26 +592,25 @@ class _TimeLimitPageState extends State<TimeLimitPage>
                         ),
                         if (_study.sessionMinutesLeft > 0)
                           OutlinedButton(
-                            onPressed: () => _guarded(
-                              'Dừng giờ học',
-                              widget.platform.stopStudy,
-                            ),
+                            onPressed: () =>
+                                _guarded('Dừng giờ học', _platform.stopStudy),
                             child: const Text('Dừng phiên'),
                           ),
-                        OutlinedButton(
-                          onPressed: () => _guarded(
-                            _study.disabledToday
-                                ? 'Bật lại giờ học hôm nay'
-                                : 'Tắt giờ học hôm nay',
-                            () => widget.platform.setStudyDisabledToday(
-                              !_study.disabledToday,
+                        if (!_remote)
+                          OutlinedButton(
+                            onPressed: () => _guarded(
+                              _study.disabledToday
+                                  ? 'Bật lại giờ học hôm nay'
+                                  : 'Tắt giờ học hôm nay',
+                              () => _platform.setStudyDisabledToday(
+                                !_study.disabledToday,
+                              ),
+                              authenticate: !_study.disabledToday,
                             ),
-                            authenticate: !_study.disabledToday,
+                            child: Text(
+                              _study.disabledToday ? 'Bật lại' : 'Tắt hôm nay',
+                            ),
                           ),
-                          child: Text(
-                            _study.disabledToday ? 'Bật lại' : 'Tắt hôm nay',
-                          ),
-                        ),
                       ],
                     ),
                     const SizedBox(height: AppSpace.md),

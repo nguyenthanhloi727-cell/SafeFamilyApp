@@ -69,6 +69,8 @@ class ConnectionSession extends ChangeNotifier {
         (m) => m.name == mode,
         orElse: () => ConnectionMode.unset,
       );
+      // Chế độ "một máy" đã bỏ: máy cũ còn lưu chế độ đó thì chọn lại vai trò.
+      if (_mode == ConnectionMode.local) _mode = ConnectionMode.unset;
       final saved = await _store.read(_kBaseUrl);
       if (saved == null || _legacyDefaultBaseUrls.contains(saved)) {
         _baseUrl = defaultBaseUrl;

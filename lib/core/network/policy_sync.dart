@@ -4,7 +4,6 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 
 import '../../features/profile/data/family_contact.dart';
-import '../security/ui/parent_gate.dart';
 import 'api_client.dart';
 import 'connection_session.dart';
 import 'policy_schema.dart';
@@ -13,33 +12,22 @@ enum PolicyPushResult {
   /// Không phải máy mẹ, hoặc chưa chọn máy con: không làm gì.
   skipped,
 
-  /// Server đã có đúng luật này.
+  /// Server đã có đúng số SOS này.
   pushed,
 
-  /// Luật trên server đã đổi ở nơi khác và mẹ chọn giữ bản trên server.
-  keptServer,
-
-  /// Mất mạng / server lỗi / quá lớn. Luật trên máy mẹ vẫn đã lưu.
+  /// Mất mạng / server lỗi. Số SOS trên máy mẹ vẫn đã lưu.
   failed,
 }
 
-/// Máy mẹ đẩy luật giới hạn thời gian của máy này lên máy con đã chọn. Danh sách
-/// app bị chặn là của MÁY CON: mẹ chọn từ danh sách app máy con ([setBlocked]);
-/// gói luật gửi đi luôn giữ nguyên danh sách chặn đang có trên server. Gọi [changed] sau mỗi lần mẹ lưu luật cục bộ: gom các lần sửa dồn
-/// dập trong [debounce] rồi gửi một lần.
-///
-/// Khóa phụ huynh: việc *sửa* luật đã nằm sau `ParentAreaGuard` / `ParentGate`
-/// của từng màn, nên gửi tự động không hỏi lại. Riêng *ghi đè* luật mà nơi khác
-/// vừa đổi thì hỏi mẹ và đòi `ParentGate.always` trước khi ghi.
-///
-/// Lệch phiên bản (409) → tải luật server về, so với luật máy này; nếu khác thì
-/// hỏi mẹ, không bao giờ ghi đè im lặng.
+/// Máy mẹ sửa LUẬT CỦA MÁY CON trên server. Máy mẹ không giữ luật nào cho chính
+/// nó: mỗi lần sửa là đọc luật hiện có của máy con, đổi đúng phần cần đổi
+/// (danh sách chặn, giới hạn thời gian, số SOS) rồi ghi lại với số phiên bản đã
+/// đọc. Lệch phiên bản (409) thì đọc lại và thử thêm một lần, không ghi đè mù.
 class PolicySync {
   PolicySync({
     required this.api,
     required this.session,
     required this.navigatorKey,
-    required this.loadTimeLimit,
     this.loadContacts,
     this.debounce = const Duration(seconds: 2),
   });
@@ -48,10 +36,7 @@ class PolicySync {
   final ConnectionSession session;
   final GlobalKey<NavigatorState> navigatorKey;
 
-  /// `TimeLimitConfig.toJson()` của máy này.
-  final Future<String> Function() loadTimeLimit;
-
-  /// Danh bạ gia đình của máy này; chỉ các liên hệ đánh dấu khẩn cấp (SOS) được gửi (API-13).
+  /// Danh bạ gia đình trên máy mẹ; chỉ các liên hệ đánh dấu khẩn cấp (SOS) được gửi (API-13).
   final Future<List<FamilyContact>> Function()? loadContacts;
   final Duration debounce;
 
@@ -66,14 +51,14 @@ class PolicySync {
       session.isParentLoggedIn &&
       session.selectedChildId != null;
 
-  /// Luật cục bộ vừa đổi.
+  /// Số SOS ở danh bạ máy mẹ vừa đổi: gom các lần sửa dồn dập rồi gửi một lần.
   void changed() {
     if (_disposed || !active) return;
     _timer?.cancel();
     _timer = Timer(debounce, _drain);
   }
 
-  /// Gửi ngay (nút "Gửi luật" thủ công). Trả về kết quả; đã báo mẹ bằng thanh thông báo.
+  /// Gửi số SOS ngay. Đã báo mẹ bằng thanh thông báo khi lỗi.
   Future<PolicyPushResult> pushNow() async {
     _timer?.cancel();
     return _push();
@@ -97,22 +82,53 @@ class PolicySync {
     }
   }
 
-  /// Chặn / bỏ chặn một app trên máy con [id]: đọc luật server, sửa đúng
-  /// `appLock.blocked`, ghi lại (lệch phiên bản thì đọc lại và thử thêm một lần).
-  /// Trả về danh sách chặn mới; ném [ApiException] nếu không ghi được.
+  /// `timeLimit` trong chuỗi JSON luật (dạng `TimeLimitConfig.toJson`), `null` nếu chưa có.
+  static String? timeLimitIn(String policyJson) {
+    try {
+      final policy = jsonDecode(policyJson);
+      final limit = policy is Map ? policy['timeLimit'] : null;
+      return limit is Map ? jsonEncode(limit) : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Chặn / bỏ chặn một app trên máy con [id]. Trả về danh sách chặn mới;
+  /// ném [ApiException] nếu không ghi được.
   Future<Set<String>> setBlocked(int id, String package, bool blocked) async {
+    final policy = await _edit(id, (policy) {
+      final set = _blockedOf(policy);
+      blocked ? set.add(package) : set.remove(package);
+      policy['appLock'] = {
+        ...?(policy['appLock'] as Map?)?.cast<String, dynamic>(),
+        'blocked': set.toList()..sort(),
+      };
+    });
+    return _blockedOf(policy);
+  }
+
+  /// Ghi giới hạn thời gian ([timeLimitJson] = `TimeLimitConfig.toJson()`) cho máy con [id].
+  Future<void> setTimeLimit(int id, String timeLimitJson) async {
+    await _edit(id, (policy) {
+      policy['timeLimit'] = jsonDecode(timeLimitJson);
+    });
+  }
+
+  static Set<String> _blockedOf(Map<String, dynamic> policy) =>
+      blockedIn(jsonEncode(policy));
+
+  /// Đọc luật hiện có → [mutate] → ghi lại. Lệch phiên bản thì làm lại một lần.
+  Future<Map<String, dynamic>> _edit(
+    int id,
+    void Function(Map<String, dynamic> policy) mutate,
+  ) async {
     ApiException? last;
     for (var attempt = 0; attempt < 2; attempt++) {
       final current = await api.getPolicy(id);
       final policy = current.version == 0
           ? <String, dynamic>{'schemaVersion': PolicySchema.version}
           : Map<String, dynamic>.from(jsonDecode(current.json) as Map);
-      final set = blockedIn(current.json);
-      blocked ? set.add(package) : set.remove(package);
-      policy['appLock'] = {
-        ...?(policy['appLock'] as Map?)?.cast<String, dynamic>(),
-        'blocked': set.toList()..sort(),
-      };
+      mutate(policy);
       try {
         final saved = await api.putPolicy(
           id,
@@ -120,7 +136,7 @@ class PolicySync {
           current.version,
         );
         await session.setPolicyVersion(id, saved.version);
-        return set;
+        return policy;
       } on ApiException catch (e) {
         if (!e.isConflict) rethrow;
         last = e;
@@ -154,98 +170,26 @@ class PolicySync {
     final id = session.selectedChildId;
     if (!active || id == null) return PolicyPushResult.skipped;
     try {
-      final json = PolicySchema.build(
-        timeLimit: jsonDecode(await loadTimeLimit()) as Map<String, dynamic>,
-        blocked: await loadBlocked(id),
-        sosContacts: await _sosContacts(),
-      );
-      if (utf8.encode(json).length > PolicySchema.maxBytes) {
-        _say('Luật quá lớn, không gửi được lên máy con.');
-        return PolicyPushResult.failed;
-      }
-      final known = session.policyVersionOf(id);
-      if (known != null) {
-        try {
-          return await _put(id, json, known);
-        } on ApiException catch (e) {
-          if (!e.isConflict) rethrow;
+      // Lỗi đọc danh bạ thì ném tiếp để KHÔNG gửi gói thiếu số SOS (máy con sẽ xóa SOS cũ).
+      final sos = PolicySchema.sosJson(await loadContacts?.call() ?? const []);
+      await _edit(id, (policy) {
+        policy['contacts'] = sos;
+        if (((policy['schemaVersion'] as num?) ?? 1) < PolicySchema.version) {
+          policy['schemaVersion'] = PolicySchema.version;
         }
-      }
-      // Chưa biết phiên bản, hoặc 409: tải luật server về rồi mới quyết.
-      final current = await api.getPolicy(id);
-      if (current.version == 0) return await _put(id, json, 0);
-      if (PolicySchema.sameContent(current.json, json)) {
-        await session.setPolicyVersion(id, current.version);
-        _say('Máy con đã có đúng luật này.');
-        return PolicyPushResult.pushed;
-      }
-      return await _askOverwrite(id, json, current);
+      });
+      _say('Đã gửi số khẩn cấp cho máy con.');
+      return PolicyPushResult.pushed;
     } on ApiException catch (e) {
-      _say('Chưa gửi được luật lên máy con: ${e.message}');
+      _say('Chưa gửi được số khẩn cấp lên máy con: ${e.message}');
       return PolicyPushResult.failed;
     } on FormatException {
-      _say('Luật trên máy này bị lỗi định dạng, chưa gửi.');
+      _say('Luật của máy con bị lỗi định dạng, chưa gửi.');
       return PolicyPushResult.failed;
     } catch (_) {
-      _say('Không đọc được danh bạ khẩn cấp, chưa gửi luật.');
+      _say('Không đọc được danh bạ khẩn cấp, chưa gửi.');
       return PolicyPushResult.failed;
     }
-  }
-
-  /// Lỗi đọc danh bạ thì ném tiếp để KHÔNG gửi gói thiếu số SOS (máy con sẽ xóa SOS cũ).
-  Future<List<FamilyContact>> _sosContacts() async =>
-      await loadContacts?.call() ?? const [];
-
-  Future<PolicyPushResult> _put(int id, String json, int expected) async {
-    final saved = await api.putPolicy(id, json, expected);
-    await session.setPolicyVersion(id, saved.version);
-    _say('Đã gửi luật cho máy con (phiên bản ${saved.version}).');
-    return PolicyPushResult.pushed;
-  }
-
-  Future<PolicyPushResult> _askOverwrite(
-    int id,
-    String json,
-    PolicyInfo current,
-  ) async {
-    final context = navigatorKey.currentState?.overlay?.context;
-    if (context == null || !context.mounted) return PolicyPushResult.failed;
-    final overwrite = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        title: const Text('Luật trên máy con đã đổi ở nơi khác'),
-        content: Text(
-          'Máy chủ đang giữ luật phiên bản ${current.version}, khác với luật '
-          'trên máy này. Ghi đè bằng luật trên máy này, hay giữ luật đang có '
-          'trên máy chủ?',
-        ),
-        actions: [
-          TextButton(
-            key: const Key('policy-keep-server'),
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Giữ luật trên máy chủ'),
-          ),
-          FilledButton(
-            key: const Key('policy-overwrite'),
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Ghi đè'),
-          ),
-        ],
-      ),
-    );
-    if (overwrite != true) {
-      // Nhớ phiên bản đã thấy: lần sửa sau của mẹ mới là ý định mới.
-      await session.setPolicyVersion(id, current.version);
-      _say('Giữ luật trên máy chủ. Luật trên máy này chưa được gửi.');
-      return PolicyPushResult.keptServer;
-    }
-    if (!context.mounted ||
-        !await ParentGate.always(context, 'Ghi đè luật của máy con')) {
-      _say('Chưa ghi đè. Luật trên máy chủ giữ nguyên.');
-      return PolicyPushResult.keptServer;
-    }
-    return _put(id, json, current.version);
   }
 
   void _say(String message) {
@@ -266,7 +210,7 @@ class PolicySyncScope extends InheritedWidget {
   static PolicySync? maybeOf(BuildContext context) =>
       context.getInheritedWidgetOfExactType<PolicySyncScope>()?.sync;
 
-  /// Báo luật cục bộ vừa đổi (không làm gì nếu không có scope).
+  /// Báo số SOS ở danh bạ máy mẹ vừa đổi (không làm gì nếu không có scope).
   static void notifyChanged(BuildContext context) =>
       maybeOf(context)?.changed();
 

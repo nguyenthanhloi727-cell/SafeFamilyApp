@@ -114,8 +114,6 @@ class _SafeFamilyAppState extends State<SafeFamilyApp> {
       api: _api,
       session: _connection,
       navigatorKey: _navigatorKey,
-      loadTimeLimit: () async =>
-          (await const MethodChannelTimeLimit().load()).toJson(),
       loadContacts: LocalProfileRepository().loadContacts,
     );
     _connection.addListener(_syncFamily);
@@ -356,10 +354,12 @@ class _SecurityGate extends StatelessWidget {
         if (!setup.isDone) {
           return SetupWizardPage(onFinished: setup.markDone);
         }
-        // Chọn vai trò (một máy / mẹ / con) sau khi cấp quyền, trước app chính.
+        // Chọn vai trò (mẹ / con) sau khi cấp quyền, trước app chính.
         if (!connection.isChosen) return const RolePage();
         // Máy con đã ghép đôi: chỉ màn đơn giản; app đầy đủ nằm sau "Dành cho phụ huynh".
-        if (connection.mode == ConnectionMode.child) return const ChildHomePage();
+        if (connection.mode == ConnectionMode.child) {
+          return const ChildHomePage();
+        }
         return const AppShell();
       },
     );

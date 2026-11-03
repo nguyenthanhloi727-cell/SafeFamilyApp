@@ -34,7 +34,8 @@ class _Platform implements TimeLimitPlatform {
   Future<StudyStatus> studyStatus() async => const StudyStatus();
   @override
   Future<Map<String, String>> appLabels(List<String> packages) async => {
-    for (final p in packages) p: p == 'com.google.android.youtube' ? 'YouTube' : p,
+    for (final p in packages)
+      p: p == 'com.google.android.youtube' ? 'YouTube' : p,
   };
 
   @override
@@ -86,7 +87,9 @@ void main() {
     expect(find.byKey(const Key('child-parent-area')), findsOneWidget);
   });
 
-  testWidgets('chưa chặn gì: báo rõ; máy tạm dừng: hiện thẻ tạm dừng', (t) async {
+  testWidgets('chưa chặn gì: báo rõ; máy tạm dừng: hiện thẻ tạm dừng', (
+    t,
+  ) async {
     await pump(t, _Platform(pause: 20));
     expect(find.text('Hiện chưa có ứng dụng nào bị chặn.'), findsOneWidget);
     expect(find.text('Máy đang tạm dừng'), findsOneWidget);
