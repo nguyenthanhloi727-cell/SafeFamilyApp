@@ -31,7 +31,7 @@ Ký hiệu: `[ ]` chưa làm · `[~]` đang làm / làm dở · `[x]` xong (ghi 
 - [x] T2 — Bỏ "Kết nối gia đình" khỏi Bảo mật, ngắt kết nối cho máy con (commit 1b44306, 2026-11-04)
 - [x] T3 — Bỏ Chế độ trẻ em, khu phụ huynh luôn khóa, "Bảo vệ máy" (commit 81d7208, 2026-11-04)
 - [x] T4 — Cấp quyền theo vai trò (commit 4d6098a, 2026-11-04)
-- [ ] T5 — Máy mẹ: tab Con + Tài khoản
+- [x] T5 — Máy mẹ: tab Con + Tài khoản (commit 1246810, 2026-11-04)
 - [ ] T6 — Máy con: xin thêm giờ / học xong
 - [ ] T7 — Máy con: đồng bộ lần cuối, mất mạng, minh bạch
 - [ ] T8 — Server + máy con: nhật ký hoạt động
