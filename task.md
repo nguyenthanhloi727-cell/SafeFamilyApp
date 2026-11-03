@@ -1,6 +1,6 @@
 # Kế hoạch: tách giao diện máy mẹ / máy con
 
-Cập nhật: 2026-11-04 · Nhánh gốc: `main` (commit `a3bb278` trở lên)
+Cập nhật: 2026-11-04 · Làm trực tiếp trên source, test, commit, **push thẳng lên `main`** (đã được người dùng cho phép)
 
 ## LỆNH TIẾP TỤC (dành cho Claude)
 
@@ -11,9 +11,17 @@ Người dùng mở context mới và chỉ gõ vài chữ như **"làm tiếp t
 3. Chạy `git log --oneline -15` và `git status` để chắc task đó chưa được làm dở (commit có tên task, hoặc file đã sửa). Nếu làm dở thì tiếp tục từ chỗ dở, không làm lại từ đầu.
 4. Làm đúng phần mô tả của task, theo "Quy ước cho MỌI context". Gặp "Việc chưa chốt" liên quan task này thì hỏi người dùng trước khi code.
 5. Xong: `flutter analyze` sạch, `flutter test` đạt (task có Kotlin thì thêm `flutter build apk --debug`), commit riêng với tên task trong message (ví dụ `T3: bỏ chế độ trẻ em ...`).
-6. **Tick `[x]` task đó trong mục Tiến độ**, ghi mã commit và ngày, rồi commit luôn thay đổi file này. Task nào chưa xong hẳn thì để `[~]` kèm ghi chú còn thiếu gì.
-7. Báo ngắn gọn: task vừa xong, task kế tiếp sẽ là gì, việc nào chưa kiểm được trên máy thật. **Chỉ làm 1 task mỗi context**, không tự chuyển sang task kế.
-8. Không push lên `main` khi chưa được người dùng cho phép.
+6. **Tick `[x]` task đó trong mục Tiến độ** (sửa thẳng trong `task.md`), ghi mã commit và ngày, rồi commit luôn thay đổi file này. Task nào chưa xong hẳn thì để `[~]` kèm ghi chú còn thiếu gì.
+7. **Đẩy thẳng lên `main`, không mở PR, không chờ hỏi**: `git fetch origin`; nếu `main` có commit mới thì `git pull --rebase origin main` (xử lý xung đột nếu có, chạy lại test); rồi `git push origin HEAD:main`. Người dùng đã cho phép sẵn việc này cho mọi task trong file này.
+8. Báo ngắn gọn: task vừa xong, task kế tiếp sẽ là gì, việc nào chưa kiểm được trên máy thật, và nhắc `git pull` ở `W:\Code\SafeFamilyApp`. **Chỉ làm 1 task mỗi context**, không tự chuyển sang task kế.
+
+Quy trình gói gọn: **sửa trực tiếp trong source → test → commit → push `main`**. Chỉ dừng lại hỏi khi gặp mục "Việc chưa chốt" hoặc test không qua được.
+
+## Phát hiện cần nhớ (khi viết kế hoạch)
+
+1. **Chế độ trẻ em chỉ là công tắc.** Tắt đi thì khu phụ huynh cho vào không hỏi gì (`lib/core/security/parent_guard.dart`: `requireParentArea` có `if (!_childMode) return true`). → **T3** sửa thẳng `parent_guard.dart` và **phải giữ nguyên luồng vân tay/PIN** (`biometric_storage` là yêu cầu bắt buộc của đề tài).
+2. **Flutter chưa có đường gọi "xin thêm giờ" từ màn chính máy con.** Chỉ có bên Kotlin (`FamilySync.queueRequest`, dùng ở `TimeLimitBlockActivity` và `StudyBlock`). → **T6** phải thêm một method vào kênh `safefamily/family` (`MainActivity.kt` + `lib/features/connection/data/family_platform.dart`).
+3. **Máy con chưa có danh bạ nào ngoài tối đa 3 số SOS** (`contacts` trong luật, schema 2). → chỉ **T10 và T11** mới làm được danh bạ gọi người nhà; T6 và T7 đừng hứa tính năng này.
 
 ## Tiến độ
 
