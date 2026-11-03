@@ -42,6 +42,7 @@ class _ChildHomePageState extends State<ChildHomePage>
   StudyStatus _study = const StudyStatus();
   Map<String, String> _labels = const {};
   DeviceSelfInfo? _me;
+  Map<String, String> _requests = const {};
   Timer? _timer;
   bool _started = false;
 
@@ -93,6 +94,7 @@ class _ChildHomePageState extends State<ChildHomePage>
     final bonus = await p.bonusMinutes();
     final pause = await p.pauseMinutesLeft();
     final study = await p.studyStatus();
+    final requests = await widget.family.requestStatuses();
     final packages = {
       ...?controller?.lockedPackages,
       ...config.apps.keys,
@@ -109,8 +111,85 @@ class _ChildHomePageState extends State<ChildHomePage>
       _pauseLeft = pause;
       _study = study;
       _labels = labels;
+      _requests = requests;
     });
     if (_me == null) unawaited(_loadMe());
+  }
+
+  Future<void> _askExtraTime() async {
+    final minutes = await showModalBottomSheet<int>(
+      context: context,
+      builder: (sheet) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final m in const [15, 30])
+              ListTile(
+                key: Key('extra-time-$m'),
+                leading: const Icon(Icons.more_time_rounded),
+                title: Text('Xin thêm $m phút'),
+                onTap: () => Navigator.pop(sheet, m),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (minutes == null) return;
+    await widget.family.queueRequest('extra_time', minutes: minutes);
+    await _reloadRequests();
+  }
+
+  Future<void> _studyDone() async {
+    await widget.family.queueRequest('study_done');
+    await _reloadRequests();
+  }
+
+  Future<void> _reloadRequests() async {
+    final requests = await widget.family.requestStatuses();
+    if (mounted) setState(() => _requests = requests);
+  }
+
+  /// Dòng trạng thái yêu cầu cho con; null nếu chưa từng gửi loại này.
+  String? _requestText(String kind) => switch (_requests[kind]) {
+    'pending' => 'Đã gửi, chờ mẹ duyệt.',
+    'approved' => 'Mẹ đã duyệt.',
+    'denied' => 'Mẹ từ chối.',
+    _ => null,
+  };
+
+  List<Widget> _requestButtons() {
+    final extraText = _requestText('extra_time');
+    final studyText = _requestText('study_done');
+    final extraPending = _requests['extra_time'] == 'pending';
+    final studyPending = _requests['study_done'] == 'pending';
+    return [
+      FilledButton.icon(
+        key: const Key('child-extra-time'),
+        onPressed: extraPending ? null : _askExtraTime,
+        icon: const Icon(Icons.more_time_rounded),
+        label: const Text('Xin thêm giờ'),
+      ),
+      if (extraText != null)
+        Padding(
+          padding: const EdgeInsets.only(top: AppSpace.xs),
+          child: Text(extraText, key: const Key('child-extra-time-status')),
+        ),
+      if (_study.active) ...[
+        const SizedBox(height: AppSpace.sm),
+        FilledButton.tonalIcon(
+          key: const Key('child-study-done'),
+          onPressed: studyPending ? null : _studyDone,
+          icon: const Icon(Icons.task_alt_rounded),
+          label: const Text('Con học xong rồi'),
+        ),
+      ],
+      if (studyText != null)
+        Padding(
+          padding: const EdgeInsets.only(top: AppSpace.xs),
+          child: Text(studyText, key: const Key('child-study-done-status')),
+        ),
+      const SizedBox(height: AppSpace.lg),
+    ];
   }
 
   bool _syncing = false;
@@ -195,6 +274,7 @@ class _ChildHomePageState extends State<ChildHomePage>
             ),
             const SizedBox(height: AppSpace.lg),
             ..._statusCards(theme),
+            ..._requestButtons(),
             Text('Ứng dụng đang bị chặn', style: theme.textTheme.titleMedium),
             const SizedBox(height: AppSpace.sm),
             if (blocked.isEmpty)

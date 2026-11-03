@@ -20,6 +20,12 @@ abstract interface class FamilyPlatform {
   Future<void> configure(String baseUrl, String token);
   Future<void> clear();
   Future<bool> syncNow();
+
+  /// Con xin thêm giờ (`extra_time`, kèm số phút) hoặc báo học xong (`study_done`).
+  Future<void> queueRequest(String kind, {int minutes = 0});
+
+  /// Trạng thái theo loại yêu cầu: `pending` / `approved` / `denied`. Loại chưa gửi thì không có khóa.
+  Future<Map<String, String>> requestStatuses();
   Future<LocationPermissionStatus> locationStatus();
   Future<void> requestLocation();
   Future<bool> requestBackgroundLocation();
@@ -50,6 +56,18 @@ class MethodChannelFamily implements FamilyPlatform {
 
   @override
   Future<bool> syncNow() async => await _call<bool>('syncNow') ?? false;
+
+  @override
+  Future<void> queueRequest(String kind, {int minutes = 0}) =>
+      _call<void>('queueRequest', {'kind': kind, 'minutes': minutes});
+
+  @override
+  Future<Map<String, String>> requestStatuses() async {
+    final m = await _call<Map<Object?, Object?>>('requestStatuses');
+    return {
+      for (final e in (m ?? const {}).entries) '${e.key}': '${e.value}',
+    };
+  }
 
   @override
   Future<LocationPermissionStatus> locationStatus() async {

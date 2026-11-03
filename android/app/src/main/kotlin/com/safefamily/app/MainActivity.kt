@@ -274,6 +274,16 @@ class MainActivity : FlutterFragmentActivity() {
                         val ok = FamilySync.syncOnce(this)
                         runOnUiThread { result.success(ok) }
                     }.start()
+                    // Con xin thêm giờ / báo học xong từ màn chính (cùng hàng chờ với màn chặn).
+                    "queueRequest" -> {
+                        FamilySync.queueRequest(
+                            this,
+                            call.argument<String>("kind") ?: "",
+                            call.argument<Int>("minutes") ?: 0,
+                        )
+                        result.success(null)
+                    }
+                    "requestStatuses" -> result.success(FamilySync.requestStatuses(this))
                     "locationStatus" -> result.success(
                         mapOf(
                             "foreground" to FamilySync.hasLocationPermission(this),

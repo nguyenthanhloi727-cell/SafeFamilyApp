@@ -33,6 +33,7 @@ object FamilySync {
     private const val KEY_EVENTS = "pending_events"
     private const val KEY_REQUESTS = "pending_requests"
     private const val KEY_TRACKED = "tracked_requests"
+    private const val KEY_RESULTS = "request_results"
     private const val MAX_QUEUE = 500
     private const val TIMEOUT_MS = 15_000
     private const val DEFAULT_LOCK_MINUTES = 60
@@ -224,6 +225,30 @@ object FamilySync {
         Thread { syncRequests(context) }.start()
     }
 
+    /**
+     * Trạng thái yêu cầu theo loại cho màn chính của con: "pending" (đang chờ gửi hoặc chờ mẹ duyệt),
+     * "approved" / "denied" (kết quả gần nhất, giữ tới khi con gửi yêu cầu mới cùng loại). Loại chưa từng gửi thì không có.
+     */
+    fun requestStatuses(context: Context): Map<String, String> {
+        val p = prefs(context)
+        val out = mutableMapOf<String, String>()
+        runCatching {
+            val results = JSONObject(p.getString(KEY_RESULTS, "{}"))
+            for (k in results.keys()) out[k] = results.getString(k)
+            val queue = synchronized(requestQueueLock) { JSONArray(p.getString(KEY_REQUESTS, "[]")) }
+            for (i in 0 until queue.length()) out[queue.getJSONObject(i).optString("kind")] = "pending"
+            val tracked = JSONArray(p.getString(KEY_TRACKED, "[]"))
+            for (i in 0 until tracked.length()) out[tracked.getJSONObject(i).optString("kind")] = "pending"
+        }
+        return out
+    }
+
+    private fun saveResult(context: Context, kind: String, status: String) {
+        val p = prefs(context)
+        val results = runCatching { JSONObject(p.getString(KEY_RESULTS, "{}")) }.getOrDefault(JSONObject())
+        p.edit().putString(KEY_RESULTS, results.put(kind, status).toString()).apply()
+    }
+
     private val requestQueueLock = Any()
     private val requestSyncLock = Any()
 
@@ -310,6 +335,7 @@ object FamilySync {
                     if (status == "pending") {
                         if (!expired) keep.put(item)
                     } else {
+                        saveResult(context, item.getString("kind"), if (status == "approved") "approved" else "denied")
                         notifyRequestResult(context, item.getString("kind"), status == "approved")
                     }
                 }

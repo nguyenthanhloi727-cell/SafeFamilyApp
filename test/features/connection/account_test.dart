@@ -29,6 +29,10 @@ class _Platform implements FamilyPlatform {
   @override
   Future<bool> syncNow() async => true;
   @override
+  Future<void> queueRequest(String kind, {int minutes = 0}) async {}
+  @override
+  Future<Map<String, String>> requestStatuses() async => const {};
+  @override
   Future<LocationPermissionStatus> locationStatus() async =>
       const LocationPermissionStatus(foreground: true, background: true);
   @override

@@ -16,11 +16,12 @@ import '../../helpers/app_lock_fakes.dart';
 import '../../helpers/security_fakes.dart';
 
 class _Platform implements TimeLimitPlatform {
-  _Platform({this.pause = 0, this.limit, this.used = 0});
+  _Platform({this.pause = 0, this.limit, this.used = 0, this.study = false});
 
   final int pause;
   final int? limit;
   final int used;
+  final bool study;
 
   @override
   Future<TimeLimitConfig> load() async => TimeLimitConfig(
@@ -34,7 +35,7 @@ class _Platform implements TimeLimitPlatform {
   @override
   Future<int> pauseMinutesLeft() async => pause;
   @override
-  Future<StudyStatus> studyStatus() async => const StudyStatus();
+  Future<StudyStatus> studyStatus() async => StudyStatus(active: study);
   @override
   Future<Map<String, String>> appLabels(List<String> packages) async => {
     for (final p in packages)
@@ -121,6 +122,49 @@ void main() {
     expect(find.text('Chưa đồng bộ được. Kiểm tra mạng rồi thử lại.'), findsOneWidget);
   });
 
+  testWidgets('Xin thêm giờ: chọn 15 phút, gửi và hiện chờ mẹ duyệt', (t) async {
+    final family = _Family();
+    await pump(t, _Platform(), family: family);
+    expect(find.byKey(const Key('child-extra-time-status')), findsNothing);
+
+    await t.tap(find.byKey(const Key('child-extra-time')));
+    await t.pumpAndSettle();
+    await t.tap(find.byKey(const Key('extra-time-15')));
+    await t.pumpAndSettle();
+
+    expect(family.queued, ['extra_time:15']);
+    expect(find.text('Đã gửi, chờ mẹ duyệt.'), findsOneWidget);
+    final button = t.widget<FilledButton>(
+      find.byKey(const Key('child-extra-time')),
+    );
+    expect(button.onPressed, isNull);
+  });
+
+  testWidgets('hiện kết quả mẹ đã duyệt / từ chối', (t) async {
+    final family = _Family()
+      ..statuses['extra_time'] = 'approved'
+      ..statuses['study_done'] = 'denied';
+    await pump(t, _Platform(study: true), family: family);
+    expect(find.text('Mẹ đã duyệt.'), findsOneWidget);
+    expect(find.text('Mẹ từ chối.'), findsOneWidget);
+  });
+
+  testWidgets('ngoài giờ học không có nút Con học xong rồi', (t) async {
+    await pump(t, _Platform());
+    expect(find.byKey(const Key('child-study-done')), findsNothing);
+  });
+
+  testWidgets('Con học xong rồi chỉ hiện trong giờ học và gửi study_done', (
+    t,
+  ) async {
+    final family = _Family();
+    await pump(t, _Platform(study: true), family: family);
+    await t.tap(find.byKey(const Key('child-study-done')));
+    await t.pumpAndSettle();
+    expect(family.queued, ['study_done:0']);
+    expect(find.text('Đã gửi, chờ mẹ duyệt.'), findsOneWidget);
+  });
+
   testWidgets('Dành cho phụ huynh mở menu; Ngắt kết nối xóa phiên máy con', (
     t,
   ) async {
@@ -141,6 +185,18 @@ void main() {
 }
 
 class _Family implements FamilyPlatform {
+  final queued = <String>[];
+  final statuses = <String, String>{};
+
+  @override
+  Future<void> queueRequest(String kind, {int minutes = 0}) async {
+    queued.add('$kind:$minutes');
+    statuses[kind] = 'pending';
+  }
+
+  @override
+  Future<Map<String, String>> requestStatuses() async => {...statuses};
+
   int syncs = 0;
   bool result = true;
 
