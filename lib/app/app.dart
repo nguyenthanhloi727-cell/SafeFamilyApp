@@ -27,7 +27,6 @@ import '../features/new_app/data/new_app_platform.dart';
 import '../features/connection/data/family_platform.dart';
 import '../features/new_app/presentation/new_apps_page.dart';
 import '../features/parental/presentation/first_run_setup_page.dart';
-import '../features/profile/data/local_profile_repository.dart';
 import '../features/setup/setup_wizard_page.dart';
 import '../features/time_limit/data/study_approval_platform.dart';
 import '../features/time_limit/data/time_limit_platform.dart';
@@ -124,7 +123,6 @@ class _SafeFamilyAppState extends State<SafeFamilyApp> {
       api: _api,
       session: _connection,
       navigatorKey: _navigatorKey,
-      loadContacts: LocalProfileRepository().loadContacts,
     );
     _connection.addListener(_syncFamily);
     // Dịch vụ "Bảo vệ cài đặt" đưa con về SafeFamily khi con mở màn nguy hiểm
@@ -282,7 +280,6 @@ class _SafeFamilyAppState extends State<SafeFamilyApp> {
     if (widget.permissions == null) _permissions.dispose();
     if (widget.setup == null) _setup.dispose();
     if (widget.connection == null) _connection.dispose();
-    _policySync.dispose();
     if (widget.api == null) _api.close();
     super.dispose();
   }

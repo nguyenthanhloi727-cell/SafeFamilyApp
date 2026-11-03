@@ -187,8 +187,6 @@ class _AppLockPageState extends State<AppLockPage> {
     if (!ok) {
       showAppSnackBar(context, 'Chưa ${action.toLowerCase()} được. Thử lại.');
     } else {
-      // Danh sách khóa đổi → đẩy lên máy con nếu máy mẹ đã chọn máy con.
-      PolicySyncScope.notifyChanged(context);
       if (locked) showAppSnackBar(context, 'Đã chặn ${app.name}.');
     }
   }

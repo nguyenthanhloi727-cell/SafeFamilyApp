@@ -7,6 +7,7 @@ import '../../../core/network/api_client.dart';
 import '../../../core/network/api_scope.dart';
 import '../../../core/network/connection_session.dart';
 import '../../../core/security/ui/parent_gate.dart';
+import '../../../core/services/external_launcher.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../app_lock/presentation/app_lock_controller.dart';
 import '../../../core/widgets/app_snack_bar.dart';
@@ -22,11 +23,15 @@ class ChildHomePage extends StatefulWidget {
     super.key,
     this.platform = const MethodChannelTimeLimit(),
     this.family = const MethodChannelFamily(),
+    this.launcher = const UrlExternalLauncher(),
     this.refreshEvery = const Duration(seconds: 30),
   });
 
   final TimeLimitPlatform platform;
   final FamilyPlatform family;
+
+  /// Mở app Điện thoại để gọi người nhà.
+  final ExternalLauncher launcher;
   final Duration refreshEvery;
 
   @override
@@ -44,6 +49,7 @@ class _ChildHomePageState extends State<ChildHomePage>
   DeviceSelfInfo? _me;
   Map<String, String> _requests = const {};
   DateTime? _lastSync;
+  List<ChildContact> _contacts = const [];
   bool _lastSyncFailed = false;
   Timer? _timer;
   bool _started = false;
@@ -98,6 +104,7 @@ class _ChildHomePageState extends State<ChildHomePage>
     final study = await p.studyStatus();
     final requests = await widget.family.requestStatuses();
     final lastSync = await widget.family.lastSyncAt();
+    final contacts = await widget.family.contacts();
     final packages = {
       ...?controller?.lockedPackages,
       ...config.apps.keys,
@@ -116,6 +123,7 @@ class _ChildHomePageState extends State<ChildHomePage>
       _labels = labels;
       _requests = requests;
       _lastSync = lastSync;
+      _contacts = contacts;
     });
     if (_me == null) unawaited(_loadMe());
   }
@@ -191,6 +199,54 @@ class _ChildHomePageState extends State<ChildHomePage>
         Padding(
           padding: const EdgeInsets.only(top: AppSpace.xs),
           child: Text(studyText, key: const Key('child-study-done-status')),
+        ),
+      const SizedBox(height: AppSpace.lg),
+    ];
+  }
+
+  /// Số SOS đứng trước, rồi tới người nhà khác theo thứ tự mẹ đặt.
+  List<ChildContact> get _callList => [
+    ..._contacts.where((c) => c.sos),
+    ..._contacts.where((c) => !c.sos),
+  ];
+
+  Future<void> _call(ChildContact contact) async {
+    final ok = await widget.launcher.openDialer(contact.phone);
+    if (!ok && mounted) {
+      showAppSnackBar(context, 'Không mở được app Điện thoại.');
+    }
+  }
+
+  List<Widget> _callButtons(ThemeData theme) {
+    final list = _callList;
+    if (list.isEmpty) return const [];
+    return [
+      Text('Gọi người nhà', style: theme.textTheme.titleMedium),
+      const SizedBox(height: AppSpace.sm),
+      for (final (i, c) in list.indexed)
+        Padding(
+          padding: const EdgeInsets.only(bottom: AppSpace.sm),
+          child: c.sos
+              ? FilledButton.icon(
+                  key: Key('child-call-$i'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: theme.colorScheme.error,
+                    foregroundColor: theme.colorScheme.onError,
+                    minimumSize: const Size.fromHeight(56),
+                  ),
+                  onPressed: () => _call(c),
+                  icon: const Icon(Icons.sos_rounded),
+                  label: Text('SOS: gọi ${c.label}'),
+                )
+              : FilledButton.tonalIcon(
+                  key: Key('child-call-$i'),
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size.fromHeight(56),
+                  ),
+                  onPressed: () => _call(c),
+                  icon: const Icon(Icons.call_rounded),
+                  label: Text('Gọi ${c.label}'),
+                ),
         ),
       const SizedBox(height: AppSpace.lg),
     ];
@@ -333,6 +389,7 @@ class _ChildHomePageState extends State<ChildHomePage>
             const SizedBox(height: AppSpace.sm),
             _syncStatus(theme),
             const SizedBox(height: AppSpace.lg),
+            ..._callButtons(theme),
             ..._statusCards(theme),
             ..._requestButtons(),
             Text('Ứng dụng đang bị chặn', style: theme.textTheme.titleMedium),

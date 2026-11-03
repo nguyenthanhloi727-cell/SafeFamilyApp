@@ -22,7 +22,7 @@ object GuardPrefs {
     private const val KEY_ADMIN_RESTORE = "uninstall_admin_restore"
     private const val KEY_CHALLENGE = "challenge_pending"
     private const val KEY_EXTRA_TIME = "extra_time_pending"
-    private const val KEY_CONTACTS = "family_contacts"
+    private const val KEY_CONTACTS = "policy_contacts"
     private const val KEY_REMOTE_BLOCKED = "remote_blocked"
     private const val KEY_SOS = "policy_sos_contacts"
 
@@ -131,10 +131,14 @@ object GuardPrefs {
         prefs(context).edit().putStringSet(KEY_REMOTE_BLOCKED, HashSet(packages)).apply()
     }
 
-    /** Danh bạ gia đình (chỉ người có số) để màn chặn gọi được khi Flutter không chạy. */
+    /** Một liên hệ trong danh bạ của con. `emergency` = số SOS mẹ đánh dấu. */
     data class Contact(val label: String, val phone: String, val emergency: Boolean)
 
-    fun setContacts(context: Context, contacts: List<Contact>) {
+    /**
+     * Danh bạ của con, đến từ `policy.contacts` (T10/T11): luật mới của mẹ thay hết danh sách này,
+     * kể cả thành rỗng. Giữ ở đây để màn chặn và màn chính gọi được khi Flutter không chạy.
+     */
+    fun setChildContacts(context: Context, contacts: List<Contact>) {
         val array = org.json.JSONArray()
         for (c in contacts) {
             array.put(
@@ -147,7 +151,7 @@ object GuardPrefs {
         prefs(context).edit().putString(KEY_CONTACTS, array.toString()).apply()
     }
 
-    fun contacts(context: Context): List<Contact> {
+    fun childContacts(context: Context): List<Contact> {
         val raw = prefs(context).getString(KEY_CONTACTS, null) ?: return emptyList()
         return runCatching {
             val array = org.json.JSONArray(raw)
@@ -159,7 +163,7 @@ object GuardPrefs {
     }
 
     /**
-     * Số SOS mẹ chọn, đến từ `policy.contacts` (API-13). Tách khỏi [contacts] (danh bạ trên máy con):
+     * Số SOS mẹ chọn, đến từ `policy.contacts` (API-13). Là phần `sos:true` của [childContacts]:
      * luật mới của mẹ thay hết danh sách này, kể cả thành rỗng.
      */
     fun setSos(context: Context, sos: List<Contact>) {

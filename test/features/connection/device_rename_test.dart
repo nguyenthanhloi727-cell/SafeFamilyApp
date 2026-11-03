@@ -34,6 +34,8 @@ class _Platform implements FamilyPlatform {
   @override
   Future<DateTime?> lastSyncAt() async => null;
   @override
+  Future<List<ChildContact>> contacts() async => const [];
+  @override
   Future<LocationPermissionStatus> locationStatus() async =>
       const LocationPermissionStatus(foreground: true, background: true);
   @override

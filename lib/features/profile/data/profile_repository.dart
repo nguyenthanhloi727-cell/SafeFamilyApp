@@ -1,6 +1,5 @@
-import 'family_contact.dart';
-
-/// Nơi lưu hồ sơ phụ huynh và danh bạ gia đình.
+/// Nơi lưu hồ sơ phụ huynh. Danh bạ của con không nằm ở đây: nó là một phần luật của
+/// máy con trên server (xem `PolicySync.loadContacts` / `setContacts`).
 ///
 /// Giao diện chỉ phụ thuộc interface này. Muốn lưu lên server thì viết
 /// thêm một bản cài đặt khác, không phải sửa giao diện.
@@ -9,14 +8,4 @@ abstract interface class ProfileRepository {
   Future<String?> loadParentName();
 
   Future<void> saveParentName(String name);
-
-  /// Danh bạ theo [FamilyContact.order]. Lần đầu tạo sẵn "Mẹ", "Bố" chưa có số.
-  Future<List<FamilyContact>> loadContacts();
-
-  /// Thêm vào cuối danh sách, trả về liên hệ vừa tạo.
-  Future<FamilyContact> addContact({required String label, String phone = ''});
-
-  Future<void> updateContact(FamilyContact contact);
-
-  Future<void> deleteContact(String id);
 }

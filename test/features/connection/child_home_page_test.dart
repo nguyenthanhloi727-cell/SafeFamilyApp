@@ -13,6 +13,7 @@ import 'package:shared_preferences_platform_interface/in_memory_shared_preferenc
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 
 import '../../helpers/app_lock_fakes.dart';
+import '../../helpers/fake_launcher.dart';
 import '../../helpers/security_fakes.dart';
 
 class _Platform implements TimeLimitPlatform {
@@ -58,6 +59,7 @@ void main() {
     Set<String> blocked = const {},
     FamilyPlatform? family,
     ConnectionSession? session,
+    FakeLauncher? launcher,
   }) async {
     // Màn chính dài hơn khung test mặc định; ListView lười nên nút cuối trang cần chỗ.
     tester.view.physicalSize = const Size(800, 1600);
@@ -79,6 +81,7 @@ void main() {
             home: ChildHomePage(
               platform: platform,
               family: family ?? _Family(),
+              launcher: launcher ?? FakeLauncher(),
               refreshEvery: const Duration(days: 1),
             ),
           ),
@@ -87,6 +90,48 @@ void main() {
     );
     await tester.pumpAndSettle();
   }
+
+  testWidgets('mẹ chưa thêm danh bạ: không có mục Gọi người nhà', (t) async {
+    await pump(t, _Platform());
+    expect(find.text('Gọi người nhà'), findsNothing);
+  });
+
+  testWidgets('Gọi người nhà: SOS đứng đầu, bấm là mở bàn phím gọi', (t) async {
+    final family = _Family()
+      ..contactList = const [
+        ChildContact(label: 'Ông', phone: '0907654321'),
+        ChildContact(label: 'Mẹ', phone: '0901234567', sos: true),
+      ];
+    final launcher = FakeLauncher();
+    await pump(t, _Platform(), family: family, launcher: launcher);
+
+    expect(find.text('Gọi người nhà'), findsOneWidget);
+    expect(find.text('SOS: gọi Mẹ'), findsOneWidget);
+    expect(
+      t.getTopLeft(find.byKey(const Key('child-call-0'))).dy,
+      lessThan(t.getTopLeft(find.byKey(const Key('child-call-1'))).dy),
+    );
+
+    await t.tap(find.byKey(const Key('child-call-1')));
+    await t.pump();
+    await t.tap(find.byKey(const Key('child-call-0')));
+    await t.pump();
+    expect(launcher.dialed, ['0907654321', '0901234567']);
+  });
+
+  testWidgets('không mở được app Điện thoại thì báo', (t) async {
+    final family = _Family()
+      ..contactList = const [ChildContact(label: 'Mẹ', phone: '0901234567')];
+    await pump(
+      t,
+      _Platform(),
+      family: family,
+      launcher: FakeLauncher(succeed: false),
+    );
+    await t.tap(find.byKey(const Key('child-call-0')));
+    await t.pump();
+    expect(find.text('Không mở được app Điện thoại.'), findsOneWidget);
+  });
 
   testWidgets('hiện app đang bị chặn và thời gian còn lại hôm nay', (t) async {
     await pump(
@@ -243,6 +288,10 @@ void main() {
 class _Family implements FamilyPlatform {
   final queued = <String>[];
   final statuses = <String, String>{};
+  List<ChildContact> contactList = const [];
+
+  @override
+  Future<List<ChildContact>> contacts() async => contactList;
 
   @override
   Future<void> queueRequest(String kind, {int minutes = 0}) async {

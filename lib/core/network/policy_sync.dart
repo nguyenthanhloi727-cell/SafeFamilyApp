@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -8,66 +7,29 @@ import 'api_client.dart';
 import 'connection_session.dart';
 import 'policy_schema.dart';
 
-enum PolicyPushResult {
-  /// Không phải máy mẹ, hoặc chưa chọn máy con: không làm gì.
-  skipped,
-
-  /// Server đã có đúng số SOS này.
-  pushed,
-
-  /// Mất mạng / server lỗi. Số SOS trên máy mẹ vẫn đã lưu.
-  failed,
-}
-
 /// Máy mẹ sửa LUẬT CỦA MÁY CON trên server. Máy mẹ không giữ luật nào cho chính
 /// nó: mỗi lần sửa là đọc luật hiện có của máy con, đổi đúng phần cần đổi
-/// (danh sách chặn, giới hạn thời gian, số SOS) rồi ghi lại với số phiên bản đã
+/// (danh sách chặn, giới hạn thời gian, danh bạ) rồi ghi lại với số phiên bản đã
 /// đọc. Lệch phiên bản (409) thì đọc lại và thử thêm một lần, không ghi đè mù.
 class PolicySync {
   PolicySync({
     required this.api,
     required this.session,
     required this.navigatorKey,
-    this.loadContacts,
-    this.debounce = const Duration(seconds: 2),
   });
 
   final ApiClient api;
   final ConnectionSession session;
   final GlobalKey<NavigatorState> navigatorKey;
 
-  /// Danh bạ gia đình trên máy mẹ; chỉ các liên hệ đánh dấu khẩn cấp (SOS) được gửi (API-13).
-  final Future<List<FamilyContact>> Function()? loadContacts;
-  final Duration debounce;
-
-  Timer? _timer;
-  bool _running = false;
-  bool _again = false;
-  bool _disposed = false;
-
-  /// Máy mẹ đã chọn máy con thì có việc để làm.
-  bool get active =>
-      session.mode == ConnectionMode.parent &&
-      session.isParentLoggedIn &&
-      session.selectedChildId != null;
-
-  /// Số SOS ở danh bạ máy mẹ vừa đổi: gom các lần sửa dồn dập rồi gửi một lần.
-  void changed() {
-    if (_disposed || !active) return;
-    _timer?.cancel();
-    _timer = Timer(debounce, _drain);
-  }
-
-  /// Gửi số SOS ngay. Đã báo mẹ bằng thanh thông báo khi lỗi.
-  Future<PolicyPushResult> pushNow() async {
-    _timer?.cancel();
-    return _push();
-  }
-
   /// Các app đang bị chặn trên máy con [id] theo luật trên server.
   /// Chưa có luật → rỗng. Lỗi mạng → [ApiException].
   Future<Set<String>> loadBlocked(int id) async =>
       blockedIn((await api.getPolicy(id)).json);
+
+  /// Danh bạ của con [id] theo luật trên server. Chưa có luật → rỗng. Lỗi mạng → [ApiException].
+  Future<List<FamilyContact>> loadContacts(int id) async =>
+      contactsIn((await api.getPolicy(id)).json);
 
   /// Danh sách chặn trong chuỗi JSON luật; rỗng nếu thiếu hoặc hỏng.
   static Set<String> blockedIn(String policyJson) {
@@ -93,6 +55,33 @@ class PolicySync {
     }
   }
 
+  /// Danh bạ trong chuỗi JSON luật; rỗng nếu thiếu hoặc hỏng, mục hỏng bị bỏ qua.
+  /// `id` của mỗi liên hệ là vị trí trong luật. Thiếu `sos`: schema < 3 là true, từ 3 là false.
+  static List<FamilyContact> contactsIn(String policyJson) {
+    try {
+      final policy = jsonDecode(policyJson);
+      if (policy is! Map) return const [];
+      final list = policy['contacts'];
+      if (list is! List) return const [];
+      final schema = (policy['schemaVersion'] as num?) ?? 1;
+      return [
+        for (final (i, item) in list.indexed)
+          if (item is Map && item['phone'] is String && item['label'] is String)
+            FamilyContact(
+              id: '$i',
+              label: item['label'] as String,
+              phone: item['phone'] as String,
+              order: i,
+              emergency: item['sos'] is bool
+                  ? item['sos'] as bool
+                  : schema < PolicySchema.version,
+            ),
+      ];
+    } catch (_) {
+      return const [];
+    }
+  }
+
   /// Chặn / bỏ chặn một app trên máy con [id]. Trả về danh sách chặn mới;
   /// ném [ApiException] nếu không ghi được.
   Future<Set<String>> setBlocked(int id, String package, bool blocked) async {
@@ -112,6 +101,23 @@ class PolicySync {
     await _edit(id, (policy) {
       policy['timeLimit'] = jsonDecode(timeLimitJson);
     });
+  }
+
+  /// Ghi danh bạ của con [id] (tối đa [PolicySchema.maxContacts] liên hệ, SOS tối đa
+  /// [PolicySchema.maxSos], xem [PolicySchema.contactsJson]), giữ nguyên giới hạn thời gian và
+  /// danh sách chặn. Trả về danh bạ như server đã lưu; ném [ApiException] nếu không ghi được.
+  Future<List<FamilyContact>> setContacts(
+    int id,
+    List<FamilyContact> contacts,
+  ) async {
+    final policy = await _edit(id, (policy) {
+      policy['contacts'] = PolicySchema.contactsJson(contacts);
+      // Luật cũ thiếu `sos` hiểu là "mọi liên hệ đều SOS": phải lên schema 3 để `sos:false` có nghĩa.
+      if (((policy['schemaVersion'] as num?) ?? 1) < PolicySchema.version) {
+        policy['schemaVersion'] = PolicySchema.version;
+      }
+    });
+    return contactsIn(jsonEncode(policy));
   }
 
   static Set<String> _blockedOf(Map<String, dynamic> policy) =>
@@ -144,64 +150,6 @@ class PolicySync {
     }
     throw last!;
   }
-
-  void dispose() {
-    _disposed = true;
-    _timer?.cancel();
-  }
-
-  Future<void> _drain() async {
-    if (_running) {
-      _again = true; // đang gửi: sửa thêm trong lúc đó thì gửi lại sau
-      return;
-    }
-    _running = true;
-    try {
-      do {
-        _again = false;
-        await _push();
-      } while (_again && !_disposed);
-    } finally {
-      _running = false;
-    }
-  }
-
-  Future<PolicyPushResult> _push() async {
-    final id = session.selectedChildId;
-    if (!active || id == null) return PolicyPushResult.skipped;
-    try {
-      // Lỗi đọc danh bạ thì ném tiếp để KHÔNG gửi gói thiếu số SOS (máy con sẽ xóa SOS cũ).
-      // Tới T11 nguồn vẫn là danh bạ cục bộ của máy mẹ: chỉ gửi các số SOS, chưa gửi cả danh bạ.
-      final sos = PolicySchema.contactsJson(
-        (await loadContacts?.call() ?? const []).where((c) => c.emergency),
-      );
-      await _edit(id, (policy) {
-        policy['contacts'] = sos;
-        if (((policy['schemaVersion'] as num?) ?? 1) < PolicySchema.version) {
-          policy['schemaVersion'] = PolicySchema.version;
-        }
-      });
-      _say('Đã gửi số khẩn cấp cho máy con.');
-      return PolicyPushResult.pushed;
-    } on ApiException catch (e) {
-      _say('Chưa gửi được số khẩn cấp lên máy con: ${e.message}');
-      return PolicyPushResult.failed;
-    } on FormatException {
-      _say('Luật của máy con bị lỗi định dạng, chưa gửi.');
-      return PolicyPushResult.failed;
-    } catch (_) {
-      _say('Không đọc được danh bạ khẩn cấp, chưa gửi.');
-      return PolicyPushResult.failed;
-    }
-  }
-
-  void _say(String message) {
-    final context = navigatorKey.currentState?.overlay?.context;
-    if (context == null || !context.mounted) return;
-    ScaffoldMessenger.maybeOf(context)
-      ?..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
-  }
 }
 
 /// Đưa [PolicySync] xuống cây widget. Không có (test màn lẻ) thì không gửi gì.
@@ -212,10 +160,6 @@ class PolicySyncScope extends InheritedWidget {
 
   static PolicySync? maybeOf(BuildContext context) =>
       context.getInheritedWidgetOfExactType<PolicySyncScope>()?.sync;
-
-  /// Báo số SOS ở danh bạ máy mẹ vừa đổi (không làm gì nếu không có scope).
-  static void notifyChanged(BuildContext context) =>
-      maybeOf(context)?.changed();
 
   @override
   bool updateShouldNotify(PolicySyncScope oldWidget) => sync != oldWidget.sync;

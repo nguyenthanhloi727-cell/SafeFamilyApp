@@ -13,6 +13,19 @@ class LocationPermissionStatus {
   final bool background;
 }
 
+/// Một người nhà trong danh bạ của con (luật của mẹ, `policy.contacts`). [sos] = mẹ đánh dấu khẩn cấp.
+class ChildContact {
+  const ChildContact({
+    required this.label,
+    required this.phone,
+    this.sos = false,
+  });
+
+  final String label;
+  final String phone;
+  final bool sos;
+}
+
 /// Nói chuyện với phần Kotlin lo việc đồng bộ của máy con (kênh `safefamily/family`):
 /// Dart chỉ giao địa chỉ API + token thiết bị; Kotlin tự hỏi lệnh/luật, gửi vị trí
 /// và đăng ký hàng rào để vẫn chạy khi Flutter không chạy.
@@ -29,6 +42,9 @@ abstract interface class FamilyPlatform {
 
   /// Lần đồng bộ thành công gần nhất với máy mẹ; null nếu chưa lần nào.
   Future<DateTime?> lastSyncAt();
+
+  /// Danh bạ mẹ đặt cho con (lần đồng bộ gần nhất); rỗng nếu mẹ chưa thêm ai.
+  Future<List<ChildContact>> contacts();
   Future<LocationPermissionStatus> locationStatus();
   Future<void> requestLocation();
   Future<bool> requestBackgroundLocation();
@@ -99,6 +115,20 @@ class MethodChannelFamily implements FamilyPlatform {
   Future<DateTime?> lastSyncAt() async {
     final ms = await _call<int>('lastSyncMs') ?? 0;
     return ms > 0 ? DateTime.fromMillisecondsSinceEpoch(ms) : null;
+  }
+
+  @override
+  Future<List<ChildContact>> contacts() async {
+    final list = await _call<List<Object?>>('contacts') ?? const [];
+    return [
+      for (final item in list)
+        if (item is Map && item['phone'] is String && item['label'] is String)
+          ChildContact(
+            label: item['label'] as String,
+            phone: item['phone'] as String,
+            sos: item['sos'] == true,
+          ),
+    ];
   }
 
   @override

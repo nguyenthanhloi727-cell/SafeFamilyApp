@@ -59,7 +59,7 @@ class TimeLimitBlockActivity : Activity() {
         // thì xin lúc bấm; từ chối thì mở bàn phím). Chưa có số mẹ chọn thì như cũ: bàn phím gọi, không cần quyền.
         // Nhắn tin luôn qua app Tin nhắn (không cần quyền SEND_SMS).
         val parentSos = GuardPrefs.sos(this)
-        val contacts = GuardPrefs.contacts(this)
+        val contacts = GuardPrefs.childContacts(this)
         val emergency = parentSos.firstOrNull() ?: contacts.firstOrNull { it.emergency } ?: contacts.firstOrNull()
         val sosButtons = parentSos.map { c ->
             Button(this).apply {

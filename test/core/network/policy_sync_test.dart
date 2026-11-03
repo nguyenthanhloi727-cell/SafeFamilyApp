@@ -48,7 +48,6 @@ class _Server {
 Future<({_Server server, ConnectionSession session, PolicySync sync})> _setup({
   ConnectionMode mode = ConnectionMode.parent,
   int? child = 5,
-  List<FamilyContact> contacts = const [],
 }) async {
   final server = _Server();
   final session = ConnectionSession(store: InMemorySecureStore());
@@ -61,8 +60,6 @@ Future<({_Server server, ConnectionSession session, PolicySync sync})> _setup({
     api: ApiClient(session: session, client: MockClient(server.handle)),
     session: session,
     navigatorKey: GlobalKey<NavigatorState>(),
-    loadContacts: () async => contacts,
-    debounce: const Duration(milliseconds: 10),
   );
   return (server: server, session: session, sync: sync);
 }
@@ -200,22 +197,31 @@ void main() {
     expect(s.server.puts, hasLength(2));
   });
 
-  testWidgets('không làm gì khi không phải máy mẹ hoặc chưa chọn máy con', (
-    t,
-  ) async {
-    final local = await _setup(mode: ConnectionMode.local);
-    expect(await local.sync.pushNow(), PolicyPushResult.skipped);
-    final noChild = await _setup(child: null);
-    expect(await noChild.sync.pushNow(), PolicyPushResult.skipped);
-    expect(local.server.puts, isEmpty);
-    expect(noChild.server.puts, isEmpty);
+  test('contactsIn: đọc danh bạ, thiếu sos theo schema, bỏ mục hỏng', () {
+    final v3 = PolicySync.contactsIn(
+      '{"schemaVersion":3,"contacts":[{"label":"Mẹ","phone":"0901234567","sos":true},'
+      '{"label":"Ông","phone":"0907654321"},{"label":1,"phone":"x"},"hỏng"]}',
+    );
+    expect(v3.map((c) => c.label), ['Mẹ', 'Ông']);
+    expect(v3.map((c) => c.emergency), [true, false]);
+    final v2 = PolicySync.contactsIn(
+      '{"schemaVersion":2,"contacts":[{"label":"Mẹ","phone":"0901234567"}]}',
+    );
+    expect(v2.single.emergency, isTrue, reason: 'schema 2: mọi số đều là SOS');
+    expect(PolicySync.contactsIn('không phải json'), isEmpty);
+    expect(PolicySync.contactsIn('{}'), isEmpty);
   });
 
   testWidgets(
-    'gửi số SOS: chỉ đổi contacts, giữ giới hạn và danh sách chặn của máy con',
+    'setContacts: chỉ đổi contacts, lên schema 3, giữ giới hạn và danh sách chặn',
     (t) async {
-      final s = await _setup(
-        contacts: [
+      final s = await _setup();
+      s.server.version = 1;
+      s.server.json =
+          '{"schemaVersion":1,"timeLimit":{"enabled":true},"appLock":{"blocked":["x.app"],"schedules":[]}}';
+
+      final saved = await t.runAsync(
+        () => s.sync.setContacts(5, [
           const FamilyContact(
             id: 'a',
             label: 'Mẹ',
@@ -229,36 +235,22 @@ void main() {
             phone: '0907654321',
             order: 1,
           ),
-        ],
+        ]),
       );
-      s.server.version = 1;
-      s.server.json = '{"schemaVersion":1,"timeLimit":{"enabled":true},"appLock":{"blocked":["x.app"],"schedules":[]}}';
-
-      expect(await t.runAsync(s.sync.pushNow), PolicyPushResult.pushed);
       final sent = jsonDecode(s.server.json) as Map<String, dynamic>;
       expect(sent['schemaVersion'], 3);
       expect(sent['timeLimit'], {'enabled': true});
       expect(sent['appLock']['blocked'], ['x.app']);
       expect(sent['contacts'], [
         {'label': 'Mẹ', 'phone': '0901234567', 'sos': true},
+        {'label': 'Ông', 'phone': '0907654321', 'sos': false},
       ]);
+      expect(saved!.map((c) => c.emergency), [true, false]);
+      expect((await t.runAsync(() => s.sync.loadContacts(5)))!.length, 2);
     },
   );
 
-  testWidgets('changed() gom nhiều lần sửa thành một lần gửi', (t) async {
-    final s = await _setup();
-    s.sync
-      ..changed()
-      ..changed()
-      ..changed();
-    await t.pump(const Duration(milliseconds: 200));
-    await t.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 50)),
-    );
-    expect(s.server.puts, hasLength(1));
-  });
-
-  testWidgets('mất mạng: báo failed, không ném lỗi', (t) async {
+  testWidgets('mất mạng: setContacts ném ApiException, không treo', (t) async {
     final s = await _setup();
     final offline = PolicySync(
       api: ApiClient(
@@ -269,6 +261,14 @@ void main() {
       session: s.session,
       navigatorKey: GlobalKey<NavigatorState>(),
     );
-    expect(await t.runAsync(offline.pushNow), PolicyPushResult.failed);
+    final error = await t.runAsync(() async {
+      try {
+        await offline.setContacts(5, const []);
+        return null;
+      } on ApiException catch (e) {
+        return e;
+      }
+    });
+    expect(error, isNotNull);
   });
 }

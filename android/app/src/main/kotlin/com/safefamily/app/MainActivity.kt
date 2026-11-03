@@ -95,18 +95,6 @@ class MainActivity : FlutterFragmentActivity() {
                         GuardPrefs.allowSettings(this, (call.arguments as Number).toLong())
                         result.success(null)
                     }
-                    "setContacts" -> {
-                        val list = (call.arguments as List<*>).map {
-                            val m = it as Map<*, *>
-                            GuardPrefs.Contact(
-                                m["label"] as String,
-                                m["phone"] as String,
-                                m["emergency"] as Boolean,
-                            )
-                        }
-                        GuardPrefs.setContacts(this, list)
-                        result.success(null)
-                    }
                     "consumeChallenge" -> result.success(GuardPrefs.consumeChallenge(this))
                     "consumeExtraTime" -> result.success(GuardPrefs.consumeExtraTime(this))
                     "requestDeviceAdmin" -> {
@@ -290,6 +278,11 @@ class MainActivity : FlutterFragmentActivity() {
                     }
                     "requestStatuses" -> result.success(FamilySync.requestStatuses(this))
                     "lastSyncMs" -> result.success(FamilySync.lastSyncMs(this))
+                    "contacts" -> result.success(
+                        GuardPrefs.childContacts(this).map {
+                            mapOf("label" to it.label, "phone" to it.phone, "sos" to it.emergency)
+                        },
+                    )
                     "locationStatus" -> result.success(
                         mapOf(
                             "foreground" to FamilySync.hasLocationPermission(this),

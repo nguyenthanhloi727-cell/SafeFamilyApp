@@ -495,7 +495,10 @@ object FamilySync {
         val applied = runCatching {
             parsed.timeLimit?.let { TimeLimits.setConfig(context, it.toString()) }
             parsed.blocked?.let { applyRemoteBlocked(context, it) }
-            parsed.sos?.let { GuardPrefs.setSos(context, it) }
+            parsed.contacts?.let {
+                GuardPrefs.setChildContacts(context, it)
+                GuardPrefs.setSos(context, it.filter { c -> c.emergency })
+            }
         }.isSuccess
         if (applied) p.edit().putInt(KEY_POLICY_VERSION, parsed.version).apply()
     }
@@ -504,7 +507,7 @@ object FamilySync {
         val version: Int,
         val timeLimit: JSONObject?,
         val blocked: Set<String>?,
-        val sos: List<GuardPrefs.Contact>? = null,
+        val contacts: List<GuardPrefs.Contact>? = null,
     )
 
     /** `null` ở timeLimit/blocked = gói không nhắc tới phần đó (giữ nguyên). Ném lỗi nếu gói không hợp lệ. */
@@ -530,7 +533,7 @@ object FamilySync {
             }
             out
         } else null
-        return ParsedPolicy(version, timeLimit, blocked, parseSos(policy, schema))
+        return ParsedPolicy(version, timeLimit, blocked, parseContacts(policy, schema))
     }
 
     private val sosPhone = Regex("""^\+?[0-9]{9,12}$""")
@@ -538,9 +541,9 @@ object FamilySync {
     /**
      * `contacts` (schema 2 API-13: số SOS; schema 3 T10: danh bạ của con, tối đa 20, trong đó tối đa 3 `sos:true`).
      * `null` = gói không nhắc tới (giữ nguyên). Có thì phải hợp lệ HẾT (nhãn 1–30 ký tự, số 9–12 chữ số) nếu không
-     * cả gói bị bỏ. Chỉ các mục SOS được giữ lại; thiếu `sos` thì schema < 3 là true, từ 3 là false.
+     * cả gói bị bỏ. Giữ cả danh bạ (`emergency` = `sos`); thiếu `sos` thì schema < 3 là true, từ 3 là false.
      */
-    private fun parseSos(policy: JSONObject, schema: Int): List<GuardPrefs.Contact>? {
+    private fun parseContacts(policy: JSONObject, schema: Int): List<GuardPrefs.Contact>? {
         if (!policy.has("contacts")) return null
         val array = policy.getJSONArray("contacts")
         require(array.length() <= 20) { "quá 20 liên hệ" }
@@ -551,9 +554,9 @@ object FamilySync {
             val phone = o.get("phone")
             require(label is String && label.trim().length in 1..30) { "nhãn SOS không hợp lệ" }
             require(phone is String && sosPhone.matches(phone)) { "số SOS không hợp lệ" }
-            if (o.optBoolean("sos", schema < 3)) out.add(GuardPrefs.Contact(label.trim(), phone, true))
+            out.add(GuardPrefs.Contact(label.trim(), phone, o.optBoolean("sos", schema < 3)))
         }
-        require(out.size <= 3) { "quá 3 số SOS" }
+        require(out.count { it.emergency } <= 3) { "quá 3 số SOS" }
         return out
     }
 
