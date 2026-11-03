@@ -44,7 +44,6 @@ Future<
     _Server server,
     ConnectionSession session,
     PolicySync sync,
-    Set<String> blocked,
     Widget app,
   })
 >
@@ -61,13 +60,11 @@ _setup({
   await session.saveParentTokens(access: 'a', refresh: 'r');
   await session.selectChild(child);
   final key = GlobalKey<NavigatorState>();
-  final blocked = <String>{'com.google.android.youtube'};
   final sync = PolicySync(
     api: ApiClient(session: session, client: MockClient(server.handle)),
     session: session,
     navigatorKey: key,
     loadTimeLimit: () async => _timeLimit,
-    blockedPackages: () => blocked,
     loadContacts: () async => contacts,
     debounce: const Duration(milliseconds: 10),
   );
@@ -75,7 +72,6 @@ _setup({
     server: server,
     session: session,
     sync: sync,
-    blocked: blocked,
     app: MaterialApp(
       navigatorKey: key,
       home: const Scaffold(body: SizedBox()),
@@ -163,9 +159,57 @@ void main() {
     expect(s.server.puts.single['expectedVersion'], 0);
     final sent = jsonDecode(s.server.puts.single['json'] as String);
     expect(sent['schemaVersion'], 2);
-    expect(sent['appLock']['blocked'], ['com.google.android.youtube']);
+    expect(sent['appLock']['blocked'], isEmpty);
     expect(sent['timeLimit']['enabled'], isTrue);
     expect(s.session.policyVersionOf(5), 1);
+  });
+
+  testWidgets('setBlocked: chỉ sửa appLock.blocked của máy con, giữ phần còn lại', (
+    t,
+  ) async {
+    final s = await _setup();
+    s.server.version = 2;
+    s.server.json =
+        '{"schemaVersion":2,"timeLimit":{"enabled":true},"appLock":{"blocked":["b.app"],"schedules":[]},"contacts":[]}';
+
+    final after = await t.runAsync(
+      () => s.sync.setBlocked(5, 'com.google.android.youtube', true),
+    );
+    expect(after, {'b.app', 'com.google.android.youtube'});
+    expect(s.server.puts.single['expectedVersion'], 2);
+    final sent = jsonDecode(s.server.json) as Map<String, dynamic>;
+    expect(sent['appLock']['blocked'], ['b.app', 'com.google.android.youtube']);
+    expect(sent['timeLimit'], {'enabled': true});
+    expect(s.session.policyVersionOf(5), 3);
+
+    final removed = await t.runAsync(() => s.sync.setBlocked(5, 'b.app', false));
+    expect(removed, {'com.google.android.youtube'});
+  });
+
+  testWidgets('setBlocked khi server chưa có luật: tạo luật chỉ có appLock', (
+    t,
+  ) async {
+    final s = await _setup();
+    await t.runAsync(() => s.sync.setBlocked(5, 'a.app', true));
+    expect(s.server.puts.single['expectedVersion'], 0);
+    final sent = jsonDecode(s.server.json) as Map<String, dynamic>;
+    expect(sent['appLock']['blocked'], ['a.app']);
+    expect(sent.containsKey('timeLimit'), isFalse);
+  });
+
+  testWidgets('gói luật gửi từ máy mẹ giữ nguyên danh sách chặn của máy con', (
+    t,
+  ) async {
+    final s = await _setup();
+    await t.pumpWidget(s.app);
+    s.server.version = 1;
+    s.server.json =
+        '{"schemaVersion":2,"appLock":{"blocked":["x.app"],"schedules":[]}}';
+    await s.session.setPolicyVersion(5, 1);
+
+    await s.sync.pushNow();
+    final sent = jsonDecode(s.server.puts.single['json'] as String);
+    expect(sent['appLock']['blocked'], ['x.app']);
   });
 
   testWidgets('gói luật gửi kèm số SOS mẹ chọn từ danh bạ máy mẹ', (t) async {
@@ -264,7 +308,6 @@ void main() {
       session: s.session,
       navigatorKey: GlobalKey<NavigatorState>(),
       loadTimeLimit: () async => _timeLimit,
-      blockedPackages: () => {},
     );
     expect(await t.runAsync(offline.pushNow), PolicyPushResult.failed);
   });

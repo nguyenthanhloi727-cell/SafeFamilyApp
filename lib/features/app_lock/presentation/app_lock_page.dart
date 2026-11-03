@@ -45,18 +45,109 @@ class _AppLockPageState extends State<AppLockPage> {
   final Set<String> _relockSent = {};
   bool _requestedRemote = false;
 
+  /// Chế độ mẹ + đã chọn máy con: app của MÁY CON (đọc từ server) và danh sách đang chặn trên máy con.
+  List<InstalledAppInfo>? _childApps;
+  Set<String> _childBlocked = {};
+  String? _childError;
+  final Set<String> _childBusy = {};
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     final controller = AppLockScope.maybeOf(context);
-    if (controller != null && !_requestedApps) {
+    final remote = RemoteCommands.targetOf(context) != null;
+    if (!remote && controller != null && !_requestedApps) {
       _requestedApps = true;
       controller.loadApps();
     }
     if (!_requestedRemote) {
       _requestedRemote = true;
       _loadRemoteUnlocked();
+      if (remote) _loadChildApps();
     }
+  }
+
+  Future<void> _loadChildApps() async {
+    final child = RemoteCommands.targetOf(context);
+    final api = ApiScope.maybeOf(context);
+    final sync = PolicySyncScope.maybeOf(context);
+    if (child == null || api == null || sync == null) return;
+    setState(() => _childError = null);
+    try {
+      final apps = await api.getDeviceApps(child);
+      final blocked = await sync.loadBlocked(child);
+      if (!mounted) return;
+      setState(() {
+        _childApps = apps;
+        _childBlocked = blocked;
+      });
+    } on ApiException catch (e) {
+      if (mounted) setState(() => _childError = e.message);
+    }
+  }
+
+  /// Chặn / bỏ chặn app trên máy con: ghi vào luật của máy con trên server.
+  Future<void> _setChildBlocked(InstalledAppInfo app, bool locked) async {
+    final action = locked ? 'Chặn ${app.label}' : 'Bỏ chặn ${app.label}';
+    if (!await ParentGate.parentArea(context, action)) return;
+    if (!mounted) return;
+    final child = RemoteCommands.targetOf(context);
+    final sync = PolicySyncScope.maybeOf(context);
+    if (child == null || sync == null) return;
+    setState(() => _childBusy.add(app.packageName));
+    try {
+      final blocked = await sync.setBlocked(child, app.packageName, locked);
+      if (!mounted) return;
+      setState(() => _childBlocked = blocked);
+      showAppSnackBar(
+        context,
+        '${locked ? 'Đã chặn' : 'Đã bỏ chặn'} ${app.label} trên máy con. '
+        'Máy con áp dụng ở lần đồng bộ kế (tối đa vài phút).',
+      );
+    } on ApiException catch (e) {
+      if (mounted) showAppSnackBar(context, e.message);
+    } finally {
+      if (mounted) setState(() => _childBusy.remove(app.packageName));
+    }
+  }
+
+  Future<void> _unlockChildTemporarily(InstalledAppInfo app) async {
+    if (!await ParentGate.parentArea(
+      context,
+      'Mở tạm $tempUnlockMinutes phút: ${app.label}',
+    )) {
+      return;
+    }
+    if (!mounted) return;
+    final child = RemoteCommands.targetOf(context);
+    if (child == null) return;
+    await RemoteCommands.send(
+      context,
+      child,
+      'app_unlock_temp',
+      payloadJson: RemoteCommands.unlockTempPayload(
+        app.packageName,
+        tempUnlockMinutes,
+      ),
+      done:
+          'Đã gửi lệnh mở tạm ${app.label} $tempUnlockMinutes phút. Máy con nhận ở lần đồng bộ kế.',
+    );
+  }
+
+  Future<void> _relockChild(InstalledAppInfo app) async {
+    if (!await ParentGate.parentArea(context, 'Chặn lại ${app.label}')) return;
+    if (!mounted) return;
+    final child = RemoteCommands.targetOf(context);
+    if (child == null) return;
+    final sent = await RemoteCommands.send(
+      context,
+      child,
+      'app_relock',
+      payloadJson: RemoteCommands.packagePayload(app.packageName),
+      done:
+          'Đã gửi lệnh chặn lại ${app.label}. Máy con nhận ở lần đồng bộ kế.',
+    );
+    if (sent && mounted) setState(() => _relockSent.add(app.packageName));
   }
 
   Future<void> _loadRemoteUnlocked() async {
@@ -197,9 +288,184 @@ class _AppLockPageState extends State<AppLockPage> {
           ),
         ],
       ),
-      body: controller == null
+      body: RemoteCommands.targetOf(context) != null
+          ? _childBody(context)
+          : controller == null
           ? const Center(child: Text('Khóa ứng dụng không dùng được.'))
           : _body(context, controller),
+    );
+  }
+
+  /// Chế độ mẹ + đã chọn máy con: danh sách app của máy con.
+  Widget _childBody(BuildContext context) {
+    final apps = _childApps;
+    if (apps == null) {
+      return ListView(
+        padding: const EdgeInsets.all(AppSpace.lg),
+        children: [
+          const SizedBox(height: AppSpace.xl),
+          Center(
+            child: _childError != null
+                ? Column(
+                    children: [
+                      Text(_childError!, textAlign: TextAlign.center),
+                      const SizedBox(height: AppSpace.sm),
+                      OutlinedButton(
+                        onPressed: _loadChildApps,
+                        child: const Text('Thử lại'),
+                      ),
+                    ],
+                  )
+                : const CircularProgressIndicator(),
+          ),
+        ],
+      );
+    }
+    final query = _query.toLowerCase();
+    final visible = [
+      for (final app in apps)
+        if ((!widget.onlyLocked ||
+                _childBlocked.contains(app.packageName) ||
+                _remoteUnlocked.containsKey(app.packageName)) &&
+            (query.isEmpty ||
+                app.label.toLowerCase().contains(query) ||
+                app.packageName.toLowerCase().contains(query)))
+          app,
+    ]..sort((a, b) {
+        final locked =
+            (_childBlocked.contains(b.packageName) ? 1 : 0) -
+            (_childBlocked.contains(a.packageName) ? 1 : 0);
+        return locked != 0
+            ? locked
+            : a.label.toLowerCase().compareTo(b.label.toLowerCase());
+      });
+    final youtube = apps
+        .where((app) => app.packageName == youtubePackage)
+        .firstOrNull;
+    return ListView(
+      padding: const EdgeInsets.symmetric(vertical: AppSpace.lg),
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: AppSpace.lg),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Danh sách app trên máy con. Chặn xong, máy con áp dụng ở lần đồng bộ kế (tối đa vài phút).',
+              ),
+              const SizedBox(height: AppSpace.md),
+              if (youtube != null &&
+                  !widget.onlyLocked &&
+                  !_childBlocked.contains(youtubePackage)) ...[
+                FilledButton.icon(
+                  onPressed: _childBusy.contains(youtubePackage)
+                      ? null
+                      : () => _setChildBlocked(youtube, true),
+                  icon: const Icon(Icons.smart_display_rounded),
+                  label: const Text('Chặn nhanh YouTube'),
+                ),
+                const SizedBox(height: AppSpace.lg),
+              ],
+              if (widget.onlyLocked)
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Chặn thủ công',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                    ),
+                    TextButton.icon(
+                      onPressed: _openAllApps,
+                      icon: const Icon(Icons.add_rounded),
+                      label: const Text('Chặn thêm'),
+                    ),
+                  ],
+                )
+              else
+                TextField(
+                  controller: _search,
+                  onChanged: (value) => setState(() => _query = value.trim()),
+                  decoration: const InputDecoration(
+                    hintText: 'Tìm ứng dụng',
+                    prefixIcon: Icon(Icons.search_rounded),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        if (visible.isEmpty)
+          Padding(
+            padding: const EdgeInsets.all(AppSpace.xl),
+            child: Text(
+              widget.onlyLocked && _query.isEmpty
+                  ? 'Chưa chặn app nào. Bấm "Chặn thêm" để chọn app cần chặn.'
+                  : apps.isEmpty
+                  ? 'Máy con chưa gửi danh sách app. Mở SafeFamily trên máy con rồi làm mới.'
+                  : 'Không có ứng dụng nào khớp.',
+              textAlign: TextAlign.center,
+            ),
+          ),
+        for (final app in visible) _childTile(context, app),
+        if (widget.onlyLocked && widget.footer != null)
+          Padding(
+            padding: const EdgeInsets.all(AppSpace.lg),
+            child: widget.footer,
+          ),
+      ],
+    );
+  }
+
+  Widget _childTile(BuildContext context, InstalledAppInfo app) {
+    final theme = Theme.of(context);
+    final locked = _childBlocked.contains(app.packageName);
+    final until = _remoteUnlocked[app.packageName];
+    final busy = _childBusy.contains(app.packageName);
+    final relockSent = _relockSent.contains(app.packageName);
+    return ListTile(
+      key: Key('child-app-${app.packageName}'),
+      minTileHeight: AppSize.listItemMin,
+      leading: const Icon(Icons.android_rounded),
+      title: Text(app.label),
+      subtitle: until != null
+          ? Text(
+              relockSent
+                  ? 'Đã gửi lệnh chặn lại, chờ máy con (đang mở tạm tới ${_hhmm(until)})'
+                  : 'Đang mở tạm tới ${_hhmm(until)}',
+              style: TextStyle(color: theme.colorScheme.secondary),
+            )
+          : locked
+          ? Text('Đang chặn', style: TextStyle(color: theme.colorScheme.error))
+          : null,
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (busy)
+            const Padding(
+              padding: EdgeInsets.all(AppSpace.md),
+              child: SizedBox.square(
+                dimension: AppSize.icon,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            )
+          else if (until != null)
+            IconButton(
+              tooltip: 'Chặn lại ngay',
+              onPressed: relockSent ? null : () => _relockChild(app),
+              icon: const Icon(Icons.lock_outline_rounded),
+            )
+          else if (locked)
+            IconButton(
+              tooltip: 'Mở tạm $tempUnlockMinutes phút',
+              onPressed: () => _unlockChildTemporarily(app),
+              icon: const Icon(Icons.timer_outlined),
+            ),
+          Switch(
+            value: locked,
+            onChanged: busy ? null : (value) => _setChildBlocked(app, value),
+          ),
+        ],
+      ),
     );
   }
 

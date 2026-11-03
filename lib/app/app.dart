@@ -18,6 +18,7 @@ import '../core/settings/theme_settings.dart';
 import '../core/theme/app_theme.dart';
 import '../features/app_lock/data/app_lock_platform.dart';
 import '../features/app_lock/presentation/app_lock_controller.dart';
+import '../features/connection/presentation/child_home_page.dart';
 import '../features/connection/presentation/role_page.dart';
 import '../features/new_app/data/new_app_platform.dart';
 import '../features/connection/data/family_platform.dart';
@@ -115,7 +116,6 @@ class _SafeFamilyAppState extends State<SafeFamilyApp> {
       navigatorKey: _navigatorKey,
       loadTimeLimit: () async =>
           (await const MethodChannelTimeLimit().load()).toJson(),
-      blockedPackages: () => _appLock.lockedPackages,
       loadContacts: LocalProfileRepository().loadContacts,
     );
     _connection.addListener(_syncFamily);
@@ -358,6 +358,8 @@ class _SecurityGate extends StatelessWidget {
         }
         // Chọn vai trò (một máy / mẹ / con) sau khi cấp quyền, trước app chính.
         if (!connection.isChosen) return const RolePage();
+        // Máy con đã ghép đôi: chỉ màn đơn giản; app đầy đủ nằm sau "Dành cho phụ huynh".
+        if (connection.mode == ConnectionMode.child) return const ChildHomePage();
         return const AppShell();
       },
     );

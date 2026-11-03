@@ -7,6 +7,7 @@ import 'package:http/testing.dart';
 import 'package:safe_family_app/core/network/api_client.dart';
 import 'package:safe_family_app/core/network/api_scope.dart';
 import 'package:safe_family_app/core/network/connection_session.dart';
+import 'package:safe_family_app/core/network/policy_sync.dart';
 import 'package:safe_family_app/core/network/remote_commands.dart';
 import 'package:safe_family_app/core/theme/app_theme.dart';
 import 'package:safe_family_app/features/app_lock/app_lock_config.dart';
@@ -89,24 +90,42 @@ void main() {
   });
 
   testWidgets(
-    'app_lock_page: mở tạm gửi lệnh cho máy con, không mở trên máy mẹ',
+    'app_lock_page: mẹ chọn máy con → hiện app của MÁY CON và chặn bằng cách ghi luật server',
     (tester) async {
-      final platform = FakeAppLockPlatform();
-      final controller = AppLockController(
-        platform: platform,
-        store: AppLockStore(prefs: SharedPreferencesAsync()),
-      );
-      addTearDown(controller.dispose);
-      await controller.refresh();
+      final server = _ChildServer();
       final sent = <http.Request>[];
       await tester.pumpWidget(
-        AppLockScope(
-          controller: controller,
-          child: _wrap(await _session(), sent, const AppLockPage()),
-        ),
+        _wrapChild(await _session(), sent, server, const AppLockPage()),
       );
       await tester.pumpAndSettle();
+
+      expect(find.text('Zalo'), findsOneWidget);
+      expect(find.text('Game của con'), findsOneWidget);
+      expect(find.text('Chặn nhanh YouTube'), findsOneWidget);
+
       await tester.tap(find.text('Chặn nhanh YouTube'));
+      await tester.pumpAndSettle();
+
+      expect(server.puts, hasLength(1));
+      expect(server.puts.single['expectedVersion'], 0);
+      final policy = jsonDecode(server.puts.single['json'] as String);
+      expect(policy['appLock']['blocked'], ['com.google.android.youtube']);
+      expect(find.text('Đang chặn'), findsOneWidget);
+      expect(find.text('Chặn nhanh YouTube'), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'app_lock_page: mở tạm gửi lệnh cho máy con',
+    (tester) async {
+      final server = _ChildServer()
+        ..version = 1
+        ..policy =
+            '{"schemaVersion":2,"appLock":{"blocked":["com.google.android.youtube"],"schedules":[]}}';
+      final sent = <http.Request>[];
+      await tester.pumpWidget(
+        _wrapChild(await _session(), sent, server, const AppLockPage()),
+      );
       await tester.pumpAndSettle();
 
       await tester.tap(find.byIcon(Icons.timer_outlined));
@@ -122,8 +141,7 @@ void main() {
         'package': 'com.google.android.youtube',
         'minutes': tempUnlockMinutes,
       });
-      expect(platform.blocked, {'com.google.android.youtube'});
-      expect(platform.relocks, isEmpty);
+      expect(server.puts, isEmpty);
     },
   );
 
@@ -233,37 +251,25 @@ void main() {
   testWidgets('app_lock_page: app đang mở tạm trên máy con có nút "Chặn lại ngay" gửi app_relock', (
     tester,
   ) async {
-    final platform = FakeAppLockPlatform();
-    final controller = AppLockController(
-      platform: platform,
-      store: AppLockStore(prefs: SharedPreferencesAsync()),
-    );
-    addTearDown(controller.dispose);
-    await controller.refresh();
+    final server = _ChildServer()
+      ..version = 1
+      ..policy =
+          '{"schemaVersion":2,"appLock":{"blocked":["com.google.android.youtube"],"schedules":[]}}'
+      ..status = _status(
+        tempUnlocked: [
+          {
+            'package': 'com.google.android.youtube',
+            'until': DateTime.now()
+                .toUtc()
+                .add(const Duration(minutes: 10))
+                .toIso8601String(),
+          },
+        ],
+      );
     final sent = <http.Request>[];
     await tester.pumpWidget(
-      AppLockScope(
-        controller: controller,
-        child: _wrap(
-          await _session(),
-          sent,
-          const AppLockPage(),
-          status: _status(
-            tempUnlocked: [
-              {
-                'package': 'com.google.android.youtube',
-                'until': DateTime.now()
-                    .toUtc()
-                    .add(const Duration(minutes: 10))
-                    .toIso8601String(),
-              },
-            ],
-          ),
-        ),
-      ),
+      _wrapChild(await _session(), sent, server, const AppLockPage()),
     );
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Chặn nhanh YouTube'));
     await tester.pumpAndSettle();
 
     expect(find.textContaining('Đang mở tạm tới'), findsOneWidget);
@@ -283,26 +289,13 @@ void main() {
   testWidgets('app_lock_page: máy con không có app mở tạm → không có nút "Chặn lại ngay"', (
     tester,
   ) async {
-    final platform = FakeAppLockPlatform();
-    final controller = AppLockController(
-      platform: platform,
-      store: AppLockStore(prefs: SharedPreferencesAsync()),
-    );
-    addTearDown(controller.dispose);
-    await controller.refresh();
+    final server = _ChildServer()
+      ..version = 1
+      ..policy =
+          '{"schemaVersion":2,"appLock":{"blocked":["com.google.android.youtube"],"schedules":[]}}';
     await tester.pumpWidget(
-      AppLockScope(
-        controller: controller,
-        child: _wrap(
-          await _session(),
-          <http.Request>[],
-          const AppLockPage(),
-          status: _status(),
-        ),
-      ),
+      _wrapChild(await _session(), <http.Request>[], server, const AppLockPage()),
     );
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Chặn nhanh YouTube'));
     await tester.pumpAndSettle();
     expect(find.byTooltip('Chặn lại ngay'), findsNothing);
   });
@@ -322,3 +315,87 @@ Map<String, Object?> _status({
   'appVersion': '1.0.0',
   'tempUnlocked': tempUnlocked,
 };
+
+/// Máy chủ giả cho máy con id 5: danh sách app, luật, trạng thái, lệnh.
+class _ChildServer {
+  int version = 0;
+  String policy = '{}';
+  Map<String, Object?> status = _status();
+  final puts = <Map<String, dynamic>>[];
+
+  Future<http.Response> handle(http.Request r) async {
+    http.Response ok(Object? body) => http.Response(
+      jsonEncode(body),
+      200,
+      headers: {'content-type': 'application/json'},
+    );
+    final path = r.url.path;
+    if (r.method == 'GET' && path == '/api/devices/5/apps') {
+      return ok([
+        for (final (i, a) in [
+          ('com.google.android.youtube', 'YouTube'),
+          ('com.zing.zalo', 'Zalo'),
+          ('com.kid.game', 'Game của con'),
+        ].indexed)
+          {
+            'id': i + 1,
+            'packageName': a.$1,
+            'label': a.$2,
+            'status': 'allowed',
+            'firstSeenAt': '2026-01-01T00:00:00Z',
+            'decidedAt': null,
+          },
+      ]);
+    }
+    if (path == '/api/devices/5/policy') {
+      if (r.method == 'GET') return ok({'version': version, 'json': policy});
+      final body = jsonDecode(r.body) as Map<String, dynamic>;
+      puts.add(body);
+      if (body['expectedVersion'] != version) {
+        return http.Response('{"error":"Luật đã đổi."}', 409);
+      }
+      version++;
+      policy = body['json'] as String;
+      return ok({'version': version, 'json': policy});
+    }
+    if (r.method == 'GET' && path.endsWith('/status')) return ok(status);
+    return ok({
+      'id': 1,
+      'type': 'x',
+      'payloadJson': '{}',
+      'createdAt': '2026-01-01T00:00:00Z',
+    });
+  }
+}
+
+/// Như [_wrap] nhưng có `PolicySyncScope` và máy chủ giả đủ route của máy con.
+Widget _wrapChild(
+  ConnectionSession session,
+  List<http.Request> sent,
+  _ChildServer server,
+  Widget page,
+) {
+  final api = ApiClient(
+    session: session,
+    client: MockClient((r) {
+      sent.add(r);
+      return server.handle(r);
+    }),
+  );
+  final sync = PolicySync(
+    api: api,
+    session: session,
+    navigatorKey: GlobalKey<NavigatorState>(),
+    loadTimeLimit: () async => '{}',
+  );
+  return ConnectionScope(
+    session: session,
+    child: ApiScope(
+      client: api,
+      child: PolicySyncScope(
+        sync: sync,
+        child: MaterialApp(theme: AppTheme.light, home: page),
+      ),
+    ),
+  );
+}

@@ -23,8 +23,9 @@ enum PolicyPushResult {
   failed,
 }
 
-/// Máy mẹ đẩy luật (giới hạn thời gian + khóa ứng dụng) của máy này lên máy con
-/// đã chọn. Gọi [changed] sau mỗi lần mẹ lưu luật cục bộ: gom các lần sửa dồn
+/// Máy mẹ đẩy luật giới hạn thời gian của máy này lên máy con đã chọn. Danh sách
+/// app bị chặn là của MÁY CON: mẹ chọn từ danh sách app máy con ([setBlocked]);
+/// gói luật gửi đi luôn giữ nguyên danh sách chặn đang có trên server. Gọi [changed] sau mỗi lần mẹ lưu luật cục bộ: gom các lần sửa dồn
 /// dập trong [debounce] rồi gửi một lần.
 ///
 /// Khóa phụ huynh: việc *sửa* luật đã nằm sau `ParentAreaGuard` / `ParentGate`
@@ -39,7 +40,6 @@ class PolicySync {
     required this.session,
     required this.navigatorKey,
     required this.loadTimeLimit,
-    required this.blockedPackages,
     this.loadContacts,
     this.debounce = const Duration(seconds: 2),
   });
@@ -50,9 +50,6 @@ class PolicySync {
 
   /// `TimeLimitConfig.toJson()` của máy này.
   final Future<String> Function() loadTimeLimit;
-
-  /// Các app đang khóa trên máy này.
-  final Set<String> Function() blockedPackages;
 
   /// Danh bạ gia đình của máy này; chỉ các liên hệ đánh dấu khẩn cấp (SOS) được gửi (API-13).
   final Future<List<FamilyContact>> Function()? loadContacts;
@@ -82,6 +79,56 @@ class PolicySync {
     return _push();
   }
 
+  /// Các app đang bị chặn trên máy con [id] theo luật trên server.
+  /// Chưa có luật → rỗng. Lỗi mạng → [ApiException].
+  Future<Set<String>> loadBlocked(int id) async =>
+      blockedIn((await api.getPolicy(id)).json);
+
+  /// Danh sách chặn trong chuỗi JSON luật; rỗng nếu thiếu hoặc hỏng.
+  static Set<String> blockedIn(String policyJson) {
+    try {
+      final policy = jsonDecode(policyJson);
+      if (policy is! Map) return {};
+      final appLock = policy['appLock'];
+      final list = appLock is Map ? appLock['blocked'] : null;
+      return {if (list is List) ...list.whereType<String>()};
+    } catch (_) {
+      return {};
+    }
+  }
+
+  /// Chặn / bỏ chặn một app trên máy con [id]: đọc luật server, sửa đúng
+  /// `appLock.blocked`, ghi lại (lệch phiên bản thì đọc lại và thử thêm một lần).
+  /// Trả về danh sách chặn mới; ném [ApiException] nếu không ghi được.
+  Future<Set<String>> setBlocked(int id, String package, bool blocked) async {
+    ApiException? last;
+    for (var attempt = 0; attempt < 2; attempt++) {
+      final current = await api.getPolicy(id);
+      final policy = current.version == 0
+          ? <String, dynamic>{'schemaVersion': PolicySchema.version}
+          : Map<String, dynamic>.from(jsonDecode(current.json) as Map);
+      final set = blockedIn(current.json);
+      blocked ? set.add(package) : set.remove(package);
+      policy['appLock'] = {
+        ...?(policy['appLock'] as Map?)?.cast<String, dynamic>(),
+        'blocked': set.toList()..sort(),
+      };
+      try {
+        final saved = await api.putPolicy(
+          id,
+          jsonEncode(policy),
+          current.version,
+        );
+        await session.setPolicyVersion(id, saved.version);
+        return set;
+      } on ApiException catch (e) {
+        if (!e.isConflict) rethrow;
+        last = e;
+      }
+    }
+    throw last!;
+  }
+
   void dispose() {
     _disposed = true;
     _timer?.cancel();
@@ -109,7 +156,7 @@ class PolicySync {
     try {
       final json = PolicySchema.build(
         timeLimit: jsonDecode(await loadTimeLimit()) as Map<String, dynamic>,
-        blocked: blockedPackages(),
+        blocked: await loadBlocked(id),
         sosContacts: await _sosContacts(),
       );
       if (utf8.encode(json).length > PolicySchema.maxBytes) {
