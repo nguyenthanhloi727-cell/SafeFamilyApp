@@ -28,7 +28,7 @@ Quy trình gói gọn: **sửa trực tiếp trong source → test → commit �
 Ký hiệu: `[ ]` chưa làm · `[~]` đang làm / làm dở · `[x]` xong (ghi commit + ngày)
 
 - [x] T1 — Xóa tab Nhóm (commit b732a40, 2026-11-04)
-- [x] T2 — Bỏ "Kết nối gia đình" khỏi Bảo mật, ngắt kết nối cho máy con (commit TBD, 2026-11-04)
+- [x] T2 — Bỏ "Kết nối gia đình" khỏi Bảo mật, ngắt kết nối cho máy con (commit 1b44306, 2026-11-04)
 - [ ] T3 — Bỏ Chế độ trẻ em, khu phụ huynh luôn khóa, "Bảo vệ máy"
 - [ ] T4 — Cấp quyền theo vai trò
 - [ ] T5 — Máy mẹ: tab Con + Tài khoản
