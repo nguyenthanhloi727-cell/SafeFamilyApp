@@ -34,6 +34,7 @@ object FamilySync {
     private const val KEY_REQUESTS = "pending_requests"
     private const val KEY_TRACKED = "tracked_requests"
     private const val KEY_RESULTS = "request_results"
+    private const val KEY_LAST_SYNC = "last_sync_ms"
     private const val MAX_QUEUE = 500
     private const val TIMEOUT_MS = 15_000
     private const val DEFAULT_LOCK_MINUTES = 60
@@ -90,8 +91,11 @@ object FamilySync {
     private fun resetVersions(context: Context) {
         // Ghép máy khác: cờ chia sẻ vị trí và vị trí chờ gửi của lần ghép trước không được mang sang (API-11).
         prefs(context).edit().remove(KEY_POLICY_VERSION).remove(KEY_GEOFENCE_VERSION)
-            .remove(KEY_LOCATION_SHARING).remove(KEY_LOCATIONS).apply()
+            .remove(KEY_LOCATION_SHARING).remove(KEY_LOCATIONS).remove(KEY_LAST_SYNC).apply()
     }
+
+    /** Mốc lần đồng bộ thành công gần nhất (ms), 0 nếu chưa có; máy con hiển thị "Đồng bộ lần cuối". */
+    fun lastSyncMs(context: Context): Long = prefs(context).getLong(KEY_LAST_SYNC, 0L)
 
     // ---- Dịch vụ nền -------------------------------------------------------
 
@@ -193,6 +197,7 @@ object FamilySync {
             TamperAlerts.syncWithServer(context) // cảnh báo tamper cho mẹ (API-10): phát hiện + gửi bù; mọi lỗi chỉ bỏ qua
             if (isLocationSharing(context)) flush(context, KEY_LOCATIONS, "locations", "points")
             flush(context, KEY_EVENTS, "geofence-events", "events")
+            prefs(context).edit().putLong(KEY_LAST_SYNC, System.currentTimeMillis()).apply()
             true
         } catch (e: java.io.IOException) {
             false // offline: giữ nguyên luật + hàng chờ, lượt sau thử lại

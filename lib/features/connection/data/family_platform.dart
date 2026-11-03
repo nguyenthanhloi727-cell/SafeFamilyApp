@@ -26,6 +26,9 @@ abstract interface class FamilyPlatform {
 
   /// Trạng thái theo loại yêu cầu: `pending` / `approved` / `denied`. Loại chưa gửi thì không có khóa.
   Future<Map<String, String>> requestStatuses();
+
+  /// Lần đồng bộ thành công gần nhất với máy mẹ; null nếu chưa lần nào.
+  Future<DateTime?> lastSyncAt();
   Future<LocationPermissionStatus> locationStatus();
   Future<void> requestLocation();
   Future<bool> requestBackgroundLocation();
@@ -67,6 +70,12 @@ class MethodChannelFamily implements FamilyPlatform {
     return {
       for (final e in (m ?? const {}).entries) '${e.key}': '${e.value}',
     };
+  }
+
+  @override
+  Future<DateTime?> lastSyncAt() async {
+    final ms = await _call<int>('lastSyncMs') ?? 0;
+    return ms > 0 ? DateTime.fromMillisecondsSinceEpoch(ms) : null;
   }
 
   @override

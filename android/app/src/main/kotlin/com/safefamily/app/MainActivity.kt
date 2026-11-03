@@ -284,6 +284,7 @@ class MainActivity : FlutterFragmentActivity() {
                         result.success(null)
                     }
                     "requestStatuses" -> result.success(FamilySync.requestStatuses(this))
+                    "lastSyncMs" -> result.success(FamilySync.lastSyncMs(this))
                     "locationStatus" -> result.success(
                         mapOf(
                             "foreground" to FamilySync.hasLocationPermission(this),

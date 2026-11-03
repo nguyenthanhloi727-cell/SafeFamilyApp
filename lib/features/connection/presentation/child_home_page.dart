@@ -43,6 +43,8 @@ class _ChildHomePageState extends State<ChildHomePage>
   Map<String, String> _labels = const {};
   DeviceSelfInfo? _me;
   Map<String, String> _requests = const {};
+  DateTime? _lastSync;
+  bool _lastSyncFailed = false;
   Timer? _timer;
   bool _started = false;
 
@@ -95,6 +97,7 @@ class _ChildHomePageState extends State<ChildHomePage>
     final pause = await p.pauseMinutesLeft();
     final study = await p.studyStatus();
     final requests = await widget.family.requestStatuses();
+    final lastSync = await widget.family.lastSyncAt();
     final packages = {
       ...?controller?.lockedPackages,
       ...config.apps.keys,
@@ -112,6 +115,7 @@ class _ChildHomePageState extends State<ChildHomePage>
       _study = study;
       _labels = labels;
       _requests = requests;
+      _lastSync = lastSync;
     });
     if (_me == null) unawaited(_loadMe());
   }
@@ -201,7 +205,10 @@ class _ChildHomePageState extends State<ChildHomePage>
     final ok = await widget.family.syncNow();
     await _reload();
     if (!mounted) return;
-    setState(() => _syncing = false);
+    setState(() {
+      _syncing = false;
+      _lastSyncFailed = !ok;
+    });
     showAppSnackBar(
       context,
       ok
@@ -209,6 +216,57 @@ class _ChildHomePageState extends State<ChildHomePage>
           : 'Chưa đồng bộ được. Kiểm tra mạng rồi thử lại.',
     );
   }
+
+  /// Máy con hỏi máy mẹ ~5 phút một lần; quá ngưỡng này coi là mất kết nối.
+  static const _staleAfter = Duration(minutes: 30);
+
+  bool get _offline {
+    final last = _lastSync;
+    return _lastSyncFailed ||
+        last == null ||
+        DateTime.now().difference(last) > _staleAfter;
+  }
+
+  Widget _syncStatus(ThemeData theme) {
+    final last = _lastSync;
+    final offline = _offline;
+    final text = offline
+        ? (last == null
+              ? 'Chưa kết nối được máy mẹ.'
+              : 'Chưa kết nối được máy mẹ. Đồng bộ lần cuối: ${_ago(DateTime.now().difference(last))}.')
+        : 'Đồng bộ lần cuối: ${_ago(DateTime.now().difference(last!))}.';
+    return Row(
+      children: [
+        Icon(
+          offline ? Icons.cloud_off_rounded : Icons.cloud_done_rounded,
+          size: 18,
+          color: offline ? theme.colorScheme.error : null,
+        ),
+        const SizedBox(width: AppSpace.xs),
+        Expanded(
+          child: Text(
+            text,
+            key: const Key('child-sync-status'),
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: offline ? theme.colorScheme.error : null,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _transparencyCard(ThemeData theme) => Card(
+    key: const Key('child-transparency'),
+    child: ListTile(
+      leading: const Icon(Icons.visibility_rounded),
+      title: const Text('Mẹ xem được gì?'),
+      subtitle: const Text(
+        'Mẹ xem được: vị trí, thời gian dùng, danh sách app đã cài. '
+        'Mẹ không xem nội dung tin nhắn hay trình duyệt.',
+      ),
+    ),
+  );
 
   String _name(String package) => _labels[package] ?? package;
 
@@ -272,6 +330,8 @@ class _ChildHomePageState extends State<ChildHomePage>
                   ? 'Máy này đang được gia đình giám sát.'
                   : 'Máy này đang được gia đình "${_me!.familyName}" giám sát.',
             ),
+            const SizedBox(height: AppSpace.sm),
+            _syncStatus(theme),
             const SizedBox(height: AppSpace.lg),
             ..._statusCards(theme),
             ..._requestButtons(),
@@ -289,6 +349,8 @@ class _ChildHomePageState extends State<ChildHomePage>
               icon: const Icon(Icons.sync_rounded),
               label: Text(_syncing ? 'Đang gửi…' : 'Đồng bộ với máy mẹ'),
             ),
+            const SizedBox(height: AppSpace.lg),
+            _transparencyCard(theme),
             const SizedBox(height: AppSpace.md),
             OutlinedButton.icon(
               key: const Key('child-parent-area'),
@@ -420,6 +482,14 @@ class _ChildHomePageState extends State<ChildHomePage>
 }
 
 enum _ParentChoice { openApp, disconnect }
+
+/// "vừa xong", "3 phút trước", "2 giờ trước", "3 ngày trước".
+String _ago(Duration d) {
+  if (d.inMinutes < 1) return 'vừa xong';
+  if (d.inHours < 1) return '${d.inMinutes} phút trước';
+  if (d.inDays < 1) return '${d.inHours} giờ trước';
+  return '${d.inDays} ngày trước';
+}
 
 /// "1 giờ 5 phút", "45 phút".
 String _minutes(int m) {

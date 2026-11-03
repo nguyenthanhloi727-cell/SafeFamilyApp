@@ -59,6 +59,10 @@ void main() {
     FamilyPlatform? family,
     ConnectionSession? session,
   }) async {
+    // Màn chính dài hơn khung test mặc định; ListView lười nên nút cuối trang cần chỗ.
+    tester.view.physicalSize = const Size(800, 1600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
     final controller = AppLockController(
       platform: FakeAppLockPlatform(blocked: {...blocked}),
       store: AppLockStore(prefs: SharedPreferencesAsync()),
@@ -120,6 +124,58 @@ void main() {
     await t.tap(find.byKey(const Key('child-sync')));
     await t.pumpAndSettle();
     expect(find.text('Chưa đồng bộ được. Kiểm tra mạng rồi thử lại.'), findsOneWidget);
+  });
+
+  testWidgets('hiện đồng bộ lần cuối khi vừa đồng bộ', (t) async {
+    final family = _Family()
+      ..lastSync = DateTime.now().subtract(const Duration(minutes: 3));
+    await pump(t, _Platform(), family: family);
+    expect(find.text('Đồng bộ lần cuối: 3 phút trước.'), findsOneWidget);
+  });
+
+  testWidgets('chưa từng đồng bộ: báo chưa kết nối được máy mẹ', (t) async {
+    await pump(t, _Platform());
+    expect(find.text('Chưa kết nối được máy mẹ.'), findsOneWidget);
+  });
+
+  testWidgets('đồng bộ quá lâu: báo chưa kết nối kèm mốc cuối', (t) async {
+    final stale = _Family()
+      ..lastSync = DateTime.now().subtract(const Duration(hours: 2));
+    await pump(t, _Platform(), family: stale);
+    expect(
+      find.text('Chưa kết nối được máy mẹ. Đồng bộ lần cuối: 2 giờ trước.'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('bấm Đồng bộ mà thất bại: báo mất kết nối dù mốc còn mới', (
+    t,
+  ) async {
+    final family = _Family()
+      ..lastSync = DateTime.now().subtract(const Duration(minutes: 1))
+      ..result = false;
+    await pump(t, _Platform(), family: family);
+    expect(find.text('Đồng bộ lần cuối: 1 phút trước.'), findsOneWidget);
+
+    await t.tap(find.byKey(const Key('child-sync')));
+    await t.pumpAndSettle();
+    expect(
+      find.text('Chưa kết nối được máy mẹ. Đồng bộ lần cuối: 1 phút trước.'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('có khối minh bạch: mẹ xem được gì', (t) async {
+    await pump(t, _Platform());
+    await t.scrollUntilVisible(
+      find.byKey(const Key('child-transparency')),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(
+      find.textContaining('Mẹ không xem nội dung tin nhắn hay trình duyệt.'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('Xin thêm giờ: chọn 15 phút, gửi và hiện chờ mẹ duyệt', (t) async {
@@ -199,10 +255,15 @@ class _Family implements FamilyPlatform {
 
   int syncs = 0;
   bool result = true;
+  DateTime? lastSync;
+
+  @override
+  Future<DateTime?> lastSyncAt() async => lastSync;
 
   @override
   Future<bool> syncNow() async {
     syncs++;
+    if (result) lastSync = DateTime.now();
     return result;
   }
 
