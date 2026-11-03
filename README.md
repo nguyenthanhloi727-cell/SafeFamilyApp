@@ -25,11 +25,28 @@
 |---|---|
 | Thoát chế độ trẻ em; thêm/sửa/xóa danh bạ, sửa tên phụ huynh; đặt/sửa báo thức, đổi ngôn ngữ; tải/đổi/xóa ảnh nhóm; mọi cài đặt; bảo mật, nhật ký, quản lý thiết bị; **chặn / bỏ chặn / mở tạm app khác** (luôn hỏi, kể cả ngoài chế độ trẻ em) | **Bấm gọi người nhà**, xem tab Nhóm, mở YouTube |
 
+## Quản lý từ xa (máy mẹ ↔ máy con)
+
+Máy mẹ đăng nhập, tạo **mã ghép đôi 6 số** (hạn 10 phút, dùng một lần); máy con nhập mã để kết nối. Server (`SafeFamily.Api/`, ASP.NET Core + SQL Server, có Swagger) chỉ chuyển luật và lệnh; máy con tự chặn bằng luật đã tải về nên mất mạng vẫn chặn. Máy con hỏi server mỗi 5 phút nên lệnh có thể trễ vài phút.
+
+| Tính năng | Mô tả |
+|---|---|
+| Chặn app từ xa | Mẹ chọn app, bấm **Gửi luật cho máy con**; mở tạm 15 phút |
+| Giới hạn thời gian | Tổng và từng app, mẫu theo độ tuổi, giờ học, thêm giờ, tạm dừng, **Khóa 60 phút** |
+| Yêu cầu của con | Con xin phép, mẹ duyệt hoặc từ chối trên máy mẹ |
+| App mới cài | App con vừa cài bị chặn cho tới khi mẹ **Cho phép** |
+| Vị trí và hàng rào địa lý | Bật/tắt chia sẻ vị trí, bản đồ, thông báo con đến/rời vùng |
+| Cảnh báo và báo cáo | Cảnh báo khi con tắt quyền/phá luật; báo cáo thời gian dùng theo app |
+| Gia đình | Tối đa 2 người giám hộ (mẹ + bố), mã mời 8 số hạn 30 phút |
+
+Chi tiết API: [docs/API_DAY_DU.md](docs/API_DAY_DU.md), tiến trình: [docs/API_TIEN_TRINH.md](docs/API_TIEN_TRINH.md). **Kịch bản demo:** [docs/KICH_BAN_DEMO.md](docs/KICH_BAN_DEMO.md).
+
+> Trạng thái: server đã có test tự động, **chưa publish MyASP.net** và **chưa test trên 2 máy thật**.
+
 ## Đang phát triển
 
-- **Quản lý từ xa**: máy bố mẹ kết nối và quản lý máy con (ví dụ đặt báo thức từ xa).
-- **Giới hạn thời gian dùng máy** theo ngày, tổng và từng app: đã có (`lib/features/time_limit/`, thực thi ở `TimeLimits.kt`).
 - **Chặn cứng** (con không tự tắt được) bằng chế độ Device Owner.
+- Đưa server lên MyASP.net; thông báo đẩy (hiện dùng hỏi định kỳ).
 
 ---
 
