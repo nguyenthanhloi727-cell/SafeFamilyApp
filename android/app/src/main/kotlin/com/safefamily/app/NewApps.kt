@@ -28,6 +28,7 @@ object NewApps {
     private const val KEY_REJECTED = "rejected"
     private const val KEY_REVIEW = "review_pending"
     private const val KEY_UPLOADED = "uploaded"
+    private const val KEY_LISTED = "listed"
     private const val KEY_APPLIED = "applied_decisions"
     private const val UPLOAD_BATCH = 100
     private const val MAX_LABEL = 200
@@ -201,6 +202,29 @@ object NewApps {
     }
 
     /**
+     * Gửi DANH SÁCH app đang cài (tên + tên gói, không nội dung) để mẹ chọn app cần chặn từ máy mẹ. Khác
+     * [uploadPending]: không đặt cờ `isNew` nên server chỉ ghi nhận app, không ép duyệt lại. Chỉ gửi app chưa
+     * gửi (`listed`); app đang chờ duyệt đi đường [uploadPending]. Lỗi mạng / server: lượt sau thử lại.
+     */
+    private fun uploadInstalled(context: Context) {
+        val exempt = TimeLimits.exemptPackages(context)
+        val todo = synchronized(this) {
+            (launchable(context) - strings(context, KEY_LISTED) - strings(context, KEY_PENDING))
+                .filter { it !in exempt && PACKAGE_RE.matches(it) && it.length <= 200 }
+                .sorted()
+        }
+        for (batch in todo.chunked(UPLOAD_BATCH)) {
+            val apps = JSONArray()
+            batch.forEach { pkg ->
+                apps.put(JSONObject().put("packageName", pkg).put("label", cleanLabel(label(context, pkg), pkg)))
+            }
+            val r = FamilySync.request(context, "POST", "/api/devices/me/apps", JSONObject().put("apps", apps))
+            if (r.code !in 200..299 && r.code != 400) return
+            synchronized(this) { putStrings(context, KEY_LISTED, strings(context, KEY_LISTED) + batch) }
+        }
+    }
+
+    /**
      * Gửi app mới cài lên server rồi kéo quyết định của mẹ về. Chỉ gửi tên app + tên gói (không nội dung) và
      * chỉ app đang chờ duyệt. Hàng chờ chính là `pending` trừ `uploaded` (SharedPreferences, không mất khi
      * offline hay kill app). MỌI lỗi (mạng, 4xx/5xx, dữ liệu hỏng) bị nuốt: lượt sau thử lại, không làm hỏng
@@ -210,8 +234,10 @@ object NewApps {
      * TODO(verify): chạy trên 2 máy thật.
      */
     fun syncWithServer(context: Context) {
-        if (!FamilySync.isConfigured(context) || !enabled(context)) return
+        if (!FamilySync.isConfigured(context)) return
         synchronized(netLock) {
+            runCatching { uploadInstalled(context) } // danh sách app cho mẹ chọn chặn; chạy cả khi tắt duyệt app mới
+            if (!enabled(context)) return
             runCatching {
                 // Còn app chưa gửi được thì chưa kéo quyết định: quyết định cũ của gói cài lại có thể còn trên server.
                 if (uploadPending(context)) pullDecisions(context)

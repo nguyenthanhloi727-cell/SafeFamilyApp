@@ -280,11 +280,22 @@ class _AppLockPageState extends State<AppLockPage> {
       appBar: AppBar(
         title: Text(widget.onlyLocked ? 'Ứng dụng bị chặn' : 'Khóa ứng dụng'),
         actions: [
-          IconButton(
-            tooltip: 'Thiết lập khóa ứng dụng',
-            onPressed: _openSetup,
-            icon: const Icon(Icons.tune_rounded),
-          ),
+          if (RemoteCommands.targetOf(context) != null)
+            IconButton(
+              key: const Key('refresh-child-apps'),
+              tooltip: 'Làm mới danh sách app của máy con',
+              onPressed: () {
+                _loadChildApps();
+                _loadRemoteUnlocked();
+              },
+              icon: const Icon(Icons.refresh_rounded),
+            )
+          else
+            IconButton(
+              tooltip: 'Thiết lập khóa ứng dụng',
+              onPressed: _openSetup,
+              icon: const Icon(Icons.tune_rounded),
+            ),
         ],
       ),
       body: RemoteCommands.targetOf(context) != null

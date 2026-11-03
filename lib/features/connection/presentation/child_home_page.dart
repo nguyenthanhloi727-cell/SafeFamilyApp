@@ -8,6 +8,8 @@ import '../../../core/network/api_scope.dart';
 import '../../../core/security/ui/parent_gate.dart';
 import '../../../core/theme/app_tokens.dart';
 import '../../app_lock/presentation/app_lock_controller.dart';
+import '../../../core/widgets/app_snack_bar.dart';
+import '../data/family_platform.dart';
 import '../../time_limit/data/time_limit_platform.dart';
 import '../../time_limit/domain/time_limit_config.dart';
 
@@ -18,10 +20,12 @@ class ChildHomePage extends StatefulWidget {
   const ChildHomePage({
     super.key,
     this.platform = const MethodChannelTimeLimit(),
+    this.family = const MethodChannelFamily(),
     this.refreshEvery = const Duration(seconds: 30),
   });
 
   final TimeLimitPlatform platform;
+  final FamilyPlatform family;
   final Duration refreshEvery;
 
   @override
@@ -108,6 +112,24 @@ class _ChildHomePageState extends State<ChildHomePage>
     if (_me == null) unawaited(_loadMe());
   }
 
+  bool _syncing = false;
+
+  /// Gửi ngay danh sách app, trạng thái, vị trí… lên server và kéo luật mới của mẹ về.
+  Future<void> _syncNow() async {
+    if (_syncing) return;
+    setState(() => _syncing = true);
+    final ok = await widget.family.syncNow();
+    await _reload();
+    if (!mounted) return;
+    setState(() => _syncing = false);
+    showAppSnackBar(
+      context,
+      ok
+          ? 'Đã đồng bộ với máy mẹ.'
+          : 'Chưa đồng bộ được. Kiểm tra mạng rồi thử lại.',
+    );
+  }
+
   String _name(String package) => _labels[package] ?? package;
 
   Future<void> _openParentArea() async {
@@ -128,7 +150,7 @@ class _ChildHomePageState extends State<ChildHomePage>
     return Scaffold(
       appBar: AppBar(title: const Text('SafeFamily')),
       body: RefreshIndicator(
-        onRefresh: _reload,
+        onRefresh: _syncNow,
         child: ListView(
           padding: const EdgeInsets.all(AppSpace.lg),
           children: [
@@ -149,6 +171,13 @@ class _ChildHomePageState extends State<ChildHomePage>
               for (final package in blocked)
                 _blockedTile(theme, controller!, package),
             const SizedBox(height: AppSpace.xl),
+            FilledButton.tonalIcon(
+              key: const Key('child-sync'),
+              onPressed: _syncing ? null : _syncNow,
+              icon: const Icon(Icons.sync_rounded),
+              label: Text(_syncing ? 'Đang gửi…' : 'Đồng bộ với máy mẹ'),
+            ),
+            const SizedBox(height: AppSpace.md),
             OutlinedButton.icon(
               key: const Key('child-parent-area'),
               onPressed: _openParentArea,
