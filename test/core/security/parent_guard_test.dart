@@ -371,6 +371,46 @@ void main() {
     });
   });
 
+  group('báo kết quả xác thực cho nhật ký hoạt động (T8)', () {
+    Future<(ParentGuard, List<UnlockResult>)> guardWithListener() async {
+      final results = <UnlockResult>[];
+      final guard = ParentGuard(
+        store: store,
+        biometrics: FakeBiometrics(),
+        hasher: fastHasher,
+        clock: clock,
+        onAuthResult: results.add,
+      );
+      await guard.load();
+      await guard.setupPin(testPin);
+      return (guard, results);
+    }
+
+    test('sai PIN rồi đúng PIN → failure rồi success', () async {
+      final (guard, results) = await guardWithListener();
+      expect(
+        await guard.require(
+          'Sửa danh bạ',
+          promptPin: ScriptedPinPrompt(['0000', testPin]).call,
+        ),
+        isTrue,
+      );
+      expect(results, [UnlockResult.failure, UnlockResult.success]);
+    });
+
+    test('bấm Hủy và thao tác hệ thống không được báo', () async {
+      final (guard, results) = await guardWithListener();
+      await guard.require(
+        'Sửa danh bạ',
+        promptPin: ScriptedPinPrompt([]).call,
+      );
+      await guard.renewRecoveryCode();
+      guard.recordWarning('Khóa ứng dụng bị tắt');
+      await Future<void>.delayed(Duration.zero);
+      expect(results, isEmpty);
+    });
+  });
+
   test('chưa đặt PIN (chưa thiết lập) → không chặn', () async {
     final guard = ParentGuard(
       store: store,

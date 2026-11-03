@@ -76,6 +76,7 @@ object FamilySync {
             resetVersions(context)
             UsageReport.forgetSent(context)
             runCatching { TamperAlerts.reset(context) } // mốc quyền + giờ lúc ghép, bỏ hàng chờ cảnh báo cũ
+            runCatching { ActivityLog.forget(context) } // nhật ký của lần ghép trước không sang máy mẹ mới
         }
     }
 
@@ -84,6 +85,7 @@ object FamilySync {
     fun clear(context: Context) {
         prefs(context).edit().clear().apply()
         runCatching { TamperAlerts.forget(context) }
+        runCatching { ActivityLog.forget(context) }
         runCatching { Geofences.removeAll(context) }
         stopService(context)
     }
@@ -195,6 +197,7 @@ object FamilySync {
             NewApps.syncWithServer(context) // app mới cài lên + quyết định của mẹ xuống; mọi lỗi chỉ bỏ qua
             UsageReport.syncWithServer(context) // báo cáo phút theo app (API-08); mọi lỗi chỉ bỏ qua
             TamperAlerts.syncWithServer(context) // cảnh báo tamper cho mẹ (API-10): phát hiện + gửi bù; mọi lỗi chỉ bỏ qua
+            ActivityLog.syncWithServer(context) // nhật ký hoạt động cho mẹ (T8): gửi bù hàng chờ; mọi lỗi chỉ bỏ qua
             if (isLocationSharing(context)) flush(context, KEY_LOCATIONS, "locations", "points")
             flush(context, KEY_EVENTS, "geofence-events", "events")
             prefs(context).edit().putLong(KEY_LAST_SYNC, System.currentTimeMillis()).apply()

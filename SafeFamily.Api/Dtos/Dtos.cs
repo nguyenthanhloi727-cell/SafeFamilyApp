@@ -104,4 +104,9 @@ public record UsageDayDto(string Date, int TotalMinutes, int Blocks, Dictionary<
 public record PostAlertRequest([Required, MaxLength(30)] string Kind, [MaxLength(32)] string? Detail, DateTime? OccurredAt);
 public record AlertDto(int Id, string Kind, string? Detail, DateTime CreatedAt, DateTime? ReadAt);
 
+// ---- Nhật ký hoạt động của máy con (T8). Chỉ loại sự kiện, tên gói và thời điểm. ----
+public record ActivityItem([Required, MaxLength(30)] string Kind, [MaxLength(100)] string? Detail, DateTime OccurredAt);
+public record PostActivityRequest([Required] List<ActivityItem> Events);
+public record ActivityDto(int Id, string Kind, string? Detail, DateTime Time);
+
 public record DecideRequest([Required, MaxLength(10)] string Decision, int? Minutes);

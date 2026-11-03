@@ -23,6 +23,7 @@ public class AppDb(DbContextOptions<AppDb> options) : DbContext(options)
     public DbSet<UsageDay> UsageDays => Set<UsageDay>();
     public DbSet<UsageApp> UsageApps => Set<UsageApp>();
     public DbSet<Alert> Alerts => Set<Alert>();
+    public DbSet<ActivityEvent> ActivityEvents => Set<ActivityEvent>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -63,5 +64,8 @@ public class AppDb(DbContextOptions<AppDb> options) : DbContext(options)
         b.Entity<Alert>().HasIndex(a => new { a.DeviceId, a.Kind, a.CreatedAt }); // chống trùng + tìm cảnh báo offline gần nhất
         b.Entity<Alert>().Property(a => a.Kind).HasMaxLength(AlertRules.MaxKindLength);
         b.Entity<Alert>().Property(a => a.Detail).HasMaxLength(AlertRules.MaxDetailLength);
+        b.Entity<ActivityEvent>().HasIndex(a => new { a.DeviceId, a.Id });
+        b.Entity<ActivityEvent>().Property(a => a.Kind).HasMaxLength(ActivityRules.MaxKindLength);
+        b.Entity<ActivityEvent>().Property(a => a.Detail).HasMaxLength(ActivityRules.MaxDetailLength);
     }
 }

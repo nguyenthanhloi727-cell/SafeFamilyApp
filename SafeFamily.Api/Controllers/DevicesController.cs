@@ -216,6 +216,21 @@ public class DevicesController(AppDb db) : ApiBase
         return rows.Select(AlertRules.ToDto).ToList();
     }
 
+    /// <summary>
+    /// Nhật ký hoạt động của máy con (T8), cũ trước, tối đa 100, cùng kiểu con trỏ <c>afterId</c> như <c>alerts</c>.
+    /// Gia đình khác / máy đã hủy ghép → 404.
+    /// </summary>
+    [HttpGet("{id:int}/activity")]
+    public async Task<ActionResult<List<ActivityDto>>> Activity(int id, [FromQuery] int afterId = 0)
+    {
+        if (await Own(id) is null) return NotFound();
+        var q = db.ActivityEvents.Where(a => a.DeviceId == id && a.Id > afterId);
+        var rows = afterId <= 0
+            ? (await q.OrderByDescending(a => a.Id).Take(ActivityRules.MaxListRows).ToListAsync()).AsEnumerable().Reverse().ToList()
+            : await q.OrderBy(a => a.Id).Take(ActivityRules.MaxListRows).ToListAsync();
+        return rows.Select(ActivityRules.ToDto).ToList();
+    }
+
     /// <summary>Cờ chia sẻ vị trí của máy con (API-11). Gia đình khác / máy hủy ghép → 404.</summary>
     [HttpGet("{id:int}/location-sharing")]
     public async Task<ActionResult<LocationSharingDto>> GetLocationSharing(int id)
@@ -589,6 +604,30 @@ public class DeviceSelfController(AppDb db) : ApiBase
         db.Alerts.Add(row);
         await db.SaveChangesAsync();
         return AlertRules.ToDto(row);
+    }
+
+    /// <summary>
+    /// Máy con gửi lô nhật ký hoạt động (T8, ≤50 sự kiện): <c>blocked_app_open</c> (detail = tên gói),
+    /// <c>parent_auth_failed</c>, <c>parent_unlocked</c>. Một sự kiện sai thì cả lô bị từ chối (400) và máy con bỏ lô đó.
+    /// Giữ tối đa 1000 dòng / 30 ngày mỗi máy, dọn mỗi lần nhận lô.
+    /// </summary>
+    [HttpPost("activity")]
+    public async Task<IActionResult> PostActivity(PostActivityRequest req)
+    {
+        if (!await Touch()) return Unauthorized();
+        var now = DateTime.UtcNow;
+        var error = ActivityRules.Validate(req, now);
+        if (error is not null) return BadRequest(new { error });
+
+        await ActivityRules.TrimAsync(db, SubjectId, now, req.Events.Count);
+        foreach (var e in req.Events)
+            db.ActivityEvents.Add(new ActivityEvent
+            {
+                DeviceId = SubjectId, Kind = e.Kind, Detail = string.IsNullOrEmpty(e.Detail) ? null : e.Detail,
+                Time = ActivityRules.ToUtc(e.OccurredAt),
+            });
+        await db.SaveChangesAsync();
+        return NoContent();
     }
 
     [HttpGet("geofences")]

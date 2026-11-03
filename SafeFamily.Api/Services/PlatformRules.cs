@@ -65,6 +65,7 @@ public static class DataCleanup
         n += await db.UsageDays.Where(u => u.Date < oldestDay).ExecuteDeleteAsync(ct); // UsageApps xóa theo (cascade)
         n += await db.ChildRequests.Where(r => r.CreatedAt < now - RequestRules.DecidedRetention).ExecuteDeleteAsync(ct);
         n += await db.Alerts.Where(a => a.CreatedAt < now - AlertRules.Retention).ExecuteDeleteAsync(ct);
+        n += await db.ActivityEvents.Where(a => a.Time < now - ActivityRules.Retention).ExecuteDeleteAsync(ct);
         n += await db.Commands.Where(c => c.CreatedAt < now - CommandRetention).ExecuteDeleteAsync(ct);
         n += await db.Pairings.Where(p => p.ExpiresAt < graceCutoff || (p.UsedAt != null && p.UsedAt < graceCutoff)).ExecuteDeleteAsync(ct);
         n += await db.RefreshTokens.Where(t => t.ExpiresAt < graceCutoff || (t.RevokedAt != null && t.RevokedAt < graceCutoff)).ExecuteDeleteAsync(ct);

@@ -24,6 +24,7 @@ public class CrossFamilyTests(SharedApi shared) : TestBase(shared)
         { "GET", "/api/devices/{id}/requests", null },
         { "GET", "/api/devices/{id}/usage", null },
         { "GET", "/api/devices/{id}/alerts", null },
+        { "GET", "/api/devices/{id}/activity", null },
         { "GET", "/api/devices/{id}/location-sharing", null },
         { "PUT", "/api/devices/{id}/location-sharing", """{"enabled":false}""" },
         { "DELETE", "/api/devices/{id}/locations", null },

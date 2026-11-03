@@ -34,6 +34,29 @@ abstract interface class FamilyPlatform {
   Future<bool> requestBackgroundLocation();
 }
 
+/// Kết quả mở khóa khu phụ huynh gửi sang Kotlin để ghi vào nhật ký hoạt động cho mẹ (T8).
+/// Chỉ có loại sự kiện; máy chưa ghép đôi (kể cả máy mẹ) thì Kotlin bỏ qua.
+enum ParentAuthActivity {
+  unlocked('parent_unlocked'),
+  failed('parent_auth_failed');
+
+  const ParentAuthActivity(this.kind);
+  final String kind;
+}
+
+/// Báo Kotlin ghi một sự kiện mở khóa phụ huynh. Không có kênh (test, nền tảng khác): không làm gì.
+Future<void> reportParentAuthActivity(ParentAuthActivity activity) async {
+  try {
+    await const MethodChannel(
+      'safefamily/family',
+    ).invokeMethod<void>('logActivity', {'kind': activity.kind});
+  } on MissingPluginException {
+    return;
+  } on PlatformException {
+    return;
+  }
+}
+
 class MethodChannelFamily implements FamilyPlatform {
   const MethodChannelFamily();
 

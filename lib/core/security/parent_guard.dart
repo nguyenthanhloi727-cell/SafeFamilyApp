@@ -78,6 +78,7 @@ class ParentGuard extends ChangeNotifier {
     this._hasher = const PinHasher(),
     this._device = const NoDeviceGuard(),
     DateTime Function()? clock,
+    this.onAuthResult,
   }) : _store = store,
        _clock = clock ?? DateTime.now,
        log = UnlockLog(store);
@@ -95,6 +96,11 @@ class ParentGuard extends ChangeNotifier {
   final DeviceGuardPlatform _device;
   final DateTime Function() _clock;
   final UnlockLog log;
+
+  /// Gọi mỗi khi một lần xác thực có kết quả thật: [UnlockResult.success] bằng PIN/sinh trắc hoặc
+  /// [UnlockResult.failure] (kể cả sai mã khôi phục). Dùng để ghi nhật ký hoạt động cho mẹ xem (T8);
+  /// không có dữ liệu nào ngoài kết quả này.
+  final void Function(UnlockResult result)? onAuthResult;
 
   bool _loaded = false;
   String? _pinHash;
@@ -568,6 +574,10 @@ class ParentGuard extends ChangeNotifier {
         result: result,
       ),
     );
+    final reported =
+        result == UnlockResult.failure ||
+        (result == UnlockResult.success && method != UnlockMethod.system);
+    if (reported) onAuthResult?.call(result);
     _notify();
   }
 

@@ -163,6 +163,7 @@ public class AuthAndTokenTests(SharedApi shared) : TestBase(shared)
             (HttpMethod.Post, "/api/devices/me/locations", new { points = new[] { new { lat = 1, lng = 1, accuracy = 1, time = now } } }),
             (HttpMethod.Post, "/api/devices/me/usage", new { days = new[] { new { date = DateTime.UtcNow.ToString("yyyy-MM-dd"), totalMinutes = 1, blocks = 0, apps = new Dictionary<string, int>() } } }),
             (HttpMethod.Post, "/api/devices/me/alerts", new { kind = "time_changed" }),
+            (HttpMethod.Post, "/api/devices/me/activity", new { events = new[] { new { kind = "parent_unlocked", occurredAt = now } } }),
             (HttpMethod.Get, "/api/devices/me/geofences", null),
             (HttpMethod.Post, "/api/devices/me/geofence-events", new { events = Array.Empty<object>() }),
         };

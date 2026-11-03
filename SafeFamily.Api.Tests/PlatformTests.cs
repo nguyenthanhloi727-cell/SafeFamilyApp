@@ -214,6 +214,9 @@ public class PlatformTests(SharedApi shared) : TestBase(shared)
             db.Alerts.AddRange(
                 new Alert { DeviceId = kid.Id, Kind = "time_changed", CreatedAt = now.AddDays(-31) },
                 new Alert { DeviceId = kid.Id, Kind = "time_changed", CreatedAt = now.AddDays(-2) });
+            db.ActivityEvents.AddRange(
+                new ActivityEvent { DeviceId = kid.Id, Kind = "parent_unlocked", Time = now.AddDays(-31) },
+                new ActivityEvent { DeviceId = kid.Id, Kind = "parent_unlocked", Time = now.AddDays(-2) });
             db.Commands.AddRange(
                 new Command { DeviceId = kid.Id, Type = "x", CreatedAt = now.AddDays(-31) },
                 new Command { DeviceId = kid.Id, Type = "x", CreatedAt = now.AddDays(-3) });
@@ -241,13 +244,14 @@ public class PlatformTests(SharedApi shared) : TestBase(shared)
             removed = await DataCleanup.RunOnceAsync(db, now);
         });
         // (mã ghép của PairKid, đã dùng gần đây, còn trong ân hạn nên không bị xóa)
-        // 1 vị trí + 1 cảnh báo + 1 lệnh + 1 yêu cầu + 1 ngày báo cáo + 2 mã ghép + 2 refresh token + 1 mã đặt lại = 10
+        // 1 vị trí + 1 cảnh báo + 1 hoạt động + 1 lệnh + 1 yêu cầu + 1 ngày báo cáo + 2 mã ghép + 2 refresh token + 1 mã đặt lại = 11
         // (dòng UsageApps của ngày bị xóa đi theo cascade, không tính vào số này).
-        Assert.Equal(10, removed);
+        Assert.Equal(11, removed);
         await f.WithDb(async db =>
         {
             Assert.Equal(1, await db.LocationPoints.CountAsync());
             Assert.Equal(1, await db.Alerts.CountAsync());
+            Assert.Equal(1, await db.ActivityEvents.CountAsync());
             Assert.Equal(1, await db.Commands.CountAsync(c => c.Type == "x"));
             Assert.Equal(1, await db.ChildRequests.CountAsync());
             Assert.Equal(1, await db.UsageDays.CountAsync());

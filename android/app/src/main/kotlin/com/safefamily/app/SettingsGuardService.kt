@@ -129,6 +129,10 @@ class SettingsGuardService : AccessibilityService() {
         val target = candidate ?: usage?.foreground
         nextTickMs = if (studyOverlay != null) FAST_TICK_MS else TICK_MS
         if (target == null) return
+        // Nhật ký hoạt động (T8): con vừa mở app mẹ đã khóa (plugin app_blocker sẽ đá ra ngay). App đang mở tạm thì không tính.
+        if (candidate != null && candidate in GuardPrefs.remoteBlocked(this) && candidate !in TempRelocks.pending(this)) {
+            runCatching { ActivityLog.record(this, ActivityLog.BLOCKED_APP_OPEN, candidate) }
+        }
         if (usage != null) warnIfAlmostOut(usage, target)
         // Tạm dừng máy, app mới chờ duyệt, giờ ngủ, giờ học, rồi hạn mức; các loại đầu không cần quyền đo thời gian dùng.
         val verdict = TimeLimits.pauseVerdict(this, target)
@@ -146,6 +150,8 @@ class SettingsGuardService : AccessibilityService() {
         if (now - lastBlockAt < BLOCK_COOLDOWN_MS) return
         lastBlockAt = now
         runCatching { UsageReport.recordBlock(this) }
+        // Chặn do hạn mức / giờ ngủ / tạm dừng / app mới chờ duyệt cũng là "mở app bị chặn" (không ghi nếu là chính SafeFamily).
+        if (target != packageName) runCatching { ActivityLog.record(this, ActivityLog.BLOCKED_APP_OPEN, target) }
         performGlobalAction(GLOBAL_ACTION_HOME)
         handler.postDelayed({
             startActivity(

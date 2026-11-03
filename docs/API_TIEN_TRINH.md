@@ -21,7 +21,7 @@ Ký hiệu: `[ ]` chưa làm · `[~]` đang làm · `[x]` xong
 - [x] Gia đình: tối đa 2 người giám hộ (mẹ + bố, API-02), nhiều con (mỗi con có thể là một máy)
 - [x] Đăng nhập phụ huynh: email + mật khẩu
 - [x] Mất kết nối: mẹ tự chỉnh ngưỡng trong cài đặt, mặc định 24 giờ
-- [x] Dữ liệu lên server: chỉ thống kê thời gian dùng theo app. Chưa gửi nhật ký mở khóa, danh bạ, ảnh
+- [x] Dữ liệu lên server: chỉ thống kê thời gian dùng theo app. Nhật ký hoạt động (T8: loại sự kiện + tên gói app bị chặn + giờ) gửi lên cho mẹ xem, giữ 30 ngày. Chưa gửi nội dung nhật ký mở khóa, danh bạ, ảnh
 - [x] Phát hành: APK nội bộ trước, Google Play tính sau
 - [x] Polling: 5 phút (lệnh "tạm dừng ngay" có thể trễ tối đa vài phút)
 - [x] Máy con gửi thêm danh sách app đã cài (tên + tên gói, không nội dung) để báo app mới và khóa app từ xa
@@ -84,7 +84,7 @@ Cột mốc đợt 2: mẹ đặt giới hạn cho 1 app trên máy mẹ, máy c
 - [~] Con xin thêm giờ / báo "đã học xong" → mẹ duyệt / từ chối (`extra_time`, `study_done`; API-06). Server + Flutter mẹ đã test tự động đạt; Kotlin con biên dịch được nhưng CHƯA chạy máy thật nên chưa tick
 - [~] Con báo app mới cài → mẹ cho dùng hoặc chặn (`NewApps.kt`; API-07). Server + Flutter mẹ đã test tự động đạt; Kotlin con biên dịch được nhưng CHƯA chạy máy thật nên chưa tick
 - [~] Con gửi báo cáo sử dụng → mẹ xem (`UsageReport.kt`, `report_page`; API-08). Server + Flutter mẹ đã test tự động đạt; Kotlin con biên dịch được nhưng CHƯA chạy máy thật nên chưa tick
-- [ ] Con gửi nhật ký mở khóa (`unlock_log`)
+- [~] Con gửi nhật ký hoạt động (mở app bị chặn, sai PIN, mở khóa phụ huynh; T8, `ActivityLog.kt`). Server đã test tự động đạt; Kotlin con biên dịch được nhưng CHƯA chạy máy thật nên chưa tick; chưa có màn mẹ (T9)
 - [ ] Yêu cầu tạo lúc offline được xếp hàng trong máy và gửi khi có mạng (code đã có cho API-06/07/08/10 nhưng CHƯA test máy thật nên chưa tick)
 - [~] Cảnh báo cho mẹ: máy con mất kết nối lâu, chỉnh giờ máy, gỡ app, tắt trợ năng/Device Admin, thiếu quyền (`TimeChangeReceiver`, `UninstallGate`, `SettingsGuardService`, `TamperAlerts.kt`; API-10). Server + Flutter mẹ đã test tự động đạt (server tự phát hiện mất kết nối đã kiểm bằng SQL); Kotlin con biên dịch được nhưng CHƯA chạy máy thật nên chưa tick
 - [ ] Hồ sơ, liên hệ gia đình (`profile`, `team`) – làm cuối, cân nhắc quyền riêng tư
@@ -170,6 +170,7 @@ Emulator Android gọi máy tính qua `http://10.0.2.2:<cổng>`; app mặc đ�
 | Duyệt app mới | `POST /api/devices/me/apps` (cờ `isNew`), `GET /api/devices/me/apps/decisions`, `GET /api/devices/{id}/apps?status=`, `PUT /api/devices/{id}/apps/{package}` | Con báo app mới, kéo quyết định; mẹ cho phép / chặn | API-07 |
 | Báo cáo | `POST /api/devices/me/usage`, `GET /api/devices/{id}/usage?from=&to=` | Con gửi, mẹ xem | API-08: phút theo app theo ngày, upsert, giữ 90 ngày |
 | Quyền riêng tư vị trí | `GET/PUT /api/devices/{id}/location-sharing`, `DELETE /api/devices/{id}/locations`, `GET /api/devices/me/settings` | Mẹ bật/tắt + xóa, con kéo cờ | API-11: mặc định bật; tắt thì con ngừng gửi, server trả 403 và không lưu; giữ vị trí 7 ngày |
+| Nhật ký hoạt động | `POST /api/devices/me/activity`, `GET /api/devices/{id}/activity?afterId=` | Con gửi theo lô, mẹ xem | T8: 3 loại sự kiện, ≤1000 dòng/máy, giữ 30 ngày |
 | Cảnh báo | `POST /api/devices/me/alerts`, `GET /api/devices/{id}/alerts?afterId=`, `POST /api/alerts/{id}/read` | Con gửi, mẹ xem / đã đọc | API-10: tamper + mất kết nối (server tự tạo `offline`), chống trùng 10 phút, ≤200 dòng/máy, giữ 30 ngày |
 
 (Tên endpoint là dự kiến, sẽ chỉnh khi làm.)

@@ -225,6 +225,22 @@ public class Alert
     public DateTime? ReadAt { get; set; }
 }
 
+/// <summary>
+/// Một dòng nhật ký hoạt động của máy con (T8). Chỉ loại sự kiện, tên gói (nếu là mở app bị chặn) và giờ xảy ra:
+/// không nội dung, không vị trí.
+/// </summary>
+public class ActivityEvent
+{
+    public int Id { get; set; }
+    public int DeviceId { get; set; }
+    /// <summary>Một trong <see cref="ActivityRules.Kinds"/>.</summary>
+    public string Kind { get; set; } = "";
+    /// <summary>Tên gói app khi <c>blocked_app_open</c>; các loại khác để trống.</summary>
+    public string? Detail { get; set; }
+    /// <summary>Thời điểm xảy ra (UTC), không phải giờ gửi.</summary>
+    public DateTime Time { get; set; } = DateTime.UtcNow;
+}
+
 /// <summary>Phút dùng một app trong một ngày (<see cref="UsageDay"/>).</summary>
 public class UsageApp
 {

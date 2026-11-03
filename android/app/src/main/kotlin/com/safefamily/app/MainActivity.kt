@@ -283,6 +283,11 @@ class MainActivity : FlutterFragmentActivity() {
                         )
                         result.success(null)
                     }
+                    // Nhật ký hoạt động (T8): Dart báo kết quả mở khóa phụ huynh; máy chưa ghép đôi thì Kotlin bỏ qua.
+                    "logActivity" -> {
+                        ActivityLog.record(this, call.argument<String>("kind") ?: "")
+                        result.success(null)
+                    }
                     "requestStatuses" -> result.success(FamilySync.requestStatuses(this))
                     "lastSyncMs" -> result.success(FamilySync.lastSyncMs(this))
                     "locationStatus" -> result.success(

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
@@ -13,6 +15,7 @@ import '../core/security/device_guard.dart';
 import '../core/security/parent_guard.dart';
 import '../core/security/secure_store.dart';
 import '../core/security/ui/pin_prompt_page.dart';
+import '../core/security/unlock_log.dart';
 import '../core/settings/setup_settings.dart';
 import '../core/settings/theme_settings.dart';
 import '../core/theme/app_theme.dart';
@@ -96,6 +99,13 @@ class _SafeFamilyAppState extends State<SafeFamilyApp> {
               store: const FlutterSecureStore(),
             ),
             device: const MethodChannelDeviceGuard(),
+            onAuthResult: (result) => unawaited(
+              reportParentAuthActivity(
+                result == UnlockResult.success
+                    ? ParentAuthActivity.unlocked
+                    : ParentAuthActivity.failed,
+              ),
+            ),
           )
           ..load()
           ..attachLifecycle());
