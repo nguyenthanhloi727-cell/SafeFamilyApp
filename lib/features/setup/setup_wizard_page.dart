@@ -106,20 +106,38 @@ class _SetupWizardPageState extends State<SetupWizardPage> {
         return;
       }
     }
-    // Vừa bật quyền ở Cài đặt rồi quay lại → tự sang bước kế.
-    final current = _steps![_index];
-    if (current != null && registry.isGranted(current)) {
-      _next();
+    _settle();
+  }
+
+  /// Vừa bật quyền ở Cài đặt rồi quay lại → sang bước kế. Bỏ qua MỌI bước liên
+  /// tiếp đã được cấp (bật nhiều quyền trong một lần vào Cài đặt), nếu không bước
+  /// đã cấp sẽ đứng im vì không còn thay đổi nào để kiểm lại.
+  void _settle() {
+    final steps = _steps!;
+    final registry = _registry!;
+    var i = _index;
+    while (i < steps.length) {
+      final step = steps[i];
+      if (step != null && registry.isGranted(step)) {
+        i++;
+      } else {
+        break;
+      }
+    }
+    if (i >= steps.length) {
+      _finish();
       return;
     }
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    setState(() => _index = i);
   }
 
   void _next() {
     if (_index + 1 >= _steps!.length) {
       _finish();
-    } else if (mounted) {
-      setState(() => _index++);
+    } else {
+      _index++;
+      _settle();
     }
   }
 

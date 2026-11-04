@@ -89,6 +89,23 @@ void main() {
     expect(finished, 0);
   });
 
+  testWidgets(
+    'bật liền nhiều quyền trong một lần thì nhảy qua hết bước đã cấp',
+    (tester) async {
+      await pump(tester);
+      await tester.tap(find.byKey(const Key('wizard-continue')));
+      await tester.pump();
+      expect(find.text(AppPermission.accessibility.label), findsOneWidget);
+
+      // Bật cả hai Trợ năng cùng lúc rồi quay lại app.
+      platform.granted = {'accessibility': true, 'settings_guard': true};
+      await registry.refresh();
+      await tester.pump();
+      expect(find.text(AppPermission.usageAccess.label), findsOneWidget);
+      expect(find.text('Bước 4/8'), findsOneWidget);
+    },
+  );
+
   testWidgets('bật quyền ở Cài đặt rồi quay lại thì tự sang bước kế', (
     tester,
   ) async {
