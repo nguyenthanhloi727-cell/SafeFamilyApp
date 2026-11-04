@@ -52,6 +52,14 @@ class _AllPermissions extends _NoPermissions {
   };
 }
 
+/// Máy giả đã cấp mọi quyền trừ bỏ tối ưu pin (quyền tùy chọn).
+class _AllButBattery extends _NoPermissions {
+  @override
+  Future<Map<String, bool>> status() async => {
+    for (final p in AppPermission.values) p.id: p != AppPermission.battery,
+  };
+}
+
 /// Máy đã chọn vai trò (bỏ qua màn chọn vai trò) để test khung app.
 Future<ConnectionSession> localConnection() async {
   final connection = ConnectionSession(store: InMemorySecureStore());
@@ -189,6 +197,21 @@ void main() {
       expect(find.text('Thiết lập quyền'), findsOneWidget);
       expect(find.byKey(const Key('wizard-skip')), findsNothing);
       expect(find.byType(ChildHomePage), findsNothing);
+    });
+
+    testWidgets('chỉ thiếu pin: hiện đề nghị, "Để sau" thì vào màn chính', (
+      tester,
+    ) async {
+      await pumpChild(tester, _AllButBattery());
+      expect(find.text('Thiết lập quyền'), findsOneWidget);
+      expect(find.text(AppPermission.battery.label), findsOneWidget);
+      expect(find.byKey(const Key('wizard-skip')), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('wizard-skip')));
+      await tester.pump();
+      await tester.pump();
+      expect(find.text('Thiết lập quyền'), findsNothing);
+      expect(find.byType(ChildHomePage), findsOneWidget);
     });
 
     testWidgets('đủ quyền: vào thẳng màn chính của con', (tester) async {

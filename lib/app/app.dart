@@ -366,27 +366,9 @@ class _SecurityGate extends StatelessWidget {
         if (permissions != null &&
             connection.mode == ConnectionMode.child &&
             connection.isChildPaired) {
-          return ListenableBuilder(
-            listenable: permissions,
-            builder: (context, _) {
-              if (!permissions.isLoaded) {
-                return const Scaffold(
-                  body: Center(child: CircularProgressIndicator()),
-                );
-              }
-              if (wizardSteps(
-                permissions,
-                mode: ConnectionMode.child,
-              ).isEmpty) {
-                return _afterSetup(connection);
-              }
-              return SetupWizardPage(
-                key: const ValueKey('enforced-setup'),
-                mode: ConnectionMode.child,
-                enforced: true,
-                onFinished: () {},
-              );
-            },
+          return _ChildPermissionGate(
+            permissions: permissions,
+            child: _afterSetup(connection),
           );
         }
         if (!setup.isDone) {
@@ -405,4 +387,52 @@ class _SecurityGate extends StatelessWidget {
       connection.mode == ConnectionMode.child
       ? const ChildHomePage()
       : const AppShell();
+}
+
+/// Máy con đã ghép đôi: thiếu quyền bắt buộc thì chỉ thấy wizard (không "Để sau").
+/// Quyền tùy chọn (bỏ tối ưu pin) được đề nghị một lần rồi cho bỏ qua.
+class _ChildPermissionGate extends StatefulWidget {
+  const _ChildPermissionGate({required this.permissions, required this.child});
+
+  final PermissionRegistry permissions;
+  final Widget child;
+
+  @override
+  State<_ChildPermissionGate> createState() => _ChildPermissionGateState();
+}
+
+class _ChildPermissionGateState extends State<_ChildPermissionGate> {
+  /// Con đã chọn bật hoặc bỏ qua quyền tùy chọn trong lần mở app này.
+  bool _optionalHandled = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final permissions = widget.permissions;
+    return ListenableBuilder(
+      listenable: permissions,
+      builder: (context, _) {
+        if (!permissions.isLoaded) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+        final required = hasRequiredMissing(
+          permissions,
+          mode: ConnectionMode.child,
+        );
+        final offerOptional =
+            !_optionalHandled &&
+            hasOptionalMissing(permissions, mode: ConnectionMode.child);
+        if (!required && !offerOptional) return widget.child;
+        return SetupWizardPage(
+          key: const ValueKey('enforced-setup'),
+          mode: ConnectionMode.child,
+          enforced: true,
+          onFinished: () {
+            if (mounted) setState(() => _optionalHandled = true);
+          },
+        );
+      },
+    );
+  }
 }

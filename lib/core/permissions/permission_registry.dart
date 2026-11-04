@@ -20,6 +20,10 @@ enum AppPermission {
   final String id;
   final String label;
 
+  /// Quyền không bắt buộc: máy con có thể bỏ qua ở wizard bắt buộc (chỉ làm máy
+  /// dễ tắt app nền hơn, không làm mất việc chặn).
+  bool get optional => this == AppPermission.battery;
+
   /// Quyền máy này cần theo vai trò. Máy mẹ quản lý qua server nên chỉ cần
   /// Thông báo (cảnh báo cho mẹ); máy con (và máy chưa chọn vai trò) cần đủ.
   bool neededFor(ConnectionMode mode) =>

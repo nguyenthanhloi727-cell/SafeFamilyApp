@@ -41,8 +41,32 @@ List<AppPermission?> wizardSteps(
   ];
   if (missing.isEmpty) return const [];
   if (mode == ConnectionMode.parent) return missing;
-  return [null, ...missing];
+  // Hướng dẫn "cài đặt bị hạn chế" chỉ có ích khi còn thiếu Trợ năng / Quản trị
+  // thiết bị; chỉ thiếu pin thì không cần.
+  final needsHelp = missing.any(
+    (p) =>
+        p == AppPermission.accessibility ||
+        p == AppPermission.settingsGuard ||
+        p == AppPermission.deviceAdmin,
+  );
+  return [if (needsHelp) null, ...missing];
 }
+
+/// Còn thiếu quyền BẮT BUỘC (không tính [AppPermission.optional]) cho [mode].
+bool hasRequiredMissing(
+  PermissionRegistry registry, {
+  ConnectionMode mode = ConnectionMode.child,
+}) => registry.missing.any(
+  (e) => e.permission.neededFor(mode) && !e.permission.optional,
+);
+
+/// Còn quyền tùy chọn chưa cấp cho [mode] (hiện để con chọn bật hoặc bỏ qua).
+bool hasOptionalMissing(
+  PermissionRegistry registry, {
+  ConnectionMode mode = ConnectionMode.child,
+}) => registry.missing.any(
+  (e) => e.permission.neededFor(mode) && e.permission.optional,
+);
 
 /// S15 — Setup Wizard: mỗi bước một quyền, giải thích lý do, mở Cài đặt, quay
 /// lại tự kiểm tra rồi sang bước kế. Mỗi bước có "Để sau". Đi hết hoặc bỏ qua
@@ -216,7 +240,8 @@ class _SetupWizardPageState extends State<SetupWizardPage> {
                   onPressed: _next,
                   child: const Text('Đã xong, tiếp tục'),
                 ),
-              if (widget.enforced)
+              // Bắt buộc: chỉ quyền tùy chọn (pin) mới được "Để sau".
+              if (widget.enforced && !(step?.optional ?? false))
                 Padding(
                   padding: const EdgeInsets.only(top: AppSpace.sm),
                   child: Text(
