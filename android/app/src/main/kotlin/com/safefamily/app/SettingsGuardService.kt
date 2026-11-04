@@ -50,6 +50,9 @@ class SettingsGuardService : AccessibilityService() {
     private var pauseTint: View? = null
     private var foregroundPackage: String? = null
 
+    /** App cuối cùng đã đem đi kiểm chặn theo sự kiện cửa sổ; để nhận ra app mới hiện lên mà không có sự kiện đổi cửa sổ. */
+    private var lastEnforcedPackage: String? = null
+
     /** Lớp phủ chặn giờ học và trạng thái ([StudyBlock]) nó đang vẽ. */
     private var studyOverlay: View? = null
     private var studyOverlayState: String? = null
@@ -91,6 +94,18 @@ class SettingsGuardService : AccessibilityService() {
         if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
             sweepRelocks()
             enforceTimeLimits(pkg)
+            lastEnforcedPackage = pkg
+        } else if (event.eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED && pkg != lastEnforcedPackage &&
+            pkg != "com.android.systemui" && pkg != "android" && !TimeLimits.isInputMethod(this, pkg)
+        ) {
+            // Mở app từ đa nhiệm (Recents) có khi không bắn sự kiện đổi cửa sổ: thấy app lạ đang ở trước thì chặn luôn,
+            // không đợi nhịp đo 30 giây. Chỉ tin khi đúng cửa sổ đang hoạt động (app nền cập nhật nội dung thì bỏ qua).
+            if (rootInActiveWindow?.packageName?.toString() == pkg) {
+                foregroundPackage = pkg
+                lastEnforcedPackage = pkg
+                sweepRelocks()
+                enforceTimeLimits(pkg)
+            }
         }
 
         if (pkg !in GUARDED_PACKAGES) return
