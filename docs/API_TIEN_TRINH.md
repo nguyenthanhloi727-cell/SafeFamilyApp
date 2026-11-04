@@ -2,11 +2,7 @@
 
 Mục tiêu: máy mẹ quản lý máy con từ xa qua server. Máy con vẫn tự chặn bằng code Kotlin hiện có; API chỉ chuyển luật/lệnh qua lại.
 
-<<<<<<< HEAD
-Cập nhật lần cuối: 2026-11-04 (tách giao diện máy mẹ / máy con, T1–T12 trong `task.md`) · Trạng thái chung: **Đợt 1, 2, 5 xong code; test tự động đạt trên LocalDB; chưa publish MyASP.net, chưa test 2 máy thật (TASKS/TEST_PLAN.md)**
-=======
-Cập nhật lần cuối: 2026-11-04 · Trạng thái chung: **Đợt 1, 2, 5 xong code; test tự động đạt trên LocalDB; đã publish MyASP.net (https://shamixd-001-site1.ftempurl.com/swagger/index.html), chưa test 2 máy thật (TASKS/TEST_PLAN.md)**
->>>>>>> claude/demo-script-main-features-ad80c6
+Cập nhật lần cuối: 2026-11-04 (tách giao diện máy mẹ / máy con, T1–T12 trong `task.md`) · Trạng thái chung: **Đợt 1, 2, 5 xong code; test tự động đạt trên LocalDB; đã publish MyASP.net (https://shamixd-001-site1.ftempurl.com/swagger/index.html), chưa test 2 máy thật (TASKS/TEST_PLAN.md)**
 
 Ký hiệu: `[ ]` chưa làm · `[~]` đang làm · `[x]` xong
 

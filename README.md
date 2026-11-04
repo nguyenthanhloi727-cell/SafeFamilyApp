@@ -75,12 +75,8 @@ Chi tiết API: [docs/API_DAY_DU.md](docs/API_DAY_DU.md), tiến trình: [docs/A
 ## Đang phát triển
 
 - **Chặn cứng** (con không tự tắt được) bằng chế độ Device Owner.
-<<<<<<< HEAD
 - Thông báo đẩy nhanh hơn 15 phút (cần FCM; đã chốt chưa dùng).
-- Publish server lên MyASP.net và thử đủ 2 máy thật (xem [docs/API_TIEN_TRINH.md](docs/API_TIEN_TRINH.md)).
-=======
-- Thông báo đẩy (hiện dùng hỏi định kỳ).
->>>>>>> claude/demo-script-main-features-ad80c6
+- Thử đủ 2 máy thật trên server MyASP.net (xem [docs/API_TIEN_TRINH.md](docs/API_TIEN_TRINH.md)).
 
 ---
 
