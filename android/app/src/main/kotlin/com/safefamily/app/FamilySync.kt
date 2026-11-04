@@ -77,6 +77,7 @@ object FamilySync {
             UsageReport.forgetSent(context)
             runCatching { TamperAlerts.reset(context) } // mốc quyền + giờ lúc ghép, bỏ hàng chờ cảnh báo cũ
             runCatching { ActivityLog.forget(context) } // nhật ký của lần ghép trước không sang máy mẹ mới
+            runCatching { NewApps.resetSync(context) } // danh sách app phải gửi lại cho server/máy mẹ mới
         }
     }
 
@@ -87,6 +88,7 @@ object FamilySync {
         runCatching { TamperAlerts.forget(context) }
         runCatching { ActivityLog.forget(context) }
         runCatching { Geofences.removeAll(context) }
+        runCatching { NewApps.resetSync(context) }
         stopService(context)
     }
 

@@ -188,6 +188,15 @@ object NewApps {
 
     // ---- Đồng bộ với server (API-07) -------------------------------------
 
+    /**
+     * Ghép với server/máy mẹ khác (hoặc ngắt kết nối): quên chuyện đã gửi danh sách app và đã áp quyết định,
+     * để lần đồng bộ kế gửi lại toàn bộ cho server mới. Không đụng `known` / `pending` (việc duyệt app mới).
+     */
+    @Synchronized
+    fun resetSync(context: Context) {
+        prefs(context).edit().remove(KEY_LISTED).remove(KEY_UPLOADED).remove(KEY_APPLIED).apply()
+    }
+
     /** Giữ lại trong `uploaded` / `applied_decisions` chỉ những gói thỏa [keep]. */
     private fun forgetSync(context: Context, keep: (String) -> Boolean) {
         val p = prefs(context)
