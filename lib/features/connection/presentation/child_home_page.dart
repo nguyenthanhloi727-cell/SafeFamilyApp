@@ -219,7 +219,28 @@ class _ChildHomePageState extends State<ChildHomePage>
 
   List<Widget> _callButtons(ThemeData theme) {
     final list = _callList;
-    if (list.isEmpty) return const [];
+    if (list.isEmpty) {
+      // Mẹ chưa thêm số nào: vẫn hiện nút để con biết có chỗ gọi, bấm thì nhắc con nhờ mẹ thêm số.
+      return [
+        Text('Gọi người nhà', style: theme.textTheme.titleMedium),
+        const SizedBox(height: AppSpace.sm),
+        FilledButton.icon(
+          key: const Key('child-call-empty'),
+          style: FilledButton.styleFrom(
+            backgroundColor: theme.colorScheme.error,
+            foregroundColor: theme.colorScheme.onError,
+            minimumSize: const Size.fromHeight(56),
+          ),
+          onPressed: () => showAppSnackBar(
+            context,
+            'Mẹ chưa thêm số điện thoại cho con. Nhờ mẹ thêm trong "Danh bạ của con".',
+          ),
+          icon: const Icon(Icons.sos_rounded),
+          label: const Text('SOS: gọi cha mẹ'),
+        ),
+        const SizedBox(height: AppSpace.lg),
+      ];
+    }
     return [
       Text('Gọi người nhà', style: theme.textTheme.titleMedium),
       const SizedBox(height: AppSpace.sm),

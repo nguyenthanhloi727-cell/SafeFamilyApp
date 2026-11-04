@@ -91,9 +91,18 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('mẹ chưa thêm danh bạ: không có mục Gọi người nhà', (t) async {
-    await pump(t, _Platform());
-    expect(find.text('Gọi người nhà'), findsNothing);
+  testWidgets('mẹ chưa thêm danh bạ: vẫn có nút SOS, bấm thì nhắc nhờ mẹ thêm số', (
+    t,
+  ) async {
+    final launcher = FakeLauncher();
+    await pump(t, _Platform(), launcher: launcher);
+    expect(find.text('SOS: gọi cha mẹ'), findsOneWidget);
+    expect(find.byKey(const Key('child-call-0')), findsNothing);
+
+    await t.tap(find.byKey(const Key('child-call-empty')));
+    await t.pump();
+    expect(find.textContaining('Mẹ chưa thêm số điện thoại'), findsOneWidget);
+    expect(launcher.dialed, isEmpty);
   });
 
   testWidgets('Gọi người nhà: SOS đứng đầu, bấm là mở bàn phím gọi', (t) async {
