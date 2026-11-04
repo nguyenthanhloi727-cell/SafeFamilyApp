@@ -423,6 +423,8 @@ object FamilySync {
                 // Mẹ duyệt xin thêm giờ (API-06). Số phút sai thì không ack.
                 if (minutes !in 1..MAX_EXTRA_MINUTES) return false
                 TimeLimits.addBonus(context, minutes)
+                // Đang bị khóa/tạm dừng thì thêm giờ phải mở máy được, hết giờ thêm thì khóa lại.
+                TimeLimits.grantPauseGrace(context, minutes)
             }
             "study_approve" -> StudyBlock.approve(context)
             "study_reject" -> StudyBlock.reject(context)

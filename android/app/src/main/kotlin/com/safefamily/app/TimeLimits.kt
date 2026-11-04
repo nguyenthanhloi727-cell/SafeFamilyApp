@@ -42,6 +42,7 @@ object TimeLimits {
     private const val KEY_LIMIT_DISABLED_UNTIL = "limit_disabled_until"
     private const val KEY_STUDY = "study_state"
     private const val KEY_PAUSE = "pause_until"
+    private const val KEY_PAUSE_GRACE = "pause_grace_until"
     private const val PAUSE_FOREVER = Long.MAX_VALUE
     private const val MAX_PAUSE_MINUTES = 24 * 60
 
@@ -425,18 +426,34 @@ object TimeLimits {
     fun startPause(context: Context, minutes: Int) {
         require(minutes == 0 || minutes in 1..MAX_PAUSE_MINUTES) { "minutes=$minutes" }
         val until = if (minutes == 0) PAUSE_FOREVER else trustedNow(context) + minutes * 60_000L
-        prefs(context).edit().putLong(KEY_PAUSE, until).apply()
+        prefs(context).edit().putLong(KEY_PAUSE, until).remove(KEY_PAUSE_GRACE).apply()
     }
 
     @Synchronized
     fun stopPause(context: Context) {
-        prefs(context).edit().remove(KEY_PAUSE).apply()
+        prefs(context).edit().remove(KEY_PAUSE).remove(KEY_PAUSE_GRACE).apply()
     }
 
-    /** `0` = không tạm dừng, [Int.MAX_VALUE] = đến khi tắt, ngược lại số phút còn lại. */
+    /**
+     * Mẹ duyệt xin thêm giờ lúc máy đang bị tạm dừng: mở máy [minutes] phút, hết thì khóa lại phần còn lại.
+     * Hạn tạm dừng được đẩy lui đúng [minutes] phút nên không mất thời gian khóa của mẹ. Không tạm dừng thì bỏ qua.
+     */
+    @Synchronized
+    fun grantPauseGrace(context: Context, minutes: Int) {
+        val until = prefs(context).getLong(KEY_PAUSE, 0L)
+        if (until == 0L || pauseMinutesLeft(context) == 0) return
+        val now = trustedNow(context)
+        val graceEnd = maxOf(prefs(context).getLong(KEY_PAUSE_GRACE, 0L), now) + minutes * 60_000L
+        val e = prefs(context).edit().putLong(KEY_PAUSE_GRACE, graceEnd)
+        if (until != PAUSE_FOREVER) e.putLong(KEY_PAUSE, until + minutes * 60_000L)
+        e.apply()
+    }
+
+    /** `0` = không tạm dừng (hoặc đang được mẹ cho thêm giờ), [Int.MAX_VALUE] = đến khi tắt, ngược lại số phút còn lại. */
     fun pauseMinutesLeft(context: Context): Int {
         val until = prefs(context).getLong(KEY_PAUSE, 0L)
         if (until == 0L) return 0
+        if (prefs(context).getLong(KEY_PAUSE_GRACE, 0L) > trustedNow(context)) return 0
         if (until == PAUSE_FOREVER) return Int.MAX_VALUE
         val left = until - trustedNow(context)
         return if (left > 0) ((left + 59_999L) / 60_000L).toInt() else 0
