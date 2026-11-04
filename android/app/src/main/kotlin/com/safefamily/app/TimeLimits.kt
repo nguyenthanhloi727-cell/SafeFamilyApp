@@ -43,6 +43,7 @@ object TimeLimits {
     private const val KEY_STUDY = "study_state"
     private const val KEY_PAUSE = "pause_until"
     private const val KEY_PAUSE_GRACE = "pause_grace_until"
+    private const val KEY_APP_GRACE = "app_grace_until"
     private const val PAUSE_FOREVER = Long.MAX_VALUE
     private const val MAX_PAUSE_MINUTES = 24 * 60
 
@@ -447,6 +448,28 @@ object TimeLimits {
         val e = prefs(context).edit().putLong(KEY_PAUSE_GRACE, graceEnd)
         if (until != PAUSE_FOREVER) e.putLong(KEY_PAUSE, until + minutes * 60_000L)
         e.apply()
+    }
+
+    /**
+     * Mẹ duyệt xin thêm giờ cho MỘT app: trong [minutes] phút app đó không bị tạm dừng / giờ ngủ / hạn mức chặn
+     * ([hasAppGrace]); app khác vẫn bị chặn như cũ. Dùng giờ đáng tin nên đổi giờ hệ thống không kéo dài được.
+     */
+    @Synchronized
+    fun grantAppGrace(context: Context, packageName: String, minutes: Int) {
+        val now = trustedNow(context)
+        val json = runCatching { JSONObject(prefs(context).getString(KEY_APP_GRACE, "{}") ?: "{}") }
+            .getOrDefault(JSONObject())
+        val expired = json.keys().asSequence().filter { json.optLong(it) <= now }.toList()
+        expired.forEach { json.remove(it) }
+        json.put(packageName, maxOf(json.optLong(packageName), now) + minutes * 60_000L)
+        prefs(context).edit().putString(KEY_APP_GRACE, json.toString()).apply()
+    }
+
+    @Synchronized
+    fun hasAppGrace(context: Context, packageName: String): Boolean {
+        val json = runCatching { JSONObject(prefs(context).getString(KEY_APP_GRACE, "{}") ?: "{}") }
+            .getOrDefault(JSONObject())
+        return json.optLong(packageName) > trustedNow(context)
     }
 
     /** `0` = không tạm dừng (hoặc đang được mẹ cho thêm giờ), [Int.MAX_VALUE] = đến khi tắt, ngược lại số phút còn lại. */

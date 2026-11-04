@@ -135,11 +135,21 @@ class SettingsGuardService : AccessibilityService() {
         }
         if (usage != null) warnIfAlmostOut(usage, target)
         // Tạm dừng máy, app mới chờ duyệt, giờ ngủ, giờ học, rồi hạn mức; các loại đầu không cần quyền đo thời gian dùng.
-        val verdict = TimeLimits.pauseVerdict(this, target)
+        // App đang được mẹ cho thêm giờ riêng: bỏ qua tạm dừng / giờ ngủ / hạn mức; app mới chờ duyệt và giờ học vẫn chặn.
+        val appGrace = TimeLimits.hasAppGrace(this, target)
+        // App mẹ khóa riêng: plugin app_blocker tự đá ra và hiện màn của nó (không có nút xin giờ). Ta phủ thêm màn có nút
+        // lên trên, chậm hơn plugin một nhịp để nằm trên cùng.
+        val listBlocked = !appGrace && target != packageName && target !in TimeLimits.exemptPackages(this) &&
+            runCatching {
+                val blocker = com.khanhtq.app_blocker.persistence.BlockerPreferences(applicationContext)
+                blocker.isBlocking() && target in blocker.getBlockedApps()
+            }.getOrDefault(false)
+        val verdict = (if (appGrace) null else TimeLimits.pauseVerdict(this, target))
             ?: NewApps.verdict(this, target)
-            ?: TimeLimits.bedtimeVerdict(this, target)
+            ?: (if (appGrace) null else TimeLimits.bedtimeVerdict(this, target))
             ?: TimeLimits.studyVerdict(this, target)
-            ?: usage?.let { TimeLimits.verdict(this, it, target) }
+            ?: (if (appGrace) null else usage?.let { TimeLimits.verdict(this, it, target) })
+            ?: (if (listBlocked) TimeLimits.Verdict(target, LIST_BLOCKED_MESSAGE, canRequestMore = false) else null)
         if (verdict == null || !verdict.isStudy) hideStudyOverlay()
         if (verdict == null) return
         if (verdict.isStudy) {
@@ -151,7 +161,10 @@ class SettingsGuardService : AccessibilityService() {
         lastBlockAt = now
         runCatching { UsageReport.recordBlock(this) }
         // Chặn do hạn mức / giờ ngủ / tạm dừng / app mới chờ duyệt cũng là "mở app bị chặn" (không ghi nếu là chính SafeFamily).
-        if (target != packageName) runCatching { ActivityLog.record(this, ActivityLog.BLOCKED_APP_OPEN, target) }
+        // App khóa riêng đã được ghi ở trên (candidate in remoteBlocked) nên không ghi lần nữa.
+        if (target != packageName && verdict.message != LIST_BLOCKED_MESSAGE) {
+            runCatching { ActivityLog.record(this, ActivityLog.BLOCKED_APP_OPEN, target) }
+        }
         performGlobalAction(GLOBAL_ACTION_HOME)
         handler.postDelayed({
             startActivity(
@@ -159,9 +172,10 @@ class SettingsGuardService : AccessibilityService() {
                     .putExtra(TimeLimitBlockActivity.EXTRA_MESSAGE, verdict.message)
                     .putExtra(TimeLimitBlockActivity.EXTRA_CAN_REQUEST, verdict.canRequestMore)
                     .putExtra(TimeLimitBlockActivity.EXTRA_NEEDS_REVIEW, verdict.needsReview)
+                    .putExtra(TimeLimitBlockActivity.EXTRA_PACKAGE, target)
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_HISTORY),
             )
-        }, LAUNCH_DELAY_MS)
+        }, if (verdict.message == LIST_BLOCKED_MESSAGE) LIST_BLOCKED_LAUNCH_DELAY_MS else LAUNCH_DELAY_MS)
     }
 
     /**
@@ -385,6 +399,8 @@ class SettingsGuardService : AccessibilityService() {
         private const val MAX_NODES = 600
         private const val SCAN_INTERVAL_MS = 400L
         private const val LAUNCH_DELAY_MS = 150L
+        private const val LIST_BLOCKED_LAUNCH_DELAY_MS = 700L
+        private const val LIST_BLOCKED_MESSAGE = "Phụ huynh đã khóa ứng dụng này"
         private const val TICK_MS = 30_000L
         private const val FAST_TICK_MS = 5_000L
         private const val WARN_MS = 60_000L

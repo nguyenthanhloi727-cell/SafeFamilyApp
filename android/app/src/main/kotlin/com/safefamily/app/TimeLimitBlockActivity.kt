@@ -47,6 +47,15 @@ class TimeLimitBlockActivity : Activity() {
             text = "Xin thêm giờ"
             setOnClickListener { requestMoreTime() }
         }
+        // Xin thêm giờ riêng cho app đang bị chặn (gửi về máy mẹ). Không hiện cho app mới chờ duyệt (đã có nút duyệt riêng).
+        val blockedPackage = intent.getStringExtra(EXTRA_PACKAGE)
+            ?.takeIf { it != packageName && !intent.getBooleanExtra(EXTRA_NEEDS_REVIEW, false) && FamilySync.isConfigured(this) }
+        val appRequest = blockedPackage?.let { pkg ->
+            Button(this).apply {
+                text = "Xin thêm giờ dùng ${appLabel(pkg)}"
+                setOnClickListener { requestAppTime(pkg) }
+            }
+        }
         // App mới cài: con đưa máy cho phụ huynh duyệt ngay trong SafeFamily.
         val review = Button(this).apply {
             text = "Nhờ bố mẹ duyệt"
@@ -91,6 +100,7 @@ class TimeLimitBlockActivity : Activity() {
                 setBackgroundColor(BACKGROUND)
                 addView(title)
                 addView(hint)
+                appRequest?.let { addView(it) }
                 if (canRequest) addView(request)
                 if (intent.getBooleanExtra(EXTRA_NEEDS_REVIEW, false)) addView(review)
                 if (sosButtons.isEmpty()) addView(sos) else sosButtons.forEach { addView(it) }
@@ -118,6 +128,23 @@ class TimeLimitBlockActivity : Activity() {
                 android.widget.Toast.makeText(this, "Đã gửi cho bố mẹ. Chờ bố mẹ trả lời nhé.", android.widget.Toast.LENGTH_LONG).show()
             }
             .setNeutralButton("Đưa máy cho bố mẹ") { _, _ -> requestOnThisDevice() }
+            .setNegativeButton("Thôi", null)
+            .show()
+    }
+
+    private fun appLabel(pkg: String): String = runCatching {
+        packageManager.getApplicationLabel(packageManager.getApplicationInfo(pkg, 0)).toString()
+    }.getOrDefault("app này")
+
+    /** Con chọn số phút xin cho RIÊNG app [pkg]; gửi về máy mẹ (mẹ nhận thông báo và duyệt). */
+    private fun requestAppTime(pkg: String) {
+        val choices = intArrayOf(5, 15, 30)
+        AlertDialog.Builder(this)
+            .setTitle("Xin bố mẹ thêm giờ dùng ${appLabel(pkg)}")
+            .setItems(choices.map { "Xin $it phút" }.toTypedArray()) { _, i ->
+                FamilySync.queueRequest(this, FamilySync.REQUEST_APP_TIME, choices[i], pkg)
+                android.widget.Toast.makeText(this, "Đã gửi cho bố mẹ. Chờ bố mẹ trả lời nhé.", android.widget.Toast.LENGTH_LONG).show()
+            }
             .setNegativeButton("Thôi", null)
             .show()
     }
@@ -194,6 +221,7 @@ class TimeLimitBlockActivity : Activity() {
         const val EXTRA_MESSAGE = "message"
         const val EXTRA_CAN_REQUEST = "can_request"
         const val EXTRA_NEEDS_REVIEW = "needs_review"
+        const val EXTRA_PACKAGE = "package"
         private const val REQUEST_CALL = 13
         private const val BACKGROUND = 0xFF00796B.toInt()
     }

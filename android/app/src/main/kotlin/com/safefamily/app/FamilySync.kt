@@ -47,6 +47,8 @@ object FamilySync {
 
     /** Loại yêu cầu của con (RequestRules ở server). */
     const val REQUEST_EXTRA_TIME = "extra_time"
+    const val REQUEST_APP_TIME = "app_time"
+    private val PACKAGE_RE = Regex("^[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z0-9_]+)+$")
     const val REQUEST_STUDY_DONE = "study_done"
     private const val MAX_REQUEST_QUEUE = 10
     private const val MAX_TRACKED = 20
@@ -217,18 +219,24 @@ object FamilySync {
      * và số phút xin ([minutes] chỉ cho extra_time), không gửi app đang dùng hay nội dung. Máy chưa ghép thì bỏ qua.
      * Cùng loại đang chờ thì không xếp thêm (server cũng chặn trùng).
      */
-    fun queueRequest(context: Context, kind: String, minutes: Int = 0) {
+    fun queueRequest(context: Context, kind: String, minutes: Int = 0, packageName: String? = null) {
         if (!isConfigured(context)) return
-        if (kind == REQUEST_EXTRA_TIME && minutes !in 1..MAX_EXTRA_MINUTES) return
+        if ((kind == REQUEST_EXTRA_TIME || kind == REQUEST_APP_TIME) && minutes !in 1..MAX_EXTRA_MINUTES) return
+        // app_time: con chủ động xin cho MỘT app nên gửi tên gói (khác extra_time/study_done, không kèm gì khác).
+        if (kind == REQUEST_APP_TIME && (packageName == null || !PACKAGE_RE.matches(packageName) || packageName.length > 200)) return
         val p = prefs(context)
         // Khóa riêng (không phải khóa của FamilySync): StudyBlock giữ khóa của nó khi gọi vào đây, còn
         // syncOnce giữ khóa FamilySync khi gọi StudyBlock; dùng chung khóa sẽ khóa chéo nhau.
         synchronized(requestQueueLock) {
             val queue = JSONArray(p.getString(KEY_REQUESTS, "[]"))
-            for (i in 0 until queue.length()) if (queue.getJSONObject(i).optString("kind") == kind) return
+            for (i in 0 until queue.length()) {
+                val q = queue.getJSONObject(i)
+                if (q.optString("kind") == kind && (kind != REQUEST_APP_TIME || q.optString("package") == packageName)) return
+            }
             if (queue.length() >= MAX_REQUEST_QUEUE) return
             val item = JSONObject().put("kind", kind).put("at", System.currentTimeMillis())
-            if (kind == REQUEST_EXTRA_TIME) item.put("minutes", minutes)
+            if (kind == REQUEST_EXTRA_TIME || kind == REQUEST_APP_TIME) item.put("minutes", minutes)
+            if (kind == REQUEST_APP_TIME) item.put("package", packageName)
             queue.put(item)
             p.edit().putString(KEY_REQUESTS, queue.toString()).apply()
         }
@@ -286,7 +294,11 @@ object FamilySync {
                 // Quá hạn thì server cũng không xét nữa: bỏ, con bấm lại nếu vẫn cần.
                 if (System.currentTimeMillis() - item.optLong("at", 0L) > REQUEST_MAX_AGE_MS) { handled.add(key); continue }
                 val kind = item.getString("kind")
-                val payload = if (kind == REQUEST_EXTRA_TIME) JSONObject().put("minutes", item.getInt("minutes")) else JSONObject()
+                val payload = when (kind) {
+                    REQUEST_EXTRA_TIME -> JSONObject().put("minutes", item.getInt("minutes"))
+                    REQUEST_APP_TIME -> JSONObject().put("package", item.getString("package")).put("minutes", item.getInt("minutes"))
+                    else -> JSONObject()
+                }
                 val body = JSONObject().put("kind", kind).put("payloadJson", payload.toString())
                 val r = request(context, "POST", "/api/devices/me/requests", body) // IOException: offline, giữ nguyên hàng
                 when (r.code) {
@@ -360,6 +372,8 @@ object FamilySync {
     private fun notifyRequestResult(context: Context, kind: String, approved: Boolean) {
         runCatching {
             val text = when {
+                kind == REQUEST_APP_TIME && approved -> "Bố mẹ đã đồng ý cho dùng thêm app."
+                kind == REQUEST_APP_TIME -> "Bố mẹ chưa đồng ý cho dùng thêm app."
                 kind == REQUEST_EXTRA_TIME && approved -> "Bố mẹ đã đồng ý cho thêm giờ."
                 kind == REQUEST_EXTRA_TIME -> "Bố mẹ chưa đồng ý cho thêm giờ."
                 approved -> "Bố mẹ đã duyệt: con dùng máy lại được."
@@ -378,7 +392,7 @@ object FamilySync {
                 android.app.Notification.Builder(context)
             }
             manager.notify(
-                REQUEST_NOTIFICATION_ID + if (kind == REQUEST_EXTRA_TIME) 0 else 1,
+                REQUEST_NOTIFICATION_ID + when (kind) { REQUEST_EXTRA_TIME -> 0; REQUEST_APP_TIME -> 2; else -> 1 },
                 builder.setSmallIcon(context.applicationInfo.icon)
                     .setContentTitle("SafeFamily")
                     .setContentText(text)
@@ -457,6 +471,8 @@ object FamilySync {
                 if (minutes !in 1..MAX_UNLOCK_MINUTES) return false
                 // Chỉ mở app đang bị chặn: ghi hạn cho app chưa chặn thì tới hạn lại bị chặn nhầm.
                 val blocked = BlockerPreferences(context.applicationContext).getBlockedApps()
+                // Mẹ duyệt xin thêm giờ cho app này: gỡ luôn tạm dừng / giờ ngủ / hạn mức của RIÊNG app đó trong lúc mở tạm.
+                if (!exempt) TimeLimits.grantAppGrace(context, pkg, minutes)
                 if (exempt || (pkg !in blocked && pkg !in TempRelocks.pending(context))) return true // đang mở tạm: gia hạn
                 // Ghi hạn TRƯỚC khi bỏ chặn: lỗi giữa chừng thì app vẫn bị chặn.
                 TempRelocks.remember(context, pkg, System.currentTimeMillis() + minutes * 60_000L)
