@@ -90,6 +90,7 @@ class _RemoteMonitorPageState extends State<RemoteMonitorPage> {
         setState(() {
           _locationSharing = false;
           _location = null;
+          _loaded = true; // không đặt thì công tắc / nút bị khóa mãi
         });
         return;
       }

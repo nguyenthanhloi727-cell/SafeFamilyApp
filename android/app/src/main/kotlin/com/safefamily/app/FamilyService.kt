@@ -146,6 +146,16 @@ class FamilyService : Service() {
                 .requestLocationUpdates(request, callback, Looper.getMainLooper())
             locationCallback = callback
         }
+        // Chu kỳ là 5 phút: lấy ngay một điểm để máy mẹ không phải chờ mới thấy vị trí.
+        runCatching {
+            LocationServices.getFusedLocationProviderClient(this)
+                .getCurrentLocation(Priority.PRIORITY_BALANCED_POWER_ACCURACY, null)
+                .addOnSuccessListener { loc ->
+                    if (loc != null) {
+                        FamilySync.addLocation(this, loc.latitude, loc.longitude, loc.accuracy.toDouble(), loc.time)
+                    }
+                }
+        }
     }
 
     override fun onDestroy() {
