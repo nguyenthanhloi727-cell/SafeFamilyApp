@@ -10,6 +10,8 @@ public static class RequestRules
 {
     public const string ExtraTime = "extra_time";
     public const string StudyDone = "study_done";
+    /// <summary>Xin thêm giờ cho MỘT app: {"package":"com.x.y","minutes":N}. Mẹ duyệt thì máy con mở tạm app đó.</summary>
+    public const string AppTime = "app_time";
     public const string Pending = "pending";
     public const string Approved = "approved";
     public const string Rejected = "rejected";
@@ -30,7 +32,7 @@ public static class RequestRules
     public static string? Validate(string kind, string? payloadJson, out string canonical)
     {
         canonical = "{}";
-        if (kind is not (ExtraTime or StudyDone)) return "Loại yêu cầu không hợp lệ.";
+        if (kind is not (ExtraTime or StudyDone or AppTime)) return "Loại yêu cầu không hợp lệ.";
         var raw = string.IsNullOrWhiteSpace(payloadJson) ? "{}" : payloadJson;
         if (System.Text.Encoding.UTF8.GetByteCount(raw) > MaxPayloadBytes) return "Payload quá lớn.";
         JsonElement root;
@@ -44,6 +46,16 @@ public static class RequestRules
         var props = root.EnumerateObject().ToList();
         if (kind == StudyDone)
             return props.Count == 0 ? null : "study_done không có trường nào.";
+        if (kind == AppTime)
+        {
+            if (props.Count != 2 || !root.TryGetProperty("package", out var pk) || !root.TryGetProperty("minutes", out var am))
+                return "app_time chỉ có hai trường package và minutes.";
+            if (pk.ValueKind != JsonValueKind.String || !CommandRules.IsPackage(pk.GetString())) return "package không hợp lệ.";
+            if (am.ValueKind != JsonValueKind.Number || !am.TryGetInt32(out var appMinutes)) return "minutes phải là số nguyên.";
+            if (appMinutes is < 1 or > MaxRequestMinutes) return $"minutes phải từ 1 đến {MaxRequestMinutes}.";
+            canonical = JsonSerializer.Serialize(new { package = pk.GetString(), minutes = appMinutes });
+            return null;
+        }
         if (props.Count != 1 || props[0].Name != "minutes") return "extra_time chỉ có trường minutes.";
         var m = props[0].Value;
         if (m.ValueKind != JsonValueKind.Number || !m.TryGetInt32(out var minutes)) return "minutes phải là số nguyên.";
@@ -62,12 +74,24 @@ public static class RequestRules
         catch (JsonException) { return 0; }
     }
 
+    /// <summary>Tên gói trong payload <c>app_time</c>, hoặc null.</summary>
+    public static string? RequestedPackage(string payload)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(payload);
+            return doc.RootElement.TryGetProperty("package", out var p) && p.ValueKind == JsonValueKind.String ? p.GetString() : null;
+        }
+        catch (JsonException) { return null; }
+    }
+
     /// <summary>
     /// Lệnh server tự tạo khi mẹ quyết định (tái dùng <see cref="CommandRules"/>), hoặc null nếu không cần lệnh
     /// (từ chối xin thêm giờ: con xem kết quả qua GET me/requests/{id}).
     /// </summary>
-    public static (string Type, string Payload)? CommandFor(string kind, bool approved, int minutes) => (kind, approved) switch
+    public static (string Type, string Payload)? CommandFor(string kind, bool approved, int minutes, string? package = null) => (kind, approved) switch
     {
+        (AppTime, true) when package is not null => (CommandRules.UnlockTemp, JsonSerializer.Serialize(new { package, minutes })),
         (StudyDone, true) => ("study_approve", "{}"),
         (StudyDone, false) => ("study_reject", "{}"),
         (ExtraTime, true) => (CommandRules.ExtraTimeGrant, JsonSerializer.Serialize(new { minutes })),

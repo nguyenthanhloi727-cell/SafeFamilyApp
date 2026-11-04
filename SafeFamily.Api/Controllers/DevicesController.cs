@@ -444,8 +444,12 @@ public class DeviceSelfController(AppDb db) : ApiBase
 
         var now = DateTime.UtcNow;
         var oldestPending = now - RequestRules.PendingMaxAge;
-        var dup = await db.ChildRequests.Where(r => r.DeviceId == SubjectId && r.Kind == req.Kind &&
-            r.Status == RequestRules.Pending && r.CreatedAt > oldestPending).OrderByDescending(r => r.Id).FirstOrDefaultAsync();
+        var samePending = await db.ChildRequests.Where(r => r.DeviceId == SubjectId && r.Kind == req.Kind &&
+            r.Status == RequestRules.Pending && r.CreatedAt > oldestPending).OrderByDescending(r => r.Id).ToListAsync();
+        // app_time: trùng khi cùng app (xin cho app khác vẫn được).
+        var dup = req.Kind == RequestRules.AppTime
+            ? samePending.FirstOrDefault(r => RequestRules.RequestedPackage(r.Payload) == RequestRules.RequestedPackage(payload))
+            : samePending.FirstOrDefault();
         if (dup is not null) return Conflict(new { error = "Đã có yêu cầu này đang chờ mẹ duyệt.", id = dup.Id });
 
         // Dọn: yêu cầu đã quyết định quá hạn giữ, yêu cầu chờ quá hạn, và chặn bảng phình ra.

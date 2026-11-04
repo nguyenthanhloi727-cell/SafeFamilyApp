@@ -30,14 +30,14 @@ public class RequestsController(AppDb db) : ApiBase
         var approved = req.Decision == RequestRules.Approved;
 
         var minutes = 0;
-        if (row.Kind == RequestRules.ExtraTime && approved)
+        if (row.Kind is RequestRules.ExtraTime or RequestRules.AppTime && approved)
         {
             minutes = req.Minutes ?? RequestRules.RequestedMinutes(row.Payload);
             if (minutes is < 1 or > CommandRules.MaxExtraMinutes)
                 return BadRequest(new { error = $"minutes phải từ 1 đến {CommandRules.MaxExtraMinutes}." });
         }
         else if (req.Minutes is not null)
-            return BadRequest(new { error = "minutes chỉ dùng khi duyệt extra_time." });
+            return BadRequest(new { error = "minutes chỉ dùng khi duyệt extra_time hoặc app_time." });
 
         if (row.Status != RequestRules.Pending) return Conflict(new { error = "Yêu cầu đã được quyết định.", status = row.Status });
         if (row.CreatedAt <= DateTime.UtcNow - RequestRules.PendingMaxAge)
@@ -45,7 +45,7 @@ public class RequestsController(AppDb db) : ApiBase
 
         row.Status = req.Decision;
         row.DecidedAt = DateTime.UtcNow;
-        if (RequestRules.CommandFor(row.Kind, approved, minutes) is var (type, payload))
+        if (RequestRules.CommandFor(row.Kind, approved, minutes, RequestRules.RequestedPackage(row.Payload)) is var (type, payload))
         {
             var error = CommandRules.Validate(type, payload);
             if (error is not null) return StatusCode(500, new { error });

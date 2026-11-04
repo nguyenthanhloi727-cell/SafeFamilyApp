@@ -73,6 +73,29 @@ public class ConflictTests(SharedApi shared) : TestBase(shared)
     }
 
     [Fact]
+    public async Task AppTimeRequest_PerApp_DuplicateOnlyForSameApp_AndApproveUnlocksThatApp()
+    {
+        var mom = await Api.NewMother();
+        var kid = await mom.PairKid();
+        string Body(string pkg) => $$"""{"package":"{{pkg}}","minutes":15}""";
+
+        var first = await kid.Post("/api/devices/me/requests", new { kind = "app_time", payloadJson = Body("com.zing.zalo") });
+        Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+        var id = (await Api.Json(first)).GetProperty("id").GetInt32();
+
+        var dup = await kid.Post("/api/devices/me/requests", new { kind = "app_time", payloadJson = Body("com.zing.zalo") });
+        Assert.Equal(HttpStatusCode.Conflict, dup.StatusCode);
+        Assert.Equal(id, (await Api.Json(dup)).GetProperty("id").GetInt32());
+        await Expect(HttpStatusCode.OK, kid.Post("/api/devices/me/requests", new { kind = "app_time", payloadJson = Body("com.google.android.youtube") }), "app khác không trùng");
+
+        await Expect(HttpStatusCode.OK, mom.Put($"/api/requests/{id}", new { decision = "approved", minutes = 10 }));
+        var cmds = await Api.Json(await mom.Get(kid.Url("/commands")));
+        var unlock = cmds.EnumerateArray().Single(c => c.GetProperty("type").GetString() == "app_unlock_temp");
+        Assert.Contains("com.zing.zalo", unlock.GetProperty("payloadJson").GetString());
+        Assert.Contains("\"minutes\":10", unlock.GetProperty("payloadJson").GetString());
+    }
+
+    [Fact]
     public async Task Request_Duplicate_Is409_WithExistingId_UntilDecided()
     {
         var mom = await Api.NewMother();
