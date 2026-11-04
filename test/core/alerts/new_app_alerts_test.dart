@@ -33,11 +33,12 @@ void main() {
     await session.saveParentTokens(access: 'a', refresh: 'r');
     final client = MockClient((req) async {
       if (req.url.path == '/api/devices') {
-        return http.Response(
-          jsonEncode([
+        return http.Response.bytes(
+          utf8.encode(jsonEncode([
             {'id': 7, 'name': 'Bé Na', 'lastSeenAt': null},
-          ]),
+          ])),
           200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
         );
       }
       lastQuery = req.url.query;

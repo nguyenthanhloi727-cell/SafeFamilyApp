@@ -1128,7 +1128,7 @@ class ApiClient {
         'refreshToken': refresh,
       }, _Auth.none);
       if (r.statusCode != 200) return false;
-      final m = jsonDecode(r.body) as Map<String, dynamic>;
+      final m = jsonDecode(_utf8Body(r)) as Map<String, dynamic>;
       await session.saveParentTokens(
         access: m['accessToken'] as String,
         refresh: m['refreshToken'] as String,
@@ -1139,14 +1139,20 @@ class ApiClient {
     }
   }
 
+  /// Server luôn trả UTF-8, nhưng `application/problem+json` không kèm charset nên `r.body` mặc định đọc Latin-1
+  /// (chữ tiếng Việt vỡ thành "KhĂ´ng tÃ¬m tháº¥y"). Tự giải mã UTF-8 từ byte thô.
+  static String _utf8Body(http.Response r) =>
+      utf8.decode(r.bodyBytes, allowMalformed: true);
+
   Object? _decode(http.Response r) {
+    final body = _utf8Body(r);
     if (r.statusCode >= 200 && r.statusCode < 300) {
-      if (r.body.isEmpty) return null;
-      return jsonDecode(r.body);
+      if (body.isEmpty) return null;
+      return jsonDecode(body);
     }
     String? serverMessage;
     try {
-      final m = jsonDecode(r.body);
+      final m = jsonDecode(body);
       if (m is Map<String, dynamic>) serverMessage = m['error'] as String?;
     } catch (_) {}
     throw ApiException(
