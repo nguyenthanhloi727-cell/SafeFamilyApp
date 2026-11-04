@@ -26,14 +26,23 @@ android {
         // is added automatically by Flutter. (https://developer.android.com/studio/build/configure-apk-splits#configure-APK-versions)
         // You can force using the value of versionCode by specifying the `-P force-version-code-ignoring-abi=true`
         // flag during build.
-        versionCode = flutter.versionCode
+        // Số commit của git: pull về build tiếp là versionCode tăng, Android luôn cho cài đè lên bản cũ.
+        // (Không có git thì dùng số trong pubspec.yaml.)
+        versionCode = runCatching {
+            ProcessBuilder("git", "rev-list", "--count", "HEAD")
+                .directory(rootDir)
+                .redirectErrorStream(true)
+                .start()
+                .inputStream.bufferedReader().readText().trim().toInt()
+        }.getOrNull() ?: flutter.versionCode
         versionName = flutter.versionName
     }
 
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
+            // Ký bằng khóa debug của máy build (ANDROID_USER_HOME/debug.keystore). Bản debug cũng ký bằng khóa này nên
+            // debug và release cài đè được lên nhau. Đổi sang khóa khác = phải gỡ cài lại một lần.
+            // TODO: khóa riêng khi phát hành thật.
             signingConfig = signingConfigs.getByName("debug")
         }
     }
