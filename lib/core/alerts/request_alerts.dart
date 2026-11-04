@@ -14,6 +14,10 @@ class ChildRequestAlert {
       request.minutes == null
           ? '$deviceName xin thêm giờ'
           : '$deviceName xin thêm ${request.minutes} phút',
+    RequestKind.appTime =>
+      '$deviceName xin thêm ${request.minutes ?? ''} phút dùng '
+              '${request.appLabel ?? request.packageName ?? 'một app'}'
+          .replaceAll('  ', ' '),
     RequestKind.studyDone => '$deviceName báo đã học xong, chờ bạn duyệt',
     _ => '$deviceName có yêu cầu mới',
   };
@@ -37,7 +41,10 @@ class ChildRequestAlertChecker {
     for (final d in await _api.listDevices()) {
       final key = cursorKey(d.id);
       final cursor = prefs.getInt(key) ?? 0;
-      final pending = await _api.getRequests(d.id, status: 'pending');
+      final pending = await _api.labelAppRequests(
+        d.id,
+        await _api.getRequests(d.id, status: 'pending'),
+      );
       final fresh = pending.where((r) => r.id > cursor).toList()
         ..sort((a, b) => a.id.compareTo(b.id));
       if (fresh.isEmpty) continue;

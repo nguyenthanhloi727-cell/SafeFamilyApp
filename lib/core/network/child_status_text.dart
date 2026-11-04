@@ -24,6 +24,9 @@ String permissionLabel(String id) {
 String requestLabel(ChildRequestInfo r) => switch (r.kind) {
   RequestKind.extraTime =>
     r.minutes == null ? 'Con xin thêm giờ' : 'Con xin thêm ${r.minutes} phút',
+  RequestKind.appTime =>
+    'Con xin thêm ${r.minutes ?? ''} phút dùng ${r.appLabel ?? r.packageName ?? 'một app'}'
+        .replaceAll('  ', ' '),
   RequestKind.studyDone => 'Con báo đã học xong',
   _ => 'Yêu cầu của con',
 };

@@ -33,7 +33,10 @@ class _ChildRequestsPageState extends State<ChildRequestsPage> {
   Future<void> _reload() async {
     final api = ApiScope.of(context);
     try {
-      final list = await api.getRequests(widget.device.id);
+      final list = await api.labelAppRequests(
+        widget.device.id,
+        await api.getRequests(widget.device.id),
+      );
       if (mounted) {
         setState(() {
           _requests = list;
@@ -55,7 +58,10 @@ class _ChildRequestsPageState extends State<ChildRequestsPage> {
       await api.decideRequest(
         r.id,
         approve: approve,
-        minutes: approve && r.kind == RequestKind.extraTime
+        minutes:
+            approve &&
+                (r.kind == RequestKind.extraTime ||
+                    r.kind == RequestKind.appTime)
             ? r.approveMinutes
             : null,
       );
@@ -124,7 +130,8 @@ class _ChildRequestsPageState extends State<ChildRequestsPage> {
                                 ? null
                                 : () => _decide(r, approve: true),
                             child: Text(
-                              r.kind == RequestKind.extraTime
+                              r.kind == RequestKind.extraTime ||
+                                      r.kind == RequestKind.appTime
                                   ? 'Duyệt ${r.approveMinutes} phút'
                                   : 'Duyệt',
                             ),
@@ -173,7 +180,8 @@ class _ChildRequestsPageState extends State<ChildRequestsPage> {
             Padding(
               padding: const EdgeInsets.only(top: AppSpace.md),
               child: Text(
-                'Yêu cầu chờ quá 24 giờ sẽ hết hạn. Con chỉ gửi loại yêu cầu và số phút xin, không gửi app đang dùng.',
+                'Yêu cầu chờ quá 24 giờ sẽ hết hạn. Con chỉ gửi loại yêu cầu và số phút xin; riêng "xin thêm giờ cho app" '
+                'có kèm tên app con muốn dùng.',
                 style: theme.textTheme.bodySmall,
               ),
             ),

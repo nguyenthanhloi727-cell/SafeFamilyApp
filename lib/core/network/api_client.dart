@@ -178,6 +178,9 @@ class CommandInfo {
 abstract final class RequestKind {
   static const extraTime = 'extra_time';
   static const studyDone = 'study_done';
+
+  /// Xin thêm giờ cho MỘT app (kèm tên gói); duyệt thì máy con mở tạm app đó.
+  static const appTime = 'app_time';
 }
 
 /// Một yêu cầu của máy con (`GET /api/devices/{id}/requests`). Chỉ có loại và số phút xin.
@@ -190,7 +193,15 @@ class ChildRequestInfo {
     required this.status,
     required this.createdAt,
     this.decidedAt,
+    this.packageName,
+    this.appLabel,
   });
+
+  /// Tên gói app con xin thêm giờ (chỉ `app_time`).
+  final String? packageName;
+
+  /// Tên hiển thị của app đó, mẹ tra từ danh sách app máy con gửi; chưa có thì dùng [packageName].
+  final String? appLabel;
 
   /// Số phút duyệt tối đa một lần (khớp `CommandRules.MaxExtraMinutes`).
   static const maxApproveMinutes = 120;
@@ -208,6 +219,19 @@ class ChildRequestInfo {
   final DateTime? decidedAt;
 
   bool get isPending => status == 'pending';
+
+  /// Bản sao có tên app.
+  ChildRequestInfo withAppLabel(String? label) => ChildRequestInfo(
+    id: id,
+    deviceId: deviceId,
+    kind: kind,
+    minutes: minutes,
+    status: status,
+    createdAt: createdAt,
+    decidedAt: decidedAt,
+    packageName: packageName,
+    appLabel: label,
+  );
 
   /// Số phút mẹ duyệt: số con xin, không quá [maxApproveMinutes].
   int get approveMinutes => (minutes ?? 0).clamp(1, maxApproveMinutes);
@@ -684,6 +708,7 @@ class ApiClient {
           status: e['status'] as String,
           createdAt: parseServerTime(e['createdAt'])!,
           decidedAt: parseServerTime(e['decidedAt']),
+          packageName: _requestPackage(e['payload']),
         ),
     ];
   }
@@ -836,6 +861,36 @@ class ApiClient {
     {'status': allow ? AppStatus.allowed : AppStatus.blocked},
     auth: _Auth.parent,
   );
+
+  static String? _requestPackage(Object? payload) {
+    if (payload is! String) return null;
+    try {
+      final m = jsonDecode(payload);
+      return m is Map<String, dynamic> ? m['package'] as String? : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Gắn tên app (tra từ danh sách app máy con gửi) vào các yêu cầu `app_time`. Lỗi tra cứu thì giữ nguyên:
+  /// chỉ mất tên đẹp, vẫn hiện tên gói.
+  Future<List<ChildRequestInfo>> labelAppRequests(
+    int deviceId,
+    List<ChildRequestInfo> requests,
+  ) async {
+    if (!requests.any((r) => r.kind == RequestKind.appTime)) return requests;
+    try {
+      final labels = {
+        for (final a in await getDeviceApps(deviceId)) a.packageName: a.label,
+      };
+      return [
+        for (final r in requests)
+          r.kind == RequestKind.appTime ? r.withAppLabel(labels[r.packageName]) : r,
+      ];
+    } on ApiException {
+      return requests;
+    }
+  }
 
   static int? _requestMinutes(Object? payload) {
     if (payload is! String) return null;

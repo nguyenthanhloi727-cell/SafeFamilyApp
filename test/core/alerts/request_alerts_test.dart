@@ -40,6 +40,22 @@ void main() {
           200,
         );
       }
+      if (req.url.path.endsWith('/apps')) {
+        return http.Response.bytes(
+          utf8.encode(
+            jsonEncode([
+              {
+                'id': 1,
+                'packageName': 'com.zing.zalo',
+                'label': 'Zalo',
+                'status': 'allowed',
+              },
+            ]),
+          ),
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      }
       lastQuery = req.url.query;
       return http.Response.bytes(
         utf8.encode(jsonEncode(pending)),
@@ -72,6 +88,18 @@ void main() {
     expect(alerts.map((a) => a.body), [
       'Bé Na xin thêm 15 phút',
       'Bé Na báo đã học xong, chờ bạn duyệt',
+    ]);
+  });
+
+  test('con xin thêm giờ cho một app: báo kèm tên app (tra từ danh sách app, thiếu thì dùng tên gói)', () async {
+    pending = [
+      req(4, 'app_time', '{"package":"com.zing.zalo","minutes":15}'),
+      req(5, 'app_time', '{"package":"com.la.hoac","minutes":5}'),
+    ];
+    final alerts = await checker.check();
+    expect(alerts.map((a) => a.body), [
+      'Bé Na xin thêm 15 phút dùng Zalo',
+      'Bé Na xin thêm 5 phút dùng com.la.hoac',
     ]);
   });
 

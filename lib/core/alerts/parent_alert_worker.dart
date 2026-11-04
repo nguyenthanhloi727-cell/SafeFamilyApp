@@ -12,6 +12,8 @@ import 'tamper_alerts.dart';
 
 const _kTask = 'geofence_alert_check';
 const _kUnique = 'safefamily_geofence_alerts';
+const _kChainUnique = 'safefamily_alerts_chain';
+const _kChainDelay = Duration(minutes: 1);
 
 /// Điểm vào của tác vụ nền (chạy ở isolate riêng khi app mẹ đã đóng).
 /// WorkManager tối thiểu 15 phút nên cảnh báo trễ hơn lúc app đang mở.
@@ -19,6 +21,36 @@ const _kUnique = 'safefamily_geofence_alerts';
 void parentAlertDispatcher() {
   Workmanager().executeTask((task, _) async {
     if (task != _kTask) return true;
+    final ok = await _checkAlerts();
+    await _chainNext();
+    return ok;
+  });
+}
+
+/// Nối tiếp một lượt kiểm tra sau [_kChainDelay] (tác vụ một lần tự đặt lại). Lịch định kỳ 15 phút của hệ thống
+/// là mức tối thiểu nên không đủ nhanh để báo "con xin thêm giờ"; chuỗi này giúp thông báo tới trong ~1-2 phút
+/// khi máy mẹ không bị Doze/tiết kiệm pin chặn. Lịch 15 phút vẫn là lưới an toàn nếu chuỗi bị hệ thống cắt.
+Future<void> _chainNext() async {
+  try {
+    final session = ConnectionSession();
+    await session.load();
+    if (session.mode != ConnectionMode.parent || !session.isParentLoggedIn) {
+      return;
+    }
+    await Workmanager().registerOneOffTask(
+      _kChainUnique,
+      _kTask,
+      initialDelay: _kChainDelay,
+      constraints: Constraints(networkType: NetworkType.connected),
+      existingWorkPolicy: ExistingWorkPolicy.replace,
+    );
+  } catch (_) {
+    // Không nối được: lượt định kỳ 15 phút sẽ chạy tiếp.
+  }
+}
+
+Future<bool> _checkAlerts() async {
+  {
     try {
       final session = ConnectionSession();
       await session.load();
@@ -46,8 +78,10 @@ void parentAlertDispatcher() {
             for (final a in await ChildRequestAlertChecker(api).check())
               (title: a.title, body: a.body),
           ],
-          'child_requests',
+          // Kênh riêng (id mới vì Android không cho đổi độ ưu tiên của kênh đã tạo): chuông + rung.
+          'child_requests_urgent',
           'Yêu cầu của con',
+          urgent: true,
         );
       } on ApiException catch (e) {
         failure ??= e;
@@ -84,14 +118,15 @@ void parentAlertDispatcher() {
     } catch (_) {
       return true;
     }
-  });
+  }
 }
 
 Future<void> _show(
   List<({String title, String body})> alerts,
   String channelId,
-  String channelName,
-) async {
+  String channelName, {
+  bool urgent = false,
+}) async {
   if (alerts.isEmpty) return;
   final plugin = FlutterLocalNotificationsPlugin();
   await plugin.initialize(
@@ -103,8 +138,12 @@ Future<void> _show(
     android: AndroidNotificationDetails(
       channelId,
       channelName,
-      importance: Importance.high,
-      priority: Priority.high,
+      importance: urgent ? Importance.max : Importance.high,
+      priority: urgent ? Priority.max : Priority.high,
+      playSound: true,
+      enableVibration: true,
+      category: urgent ? AndroidNotificationCategory.message : null,
+      visibility: NotificationVisibility.public,
     ),
   );
   var id = DateTime.now().millisecondsSinceEpoch % 1000000;
@@ -135,8 +174,17 @@ class ParentAlertWorker {
           constraints: Constraints(networkType: NetworkType.connected),
           existingWorkPolicy: ExistingPeriodicWorkPolicy.keep,
         );
+        // Bật chuỗi kiểm tra ~1 phút/lần (keep: đang có chuỗi thì giữ, không đặt lại mỗi lần mở app).
+        await wm.registerOneOffTask(
+          _kChainUnique,
+          _kTask,
+          initialDelay: _kChainDelay,
+          constraints: Constraints(networkType: NetworkType.connected),
+          existingWorkPolicy: ExistingWorkPolicy.keep,
+        );
       } else {
         await wm.cancelByUniqueName(_kUnique);
+        await wm.cancelByUniqueName(_kChainUnique);
       }
     } catch (_) {
       // Không đặt được lịch nền: màn giám sát vẫn tự làm mới khi mở.
