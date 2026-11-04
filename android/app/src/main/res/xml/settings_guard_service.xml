@@ -1,10 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Chỉ xem màn của vài app hệ thống (Cài đặt, trình cài đặt, Play Store)
      để chặn đường xóa/tắt/gỡ SafeFamily. -->
+<!-- notificationTimeout=0: với 300 ms hệ thống gộp sự kiện cùng loại, plugin app_blocker đá app bị chặn ra gần như tức thì nên
+     sự kiện đổi cửa sổ của app đó bị màn chặn đè mất và nhật ký "con mở app bị chặn" không được ghi. -->
 <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
     android:description="@string/settings_guard_description"
     android:accessibilityEventTypes="typeWindowStateChanged|typeWindowContentChanged"
     android:accessibilityFeedbackType="feedbackGeneric"
     android:accessibilityFlags="flagDefault"
     android:canRetrieveWindowContent="true"
-    android:notificationTimeout="300" />
+    android:notificationTimeout="0" />
