@@ -29,6 +29,8 @@ object NewApps {
     private const val KEY_REVIEW = "review_pending"
     private const val KEY_UPLOADED = "uploaded"
     private const val KEY_LISTED = "listed"
+    private const val KEY_LISTED_AT = "listed_at"
+    private const val LIST_REFRESH_MS = 30 * 60_000L
     private const val KEY_APPLIED = "applied_decisions"
     private const val UPLOAD_BATCH = 100
     private const val MAX_LABEL = 200
@@ -194,7 +196,7 @@ object NewApps {
      */
     @Synchronized
     fun resetSync(context: Context) {
-        prefs(context).edit().remove(KEY_LISTED).remove(KEY_UPLOADED).remove(KEY_APPLIED).apply()
+        prefs(context).edit().remove(KEY_LISTED).remove(KEY_LISTED_AT).remove(KEY_UPLOADED).remove(KEY_APPLIED).apply()
     }
 
     /** Giữ lại trong `uploaded` / `applied_decisions` chỉ những gói thỏa [keep]. */
@@ -217,6 +219,16 @@ object NewApps {
      */
     private fun uploadInstalled(context: Context) {
         val exempt = TimeLimits.exemptPackages(context)
+        // Server là bản chính: cứ mỗi LIST_REFRESH_MS gửi lại cả danh sách (server ghi đè theo tên gói, không trùng). Nhờ vậy
+        // dù server bị xóa dữ liệu, máy con ghép lại, hay lượt gửi trước bị hỏng giữa chừng, máy mẹ vẫn tự có lại danh sách.
+        synchronized(this) {
+            val p = prefs(context)
+            val now = System.currentTimeMillis()
+            val last = p.getLong(KEY_LISTED_AT, 0L)
+            if (now - last > LIST_REFRESH_MS || last > now) {
+                p.edit().remove(KEY_LISTED).putLong(KEY_LISTED_AT, now).apply()
+            }
+        }
         val todo = synchronized(this) {
             (launchable(context) - strings(context, KEY_LISTED) - strings(context, KEY_PENDING))
                 .filter { it !in exempt && PACKAGE_RE.matches(it) && it.length <= 200 }
