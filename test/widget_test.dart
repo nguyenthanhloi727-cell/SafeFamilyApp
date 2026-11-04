@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
@@ -8,6 +8,7 @@ import 'package:safe_family_app/core/network/connection_session.dart';
 import 'package:safe_family_app/core/permissions/permission_registry.dart';
 import 'package:safe_family_app/core/security/parent_guard.dart';
 import 'package:safe_family_app/core/settings/setup_settings.dart';
+import 'package:safe_family_app/features/connection/presentation/child_home_page.dart';
 import 'package:safe_family_app/features/parental/presentation/first_run_setup_page.dart';
 import 'package:safe_family_app/features/home/presentation/home_page.dart';
 import 'package:safe_family_app/features/profile/presentation/profile_page.dart';
@@ -43,11 +44,21 @@ class _NoPermissions implements PermissionPlatform {
   Future<bool> removeDeviceAdmin() async => true;
 }
 
+/// Máy giả đã cấp mọi quyền.
+class _AllPermissions extends _NoPermissions {
+  @override
+  Future<Map<String, bool>> status() async => {
+    for (final p in AppPermission.values) p.id: true,
+  };
+}
+
 /// Máy đã chọn vai trò (bỏ qua màn chọn vai trò) để test khung app.
 Future<ConnectionSession> localConnection() async {
   final connection = ConnectionSession(store: InMemorySecureStore());
   await connection.load();
-  await connection.setMode(ConnectionMode.local); // chế độ cũ chỉ còn dùng để test khung app
+  await connection.setMode(
+    ConnectionMode.local,
+  ); // chế độ cũ chỉ còn dùng để test khung app
   return connection;
 }
 
@@ -142,6 +153,49 @@ void main() {
     await tester.pump();
     expect(find.text('Thiết lập quyền'), findsOneWidget);
     expect(find.byType(BottomNavigationBar), findsNothing);
+  });
+
+  group('máy con đã ghép đôi phải cấp đủ quyền', () {
+    Future<void> pumpChild(
+      WidgetTester tester,
+      PermissionPlatform platform,
+    ) async {
+      final guard = await configuredGuard();
+      final setup = SetupSettings();
+      await setup.load();
+      await setup.markDone(); // Đã bấm "Để sau" hết ở lần đầu.
+      final connection = ConnectionSession(store: InMemorySecureStore());
+      await connection.load();
+      await connection.setMode(ConnectionMode.child);
+      await connection.saveDevice(token: 'device-token', id: 1);
+      final permissions = PermissionRegistry(platform: platform);
+      await permissions.refresh();
+      await tester.pumpWidget(
+        SafeFamilyApp(
+          guard: guard,
+          setup: setup,
+          connection: connection,
+          permissions: permissions,
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+    }
+
+    testWidgets('thiếu quyền: hiện wizard bắt buộc dù đã setup_done', (
+      tester,
+    ) async {
+      await pumpChild(tester, _NoPermissions());
+      expect(find.text('Thiết lập quyền'), findsOneWidget);
+      expect(find.byKey(const Key('wizard-skip')), findsNothing);
+      expect(find.byType(ChildHomePage), findsNothing);
+    });
+
+    testWidgets('đủ quyền: vào thẳng màn chính của con', (tester) async {
+      await pumpChild(tester, _AllPermissions());
+      expect(find.text('Thiết lập quyền'), findsNothing);
+      expect(find.byType(ChildHomePage), findsOneWidget);
+    });
   });
 
   testWidgets('BottomNavigationBar chuyển đủ 2 tab', (tester) async {

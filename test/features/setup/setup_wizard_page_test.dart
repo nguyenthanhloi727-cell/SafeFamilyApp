@@ -68,6 +68,27 @@ void main() {
     expect(finished, 1);
   });
 
+  testWidgets('bắt buộc: không có nút "Để sau" ở mọi bước', (tester) async {
+    await registry.refresh();
+    await tester.pumpWidget(
+      PermissionRegistryScope(
+        registry: registry,
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: SetupWizardPage(enforced: true, onFinished: () => finished++),
+        ),
+      ),
+    );
+    await tester.pump();
+    expect(find.byKey(const Key('wizard-skip')), findsNothing);
+
+    await tester.tap(find.byKey(const Key('wizard-continue')));
+    await tester.pump();
+    expect(find.text(AppPermission.accessibility.label), findsOneWidget);
+    expect(find.byKey(const Key('wizard-skip')), findsNothing);
+    expect(finished, 0);
+  });
+
   testWidgets('bật quyền ở Cài đặt rồi quay lại thì tự sang bước kế', (
     tester,
   ) async {

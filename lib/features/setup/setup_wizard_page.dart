@@ -17,7 +17,8 @@ const permissionReasons = <AppPermission, String>{
       'Để biết con dùng máy bao lâu, áp giới hạn thời gian và làm báo cáo.',
   AppPermission.notifications:
       'Để báo khi đến giờ học, con cài app mới hoặc xin thêm giờ.',
-  AppPermission.exactAlarm: 'Để tự chặn lại ứng dụng đúng giờ khi hết thời gian mở tạm.',
+  AppPermission.exactAlarm:
+      'Để tự chặn lại ứng dụng đúng giờ khi hết thời gian mở tạm.',
   AppPermission.battery:
       'Để máy không tự tắt SafeFamily khi chạy nền, tránh mất chặn.',
   AppPermission.deviceAdmin:
@@ -51,9 +52,14 @@ class SetupWizardPage extends StatefulWidget {
     super.key,
     required this.onFinished,
     this.mode = ConnectionMode.child,
+    this.enforced = false,
   });
 
   final VoidCallback onFinished;
+
+  /// Bắt buộc: không có nút "Để sau", phải cấp đủ quyền mới đi tiếp. Dùng cho
+  /// máy con đã ghép đôi (không cấp quyền thì không chặn được gì).
+  final bool enforced;
 
   /// Vai trò máy: quyết định những quyền nào được hỏi.
   final ConnectionMode mode;
@@ -192,11 +198,22 @@ class _SetupWizardPageState extends State<SetupWizardPage> {
                   onPressed: _next,
                   child: const Text('Đã xong, tiếp tục'),
                 ),
-              TextButton(
-                key: const Key('wizard-skip'),
-                onPressed: _next,
-                child: const Text('Để sau'),
-              ),
+              if (widget.enforced)
+                Padding(
+                  padding: const EdgeInsets.only(top: AppSpace.sm),
+                  child: Text(
+                    'Máy đã ghép với máy của phụ huynh, cần cấp đủ quyền '
+                    'mới dùng tiếp được.',
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.bodySmall,
+                  ),
+                )
+              else
+                TextButton(
+                  key: const Key('wizard-skip'),
+                  onPressed: _next,
+                  child: const Text('Để sau'),
+                ),
             ],
           ),
         ),
@@ -234,9 +251,7 @@ class _RestrictedSettingsHelp extends StatelessWidget {
         const StatusBanner(
           type: StatusType.info,
           title: 'Không thấy dấu ba chấm?',
-          message:
-              'Máy của bạn không bị hạn chế, bấm "Đã xong, tiếp tục" hoặc '
-              '"Để sau".',
+          message: 'Máy của bạn không bị hạn chế, bấm "Đã xong, tiếp tục".',
         ),
       ],
     );

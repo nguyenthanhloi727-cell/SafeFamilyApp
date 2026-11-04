@@ -349,6 +349,7 @@ class _SecurityGate extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final permissions = PermissionRegistryScope.maybeOf(context);
     return ListenableBuilder(
       listenable: Listenable.merge([guard, setup, connection]),
       builder: (context, _) {
@@ -360,18 +361,48 @@ class _SecurityGate extends StatelessWidget {
         if (!guard.isConfigured) return FirstRunSetupPage(guard: guard);
         // Chọn vai trò (mẹ / con) trước, rồi xin quyền theo vai trò.
         if (!connection.isChosen) return const RolePage();
+        // Máy con đã ghép đôi: bắt buộc cấp đủ quyền, không "Để sau". Kiểm tra mỗi
+        // lần mở app và mỗi lần quyền đổi, nên con tắt quyền đi cũng bị chặn lại.
+        if (permissions != null &&
+            connection.mode == ConnectionMode.child &&
+            connection.isChildPaired) {
+          return ListenableBuilder(
+            listenable: permissions,
+            builder: (context, _) {
+              if (!permissions.isLoaded) {
+                return const Scaffold(
+                  body: Center(child: CircularProgressIndicator()),
+                );
+              }
+              if (wizardSteps(
+                permissions,
+                mode: ConnectionMode.child,
+              ).isEmpty) {
+                return _afterSetup(connection);
+              }
+              return SetupWizardPage(
+                key: const ValueKey('enforced-setup'),
+                mode: ConnectionMode.child,
+                enforced: true,
+                onFinished: () {},
+              );
+            },
+          );
+        }
         if (!setup.isDone) {
           return SetupWizardPage(
             mode: connection.mode,
             onFinished: setup.markDone,
           );
         }
-        // Máy con đã ghép đôi: chỉ màn đơn giản; app đầy đủ nằm sau "Dành cho phụ huynh".
-        if (connection.mode == ConnectionMode.child) {
-          return const ChildHomePage();
-        }
-        return const AppShell();
+        return _afterSetup(connection);
       },
     );
   }
+
+  /// Máy con: chỉ màn đơn giản, app đầy đủ nằm sau "Dành cho phụ huynh".
+  Widget _afterSetup(ConnectionSession connection) =>
+      connection.mode == ConnectionMode.child
+      ? const ChildHomePage()
+      : const AppShell();
 }
