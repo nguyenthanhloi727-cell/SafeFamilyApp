@@ -85,6 +85,61 @@ void main() {
     ]);
   });
 
+  test('mẹ: refresh token bị từ chối thì báo hết phiên', () async {
+    final session = await _session();
+    await session.saveParentTokens(access: 'old', refresh: 'dead');
+    var expired = 0;
+    final api = ApiClient(
+      session: session,
+      client: MockClient((_) async => http.Response('', 401)),
+    )..onSessionExpired = () => expired++;
+    await expectLater(api.listDevices(), throwsA(isA<ApiException>()));
+    expect(expired, 1);
+  });
+
+  test('mẹ: server lỗi 500 khi làm mới token thì KHÔNG báo hết phiên', () async {
+    final session = await _session();
+    await session.saveParentTokens(access: 'old', refresh: 'r1');
+    var expired = 0;
+    final api = ApiClient(
+      session: session,
+      client: MockClient(
+        (req) async =>
+            http.Response('', req.url.path == '/api/auth/refresh' ? 500 : 401),
+      ),
+    )..onSessionExpired = () => expired++;
+    await expectLater(api.listDevices(), throwsA(isA<ApiException>()));
+    expect(expired, 0);
+  });
+
+  test('con: token thiết bị bị từ chối (401) thì báo hết phiên', () async {
+    final session = await _session();
+    await session.saveDevice(token: 'dt', id: 9);
+    var expired = 0;
+    final api = ApiClient(
+      session: session,
+      client: MockClient((_) async => http.Response('', 401)),
+    )..onSessionExpired = () => expired++;
+    await expectLater(api.fetchMyInfo(), throwsA(isA<ApiException>()));
+    expect(expired, 1);
+  });
+
+  test('đăng nhập sai (401, chưa có phiên) không báo hết phiên', () async {
+    final session = await _session();
+    var expired = 0;
+    final api = ApiClient(
+      session: session,
+      client: MockClient(
+        (_) async => _json({'error': 'Sai email hoặc mật khẩu.'}, 401),
+      ),
+    )..onSessionExpired = () => expired++;
+    await expectLater(
+      api.login('a@x.vn', 'sai'),
+      throwsA(isA<ApiException>()),
+    );
+    expect(expired, 0);
+  });
+
   test('claim lưu token thiết bị; mã sai trả thông báo của server', () async {
     final session = await _session();
     final api = ApiClient(

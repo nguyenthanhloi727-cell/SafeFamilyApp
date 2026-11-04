@@ -411,6 +411,11 @@ class ApiClient {
   final Duration retryDelay;
   final http.Client _http;
   Future<bool>? _refreshing;
+  bool _refreshRejected = false;
+
+  /// Gọi khi phiên không còn dùng được: mẹ không làm mới được token (refresh token hết hạn / bị thu hồi),
+  /// hoặc máy con bị server từ chối token (mẹ đã hủy ghép). Không gọi khi chỉ mất mạng hay server lỗi.
+  void Function()? onSessionExpired;
 
   // ---- Đăng nhập (mẹ) ----
 
@@ -1074,7 +1079,13 @@ class ApiClient {
     if (response.statusCode == 401 && auth == _Auth.parent) {
       if (await _refreshAccessToken()) {
         response = await _once(method, path, body, auth);
+      } else if (_refreshRejected || session.refreshToken == null) {
+        onSessionExpired?.call();
       }
+    } else if (response.statusCode == 401 &&
+        auth == _Auth.device &&
+        session.deviceToken != null) {
+      onSessionExpired?.call();
     }
     return _decode(response);
   }
@@ -1122,12 +1133,17 @@ class ApiClient {
 
   Future<bool> _doRefresh() async {
     final refresh = session.refreshToken;
+    _refreshRejected = false;
     if (refresh == null) return false;
     try {
       final r = await _once('POST', '/api/auth/refresh', {
         'refreshToken': refresh,
       }, _Auth.none);
-      if (r.statusCode != 200) return false;
+      if (r.statusCode != 200) {
+        // Chỉ coi là hết phiên khi server từ chối token; 5xx/429 là lỗi tạm.
+        _refreshRejected = const {400, 401, 403}.contains(r.statusCode);
+        return false;
+      }
       final m = jsonDecode(_utf8Body(r)) as Map<String, dynamic>;
       await session.saveParentTokens(
         access: m['accessToken'] as String,

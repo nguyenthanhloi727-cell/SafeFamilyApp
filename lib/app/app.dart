@@ -119,6 +119,7 @@ class _SafeFamilyAppState extends State<SafeFamilyApp> {
     _connection = widget.connection ?? (ConnectionSession()..load());
     _api = widget.api ?? ApiClient(session: _connection);
     _family = widget.family ?? const MethodChannelFamily();
+    _api.onSessionExpired = _onSessionExpired;
     _policySync = PolicySync(
       api: _api,
       session: _connection,
@@ -150,6 +151,47 @@ class _SafeFamilyAppState extends State<SafeFamilyApp> {
       _family.configure(_connection.baseUrl, token);
     } else {
       _family.clear();
+    }
+  }
+
+  bool _expiredDialogOpen = false;
+
+  /// Server từ chối token (mẹ hết phiên đăng nhập, hoặc máy con bị hủy ghép): báo một lần, bấm OK thì xóa
+  /// phiên cũ và về màn chọn máy mẹ / máy con để đăng nhập / ghép lại.
+  Future<void> _onSessionExpired() async {
+    if (_expiredDialogOpen || !_connection.isChosen) return;
+    final overlay = _navigatorKey.currentState?.overlay?.context;
+    if (overlay == null || !overlay.mounted) return;
+    _expiredDialogOpen = true;
+    final isChild = _connection.mode == ConnectionMode.child;
+    try {
+      await showDialog<void>(
+        context: overlay,
+        barrierDismissible: false,
+        builder: (context) => PopScope(
+          canPop: false,
+          child: AlertDialog(
+            title: const Text('Phiên đã hết hạn'),
+            content: Text(
+              isChild
+                  ? 'Máy này không còn được ghép với máy mẹ nữa. Bấm OK để chọn lại máy mẹ / máy con.'
+                  : 'Phiên đăng nhập của mẹ đã hết hạn. Bấm OK để chọn lại máy mẹ / máy con và đăng nhập lại.',
+            ),
+            actions: [
+              FilledButton(
+                key: const Key('session-expired-ok'),
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        ),
+      );
+      await _connection.reset();
+      // Đóng các màn con đang mở để thấy ngay màn chọn vai trò.
+      _navigatorKey.currentState?.popUntil((r) => r.isFirst);
+    } finally {
+      _expiredDialogOpen = false;
     }
   }
 
