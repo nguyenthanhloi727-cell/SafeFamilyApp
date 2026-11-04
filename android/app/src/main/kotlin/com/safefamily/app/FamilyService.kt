@@ -18,19 +18,27 @@ import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 
 /**
- * Dịch vụ nền của máy con (đã ghép đôi): mỗi 5 phút hỏi API (lệnh, luật, hàng rào)
+ * Dịch vụ nền của máy con (đã ghép đôi): mỗi 15 giây hỏi API (lệnh, luật, hàng rào)
  * và gửi vị trí. Luôn hiện thông báo thường trực để trẻ biết vị trí đang được chia sẻ.
  * Chưa cấp quyền vị trí thì vẫn hỏi lệnh/luật, chỉ không lấy vị trí.
  */
 class FamilyService : Service() {
     private val handler = Handler(Looper.getMainLooper())
+    private val syncing = java.util.concurrent.atomic.AtomicBoolean(false)
     private var locationCallback: LocationCallback? = null
     private val poll = object : Runnable {
         override fun run() {
-            Thread {
-                FamilySync.syncOnce(this@FamilyService)
-                handler.post { applyLocationSharing() } // cờ chia sẻ vị trí có thể vừa đổi (API-11)
-            }.start()
+            // Mạng chậm thì lượt trước chưa xong: bỏ lượt này, không chồng luồng.
+            if (syncing.compareAndSet(false, true)) {
+                Thread {
+                    try {
+                        FamilySync.syncOnce(this@FamilyService)
+                        handler.post { applyLocationSharing() } // cờ chia sẻ vị trí có thể vừa đổi (API-11)
+                    } finally {
+                        syncing.set(false)
+                    }
+                }.start()
+            }
             handler.postDelayed(this, POLL_MS)
         }
     }
@@ -152,7 +160,7 @@ class FamilyService : Service() {
     companion object {
         private const val CHANNEL = "family_sharing"
         private const val NOTIFICATION_ID = 0xFA31
-        private const val POLL_MS = 5 * 60_000L
+        private const val POLL_MS = 15_000L
         private const val LOCATION_MS = 5 * 60_000L
     }
 }
