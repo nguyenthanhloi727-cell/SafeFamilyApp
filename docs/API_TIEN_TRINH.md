@@ -2,7 +2,11 @@
 
 Mục tiêu: máy mẹ quản lý máy con từ xa qua server. Máy con vẫn tự chặn bằng code Kotlin hiện có; API chỉ chuyển luật/lệnh qua lại.
 
+<<<<<<< HEAD
 Cập nhật lần cuối: 2026-11-04 (tách giao diện máy mẹ / máy con, T1–T12 trong `task.md`) · Trạng thái chung: **Đợt 1, 2, 5 xong code; test tự động đạt trên LocalDB; chưa publish MyASP.net, chưa test 2 máy thật (TASKS/TEST_PLAN.md)**
+=======
+Cập nhật lần cuối: 2026-11-04 · Trạng thái chung: **Đợt 1, 2, 5 xong code; test tự động đạt trên LocalDB; đã publish MyASP.net (https://shamixd-001-site1.ftempurl.com/swagger/index.html), chưa test 2 máy thật (TASKS/TEST_PLAN.md)**
+>>>>>>> claude/demo-script-main-features-ad80c6
 
 Ký hiệu: `[ ]` chưa làm · `[~]` đang làm · `[x]` xong
 
@@ -54,7 +58,7 @@ Thư mục: `SafeFamily.Api/` trong repo
 - [x] Giới hạn số lần thử mã ghép đôi (5 lần/10 phút/IP), đăng nhập/đăng ký (10 lần/phút/IP)
 - [x] Swagger có ô nhập token để test endpoint cần đăng nhập (nút Authorize)
 - [x] Cấu hình chuỗi kết nối qua cấu hình server, không để trong git (xem mục Cấu hình)
-- [ ] Publish thử lên MyASP.net, mở được Swagger trên mạng (API-14: code `/health`, HTTPS, log, giới hạn đã xong và test local; việc publish chờ người dùng cung cấp domain/Web Deploy-FTP/chuỗi kết nối/`Jwt__Key`)
+- [x] Publish lên MyASP.net, mở được Swagger trên mạng: https://shamixd-001-site1.ftempurl.com/swagger/index.html (`/health` trả 200, kiểm 2026-11-04)
 
 ## Đợt 2 – Điều khiển từ xa (luật xuống máy con)
 
@@ -125,7 +129,7 @@ Task Flutter/Android tương ứng: `TASKS/TASKS.md` mục 13–15. Không dùng
 
 Ghi chú 2026-10-31 (thêm): máy mẹ nhận thông báo vào/ra vùng khi app đóng bằng WorkManager 15 phút (`lib/core/alerts/`), chỉ gọi `GET /api/devices` + `GET .../geofence-events?afterId=`; không đổi API. Chưa test máy thật.
 
-Ghi chú 2026-10-31: migration `LocationGeofence`; smoke test `SafeFamily.Api/smoke.sh`; máy con gọi qua Kotlin (`FamilySync`), mẹ qua `ApiClient`. Chưa test trên MyASP.net và 2 máy thật: xem `TASKS/TEST_PLAN.md`.
+Ghi chú 2026-10-31: migration `LocationGeofence`; smoke test `SafeFamily.Api/smoke.sh`; máy con gọi qua Kotlin (`FamilySync`), mẹ qua `ApiClient`. Đã publish MyASP.net nhưng chưa test 2 máy thật: xem `TASKS/TEST_PLAN.md`.
 
 ---
 
