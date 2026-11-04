@@ -54,6 +54,8 @@ class _Server {
     calls.add(key);
     if (r.body.isNotEmpty) bodies[key] = jsonDecode(r.body);
     switch (key) {
+      case 'DELETE /api/devices/5':
+        return http.Response('', 204);
       case 'GET /api/devices':
         return _json([
           {'id': 5, 'name': name, 'pairedAt': '2026-10-31T01:00:00', 'lastSeenAt': null},
@@ -133,6 +135,28 @@ void main() {
 
     expect(server.calls.where((c) => c.startsWith('PATCH ')), isEmpty);
     expect(find.byKey(const Key('rename-field')), findsNothing);
+  });
+
+  testWidgets('nút "Xóa máy con": hỏi xác nhận, Hủy thì không gọi DELETE', (t) async {
+    final bio = FakeBiometrics();
+    final guard = await configuredGuard(biometrics: bio, biometricEnabled: true);
+    final (server, app) = await _app(ConnectionMode.parent, guard);
+    await t.pumpWidget(app);
+    await t.pumpAndSettle();
+    expect(find.text('Xóa máy con'), findsOneWidget);
+
+    await t.tap(find.byKey(const Key('unpair-5')));
+    await t.pumpAndSettle();
+    expect(find.byKey(const Key('unpair-dialog')), findsOneWidget);
+    await t.tap(find.text('Hủy'));
+    await t.pumpAndSettle();
+    expect(server.calls.where((c) => c.startsWith('DELETE ')), isEmpty);
+
+    await t.tap(find.byKey(const Key('unpair-5')));
+    await t.pumpAndSettle();
+    await t.tap(find.byKey(const Key('unpair-confirm')));
+    await t.pumpAndSettle();
+    expect(server.calls, contains('DELETE /api/devices/5'));
   });
 
   testWidgets('máy con hiện "đang được giám sát bởi" tên gia đình', (t) async {

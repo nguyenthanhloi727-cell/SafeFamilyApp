@@ -84,10 +84,38 @@ class _ConnectionPageState extends State<ConnectionPage> {
 
   Future<void> _unpair(DeviceInfo d) async {
     final api = ApiScope.of(context);
-    if (!await ParentGate.always(context, 'Hủy ghép ${d.name}')) return;
+    if (!await ParentGate.always(context, 'Xóa ${d.name}')) return;
+    if (!mounted) return;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dialog) => AlertDialog(
+        key: const Key('unpair-dialog'),
+        title: Text('Xóa "${d.name}"?'),
+        content: const Text(
+          'Máy con sẽ bị ngắt khỏi gia đình và không còn nhận luật từ máy mẹ. '
+          'Muốn dùng lại phải tạo mã ghép đôi mới.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialog, false),
+            child: const Text('Hủy'),
+          ),
+          FilledButton(
+            key: const Key('unpair-confirm'),
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(dialog).colorScheme.error,
+            ),
+            onPressed: () => Navigator.pop(dialog, true),
+            child: const Text('Xóa máy con'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
     try {
       await api.unpairDevice(d.id);
       await _reload();
+      if (mounted) showAppSnackBar(context, 'Đã xóa ${d.name}.');
     } on ApiException catch (e) {
       if (mounted) showAppSnackBar(context, e.message);
     }
@@ -197,6 +225,78 @@ class _ConnectionPageState extends State<ConnectionPage> {
     ),
   );
 
+  /// Thẻ một máy con: bấm vào để xem/điều khiển; hai nút có chữ để đổi tên và xóa máy con.
+  Widget _deviceCard(DeviceInfo d) {
+    final theme = Theme.of(context);
+    final selected = ConnectionScope.of(context).selectedChildId == d.id;
+    return Card(
+      key: Key('device-${d.id}'),
+      margin: const EdgeInsets.only(top: AppSpace.sm),
+      shape: selected
+          ? RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              side: BorderSide(color: theme.colorScheme.primary, width: 2),
+            )
+          : null,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          ListTile(
+            leading: const Icon(Icons.child_care_rounded),
+            title: Text(d.name),
+            subtitle: Text(
+              d.lastSeenAt == null
+                  ? 'Chưa thấy hoạt động'
+                  : 'Hoạt động lần cuối: ${d.lastSeenAt!.toLocal()}',
+            ),
+            trailing: const Icon(Icons.chevron_right_rounded),
+            onTap: () {
+              ConnectionScope.of(context).selectChild(d.id);
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => RemoteMonitorPage(device: d),
+                ),
+              );
+            },
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpace.md,
+              0,
+              AppSpace.md,
+              AppSpace.md,
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    key: Key('rename-${d.id}'),
+                    onPressed: () => _rename(d),
+                    icon: const Icon(Icons.edit_rounded),
+                    label: const Text('Đổi tên'),
+                  ),
+                ),
+                const SizedBox(width: AppSpace.sm),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    key: Key('unpair-${d.id}'),
+                    onPressed: () => _unpair(d),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: theme.colorScheme.error,
+                      side: BorderSide(color: theme.colorScheme.error),
+                    ),
+                    icon: const Icon(Icons.link_off_rounded),
+                    label: const Text('Xóa máy con'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   List<Widget> _parentBody(ConnectionSession session) {
     final code = _code;
     return [
@@ -231,42 +331,7 @@ class _ConnectionPageState extends State<ConnectionPage> {
       if (_error != null) Text(_error!),
       if (_devices != null && _devices!.isEmpty)
         const Text('Chưa có máy con nào.'),
-      for (final d in _devices ?? const <DeviceInfo>[])
-        ListTile(
-          key: Key('device-${d.id}'),
-          leading: const Icon(Icons.child_care_rounded),
-          title: Text(d.name),
-          selected: ConnectionScope.of(context).selectedChildId == d.id,
-          onTap: () {
-            ConnectionScope.of(context).selectChild(d.id);
-            Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (_) => RemoteMonitorPage(device: d),
-              ),
-            );
-          },
-          subtitle: Text(
-            d.lastSeenAt == null
-                ? 'Chưa thấy hoạt động'
-                : 'Hoạt động lần cuối: ${d.lastSeenAt!.toLocal()} · chạm để xem vị trí / điều khiển',
-          ),
-          trailing: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              IconButton(
-                key: Key('rename-${d.id}'),
-                tooltip: 'Đổi tên',
-                icon: const Icon(Icons.edit_rounded),
-                onPressed: () => _rename(d),
-              ),
-              IconButton(
-                tooltip: 'Hủy ghép',
-                icon: const Icon(Icons.link_off_rounded),
-                onPressed: () => _unpair(d),
-              ),
-            ],
-          ),
-        ),
+      for (final d in _devices ?? const <DeviceInfo>[]) _deviceCard(d),
       const SizedBox(height: AppSpace.lg),
       ListTile(
         key: const Key('change-password'),

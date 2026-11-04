@@ -345,6 +345,10 @@ class _ChildHomePageState extends State<ChildHomePage>
               key: const Key('parent-disconnect'),
               leading: const Icon(Icons.link_off_rounded),
               title: const Text('Ngắt kết nối với máy mẹ'),
+              subtitle: const Text(
+                'Chỉ gỡ trên máy này. Muốn xóa hẳn máy con khỏi danh sách, '
+                'vào "Kết nối gia đình" trên máy mẹ → "Xóa máy con".',
+              ),
               onTap: () => Navigator.pop(sheet, _ParentChoice.disconnect),
             ),
           ],
