@@ -19,8 +19,12 @@ class ParentLoginPage extends StatefulWidget {
 class _ParentLoginPageState extends State<ParentLoginPage> {
   final _email = TextEditingController();
   final _password = TextEditingController();
+  final _code = TextEditingController();
   ServerAddressController? _address;
   bool _register = false;
+
+  /// Phụ huynh thứ 2: đăng ký tài khoản mới bằng mã mời 8 số của chủ gia đình.
+  bool _join = false;
   bool _busy = false;
   String? _error;
 
@@ -34,6 +38,7 @@ class _ParentLoginPageState extends State<ParentLoginPage> {
   void dispose() {
     _email.dispose();
     _password.dispose();
+    _code.dispose();
     _address?.dispose();
     super.dispose();
   }
@@ -41,9 +46,15 @@ class _ParentLoginPageState extends State<ParentLoginPage> {
   Future<void> _submit() async {
     final email = _email.text.trim();
     final password = _password.text;
-    if (!email.contains('@') || password.length < (_register ? 8 : 1)) {
+    final code = _code.text.trim();
+    if (_join && !RegExp(r'^\d{8}$').hasMatch(code)) {
+      setState(() => _error = 'Nhập mã mời 8 số do phụ huynh kia gửi.');
+      return;
+    }
+    if (!email.contains('@') ||
+        password.length < (_register || _join ? 8 : 1)) {
       setState(
-        () => _error = _register
+        () => _error = _register || _join
             ? 'Nhập email và mật khẩu từ 8 ký tự.'
             : 'Nhập email và mật khẩu.',
       );
@@ -58,7 +69,9 @@ class _ParentLoginPageState extends State<ParentLoginPage> {
     });
     try {
       await _address!.commit();
-      if (_register) {
+      if (_join) {
+        await api.joinFamily(code, email, password);
+      } else if (_register) {
         await api.register(email, password);
       } else {
         await api.login(email, password);
@@ -76,13 +89,33 @@ class _ParentLoginPageState extends State<ParentLoginPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(_register ? 'Đăng ký máy mẹ' : 'Đăng nhập máy mẹ'),
+        title: Text(
+          _join
+              ? 'Vào gia đình bằng mã mời'
+              : _register
+              ? 'Đăng ký máy mẹ'
+              : 'Đăng nhập máy mẹ',
+        ),
       ),
       body: ListView(
         padding: const EdgeInsets.all(AppSpace.lg),
         children: [
           if (_address != null) ServerAddressField(controller: _address!),
           const SizedBox(height: AppSpace.md),
+          if (_join) ...[
+            TextField(
+              key: const Key('join-code'),
+              controller: _code,
+              keyboardType: TextInputType.number,
+              maxLength: 8,
+              decoration: const InputDecoration(
+                labelText: 'Mã mời (8 số)',
+                helperText: 'Phụ huynh kia tạo mã trong mục Người giám hộ. Tạo tài khoản mới bằng email của bạn.',
+                prefixIcon: Icon(Icons.group_add_rounded),
+              ),
+            ),
+            const SizedBox(height: AppSpace.md),
+          ],
           TextField(
             key: const Key('login-email'),
             controller: _email,
@@ -120,29 +153,51 @@ class _ParentLoginPageState extends State<ParentLoginPage> {
                     dimension: 20,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
-                : Text(_register ? 'Đăng ký' : 'Đăng nhập'),
+                : Text(
+                    _join
+                        ? 'Vào gia đình'
+                        : _register
+                        ? 'Đăng ký'
+                        : 'Đăng nhập',
+                  ),
           ),
-          if (!_register)
+          if (!_register && !_join)
             TextButton(
               key: const Key('forgot-password'),
               onPressed: _busy
                   ? null
                   : () => Navigator.of(context).push(
                       MaterialPageRoute<void>(
-                        builder: (_) =>
-                            ForgotPasswordPage(initialEmail: _email.text.trim()),
+                        builder: (_) => ForgotPasswordPage(
+                          initialEmail: _email.text.trim(),
+                        ),
                       ),
                     ),
               child: const Text('Quên mật khẩu?'),
             ),
+          if (!_join)
+            TextButton(
+              onPressed: _busy
+                  ? null
+                  : () => setState(() => _register = !_register),
+              child: Text(
+                _register
+                    ? 'Đã có tài khoản? Đăng nhập'
+                    : 'Chưa có tài khoản? Đăng ký',
+              ),
+            ),
           TextButton(
+            key: const Key('toggle-join'),
             onPressed: _busy
                 ? null
-                : () => setState(() => _register = !_register),
+                : () => setState(() {
+                    _join = !_join;
+                    _error = null;
+                  }),
             child: Text(
-              _register
-                  ? 'Đã có tài khoản? Đăng nhập'
-                  : 'Chưa có tài khoản? Đăng ký',
+              _join
+                  ? 'Quay lại đăng nhập'
+                  : 'Có mã mời từ phụ huynh khác? Nhập mã',
             ),
           ),
         ],
