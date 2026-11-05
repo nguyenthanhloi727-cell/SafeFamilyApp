@@ -488,6 +488,7 @@ object FamilySync {
                 TempRelocks.forget(context, pkg)
                 manager.startBlocking(listOf(pkg))
                 GuardPrefs.setRemoteBlocked(context, remote + pkg)
+                SettingsGuardService.requestRecheck()
             }
             "app_allow" -> {
                 TempRelocks.forget(context, pkg)
@@ -597,6 +598,7 @@ object FamilySync {
         val toBlock = (wanted - unlocked).toList()
         if (toBlock.isNotEmpty()) manager.startBlocking(toBlock)
         GuardPrefs.setRemoteBlocked(context, wanted)
+        if (toBlock.isNotEmpty()) SettingsGuardService.requestRecheck()
     }
 
     /**

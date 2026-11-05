@@ -59,6 +59,7 @@ class SettingsGuardService : AccessibilityService() {
 
     override fun onServiceConnected() {
         super.onServiceConnected()
+        instance = this
         sweepRelocks()
         handler.removeCallbacks(ticker)
         handler.post(ticker)
@@ -73,6 +74,7 @@ class SettingsGuardService : AccessibilityService() {
     }
 
     override fun onDestroy() {
+        if (instance === this) instance = null
         handler.removeCallbacksAndMessages(null)
         hideWarning()
         hidePauseTint()
@@ -119,6 +121,14 @@ class SettingsGuardService : AccessibilityService() {
         val root = rootInActiveWindow ?: return
         if (!mentionsApp(root)) return
         challenge()
+    }
+
+    /**
+     * Vừa áp danh sách khóa mới: kiểm lại app đang ở trước ngay, không chờ sự kiện đổi cửa sổ hay nhịp 30 giây
+     * (plugin app_blocker chỉ nhớ app thấy lần cuối nên có khi bỏ sót app mới cài đang mở).
+     */
+    private fun recheckForeground() {
+        runCatching { enforceTimeLimits(null) }
     }
 
     private fun sweepRelocks() {
@@ -410,6 +420,15 @@ class SettingsGuardService : AccessibilityService() {
     }
 
     companion object {
+        @Volatile
+        private var instance: SettingsGuardService? = null
+
+        /** Gọi sau khi áp danh sách khóa; chạy trên luồng chính của dịch vụ. Dịch vụ chưa chạy thì bỏ qua. */
+        fun requestRecheck() {
+            val service = instance ?: return
+            service.handler.post { service.recheckForeground() }
+        }
+
         private const val APP_NAME = "SafeFamily"
         private const val MAX_NODES = 600
         private const val SCAN_INTERVAL_MS = 400L

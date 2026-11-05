@@ -38,6 +38,14 @@ object NewApps {
     private const val CHANNEL = "new_apps"
     private const val SCAN_MIN_GAP_MS = 5_000L
 
+    /** Trình cài APK của AOSP và các hãng (không gồm CH Play, không gồm màn cấp quyền). */
+    private val INSTALLER_PACKAGES = setOf(
+        "com.android.packageinstaller",
+        "com.google.android.packageinstaller",
+        "com.miui.packageinstaller",
+        "com.samsung.android.packageinstaller",
+    )
+
     /** Extra của Intent mở MainActivity ở màn duyệt app. */
     const val EXTRA_REVIEW = "review_new_apps"
 
@@ -166,6 +174,14 @@ object NewApps {
     fun verdict(context: Context, packageName: String): TimeLimits.Verdict? {
         if (!enabled(context) || packageName == context.packageName) return null
         if (packageName in TimeLimits.exemptPackages(context)) return null
+        // Mở APK / đang cài app: chặn ngay ở màn cài. Phụ huynh đang cho gỡ app hoặc mở Cài đặt (đã xác thực) thì bỏ qua.
+        if (packageName in INSTALLER_PACKAGES && !GuardPrefs.uninstallAllowed(context) && !GuardPrefs.settingsAllowed(context)) {
+            return TimeLimits.Verdict(
+                packageName,
+                "Phụ huynh không cho cài ứng dụng mới",
+                canRequestMore = false,
+            )
+        }
         if (packageName !in strings(context, KEY_KNOWN) && packageName !in strings(context, KEY_PENDING) &&
             packageName !in strings(context, KEY_REJECTED)
         ) {
