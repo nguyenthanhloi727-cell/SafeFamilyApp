@@ -97,32 +97,40 @@ void main() {
     expect(expired, 1);
   });
 
-  test('mẹ: server lỗi 500 khi làm mới token thì KHÔNG báo hết phiên', () async {
-    final session = await _session();
-    await session.saveParentTokens(access: 'old', refresh: 'r1');
-    var expired = 0;
-    final api = ApiClient(
-      session: session,
-      client: MockClient(
-        (req) async =>
-            http.Response('', req.url.path == '/api/auth/refresh' ? 500 : 401),
-      ),
-    )..onSessionExpired = () => expired++;
-    await expectLater(api.listDevices(), throwsA(isA<ApiException>()));
-    expect(expired, 0);
-  });
+  test(
+    'mẹ: server lỗi 500 khi làm mới token thì KHÔNG báo hết phiên',
+    () async {
+      final session = await _session();
+      await session.saveParentTokens(access: 'old', refresh: 'r1');
+      var expired = 0;
+      final api = ApiClient(
+        session: session,
+        client: MockClient(
+          (req) async => http.Response(
+            '',
+            req.url.path == '/api/auth/refresh' ? 500 : 401,
+          ),
+        ),
+      )..onSessionExpired = () => expired++;
+      await expectLater(api.listDevices(), throwsA(isA<ApiException>()));
+      expect(expired, 0);
+    },
+  );
 
-  test('con: token thiết bị bị từ chối (401) thì báo hết phiên', () async {
-    final session = await _session();
-    await session.saveDevice(token: 'dt', id: 9);
-    var expired = 0;
-    final api = ApiClient(
-      session: session,
-      client: MockClient((_) async => http.Response('', 401)),
-    )..onSessionExpired = () => expired++;
-    await expectLater(api.fetchMyInfo(), throwsA(isA<ApiException>()));
-    expect(expired, 1);
-  });
+  test(
+    'con: token thiết bị bị từ chối (401) thì KHÔNG báo hết phiên',
+    () async {
+      final session = await _session();
+      await session.saveDevice(token: 'dt', id: 9);
+      var expired = 0;
+      final api = ApiClient(
+        session: session,
+        client: MockClient((_) async => http.Response('', 401)),
+      )..onSessionExpired = () => expired++;
+      await expectLater(api.fetchMyInfo(), throwsA(isA<ApiException>()));
+      expect(expired, 0);
+    },
+  );
 
   test('đăng nhập sai (401, chưa có phiên) không báo hết phiên', () async {
     final session = await _session();
@@ -133,10 +141,7 @@ void main() {
         (_) async => _json({'error': 'Sai email hoặc mật khẩu.'}, 401),
       ),
     )..onSessionExpired = () => expired++;
-    await expectLater(
-      api.login('a@x.vn', 'sai'),
-      throwsA(isA<ApiException>()),
-    );
+    await expectLater(api.login('a@x.vn', 'sai'), throwsA(isA<ApiException>()));
     expect(expired, 0);
   });
 
@@ -285,6 +290,9 @@ void main() {
       CommandState.expired,
     );
     // Đã thực thi thì giữ trạng thái xong dù tạo từ lâu.
-    expect(c(const Duration(days: 3), done: true).stateAt(now), CommandState.done);
+    expect(
+      c(const Duration(days: 3), done: true).stateAt(now),
+      CommandState.done,
+    );
   });
 }

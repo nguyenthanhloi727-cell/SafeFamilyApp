@@ -156,14 +156,13 @@ class _SafeFamilyAppState extends State<SafeFamilyApp> {
 
   bool _expiredDialogOpen = false;
 
-  /// Server từ chối token (mẹ hết phiên đăng nhập, hoặc máy con bị hủy ghép): báo một lần, bấm OK thì xóa
+  /// Mẹ hết phiên đăng nhập (máy con không bao giờ vào đây, vì ghép bằng mã): báo một lần, bấm OK thì xóa
   /// phiên cũ và về màn chọn máy mẹ / máy con để đăng nhập / ghép lại.
   Future<void> _onSessionExpired() async {
-    if (_expiredDialogOpen || !_connection.isChosen) return;
+    if (_expiredDialogOpen || _connection.mode != ConnectionMode.parent) return;
     final overlay = _navigatorKey.currentState?.overlay?.context;
     if (overlay == null || !overlay.mounted) return;
     _expiredDialogOpen = true;
-    final isChild = _connection.mode == ConnectionMode.child;
     try {
       await showDialog<void>(
         context: overlay,
@@ -172,10 +171,8 @@ class _SafeFamilyAppState extends State<SafeFamilyApp> {
           canPop: false,
           child: AlertDialog(
             title: const Text('Phiên đã hết hạn'),
-            content: Text(
-              isChild
-                  ? 'Máy này không còn được ghép với máy mẹ nữa. Bấm OK để chọn lại máy mẹ / máy con.'
-                  : 'Phiên đăng nhập của mẹ đã hết hạn. Bấm OK để chọn lại máy mẹ / máy con và đăng nhập lại.',
+            content: const Text(
+              'Phiên đăng nhập của mẹ đã hết hạn. Bấm OK để chọn lại máy mẹ / máy con và đăng nhập lại.',
             ),
             actions: [
               FilledButton(

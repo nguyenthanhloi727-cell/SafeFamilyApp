@@ -44,19 +44,16 @@ class FamilyInfo {
   final bool isOwner;
   final List<FamilyMember> members;
 
-  factory FamilyInfo.fromJson(Map<String, dynamic> m) => FamilyInfo(
-    m['name'] as String,
-    m['isOwner'] as bool,
-    [
-      for (final x in m['members'] as List)
-        FamilyMember(
-          (x as Map<String, dynamic>)['id'] as int,
-          x['email'] as String,
-          x['isOwner'] as bool,
-          x['isMe'] as bool,
-        ),
-    ],
-  );
+  factory FamilyInfo.fromJson(Map<String, dynamic> m) =>
+      FamilyInfo(m['name'] as String, m['isOwner'] as bool, [
+        for (final x in m['members'] as List)
+          FamilyMember(
+            (x as Map<String, dynamic>)['id'] as int,
+            x['email'] as String,
+            x['isOwner'] as bool,
+            x['isMe'] as bool,
+          ),
+      ]);
 }
 
 class PairingCode {
@@ -413,8 +410,8 @@ class ApiClient {
   Future<bool>? _refreshing;
   bool _refreshRejected = false;
 
-  /// Gọi khi phiên không còn dùng được: mẹ không làm mới được token (refresh token hết hạn / bị thu hồi),
-  /// hoặc máy con bị server từ chối token (mẹ đã hủy ghép). Không gọi khi chỉ mất mạng hay server lỗi.
+  /// Gọi khi phiên đăng nhập của MẸ không còn dùng được (không làm mới được token: refresh token hết hạn / bị
+  /// thu hồi). Máy con không bao giờ gọi. Không gọi khi chỉ mất mạng hay server lỗi.
   void Function()? onSessionExpired;
 
   // ---- Đăng nhập (mẹ) ----
@@ -475,16 +472,12 @@ class ApiClient {
 
   /// Đổi mật khẩu (API-03). Sai mật khẩu cũ → [ApiException.isForbidden]. Phiên này được giữ, các phiên khác bị đăng xuất.
   /// Nơi gọi phải qua `ParentGate` trước.
-  Future<void> changePassword(String current, String next) => _send(
-    'POST',
-    '/api/auth/change-password',
-    {
-      'currentPassword': current,
-      'newPassword': next,
-      'refreshToken': session.refreshToken,
-    },
-    auth: _Auth.parent,
-  );
+  Future<void> changePassword(String current, String next) =>
+      _send('POST', '/api/auth/change-password', {
+        'currentPassword': current,
+        'newPassword': next,
+        'refreshToken': session.refreshToken,
+      }, auth: _Auth.parent);
 
   /// Xóa vĩnh viễn tài khoản và mọi dữ liệu gia đình (API-03), xong thì xóa phiên cục bộ.
   /// Sai mật khẩu → [ApiException.isForbidden]. Nơi gọi phải qua `ParentGate` + hộp xác nhận.
@@ -518,8 +511,12 @@ class ApiClient {
   /// Chủ tạo mã mời 8 số (30 phút, một lần). Không phải chủ → 403; đã đủ 2 người → 409.
   /// Nơi gọi phải qua `ParentGate` trước.
   Future<PairingCode> inviteGuardian() async {
-    final m = await _send('POST', '/api/family/invite', {}, auth: _Auth.parent)
-        as Map<String, dynamic>;
+    final m = await _send(
+      'POST',
+      '/api/family/invite',
+      {},
+      auth: _Auth.parent,
+    ) as Map<String, dynamic>;
     return PairingCode(
       m['code'] as String,
       DateTime.parse(m['expiresAt'] as String),
@@ -527,15 +524,18 @@ class ApiClient {
   }
 
   /// Người được mời đăng ký tài khoản mới bằng mã và vào gia đình của chủ mã; lưu token như [register].
-  Future<AuthResult> joinFamily(String code, String email, String password) async =>
-      _saveAuth(
-        email,
-        await _send('POST', '/api/family/join', {
-          'code': code,
-          'email': email,
-          'password': password,
-        }),
-      );
+  Future<AuthResult> joinFamily(
+    String code,
+    String email,
+    String password,
+  ) async => _saveAuth(
+    email,
+    await _send('POST', '/api/family/join', {
+      'code': code,
+      'email': email,
+      'password': password,
+    }),
+  );
 
   /// Chủ xóa người giám hộ khác. Nơi gọi phải qua `ParentGate` + hộp xác nhận.
   Future<void> removeGuardian(int parentId) => _send(
@@ -598,12 +598,9 @@ class ApiClient {
 
   /// Mẹ đổi tên máy con (API-01). Nơi gọi phải qua `ParentGate` trước. Trả về tên server đã lưu (đã cắt khoảng trắng).
   Future<String> renameDevice(int id, String name) async {
-    final m = await _send(
-      'PATCH',
-      '/api/devices/$id',
-      {'name': name},
-      auth: _Auth.parent,
-    );
+    final m = await _send('PATCH', '/api/devices/$id', {
+      'name': name,
+    }, auth: _Auth.parent);
     return m is Map<String, dynamic> ? m['name'] as String : name.trim();
   }
 
@@ -758,7 +755,10 @@ class ApiClient {
 
   /// Nhật ký hoạt động của máy con, cũ trước, tối đa 100. [afterId] = 0: 100 dòng MỚI nhất; lớn hơn 0: các dòng kế
   /// sau mốc đó. Dòng hỏng bị bỏ qua.
-  Future<List<ActivityInfo>> getActivity(int deviceId, {int afterId = 0}) async {
+  Future<List<ActivityInfo>> getActivity(
+    int deviceId, {
+    int afterId = 0,
+  }) async {
     final query = afterId > 0 ? '?afterId=$afterId' : '';
     final list = await _send(
       'GET',
@@ -890,7 +890,9 @@ class ApiClient {
       };
       return [
         for (final r in requests)
-          r.kind == RequestKind.appTime ? r.withAppLabel(labels[r.packageName]) : r,
+          r.kind == RequestKind.appTime
+              ? r.withAppLabel(labels[r.packageName])
+              : r,
       ];
     } on ApiException {
       return requests;
@@ -923,12 +925,9 @@ class ApiClient {
   /// Bật/tắt chia sẻ vị trí; máy con áp ở lượt đồng bộ kế (tối đa vài phút). Chỉ đổi cờ, không xóa lịch sử.
   /// Nơi gọi phải qua `ParentGate` trước.
   Future<bool> setLocationSharing(int deviceId, bool enabled) async {
-    final m = await _send(
-      'PUT',
-      '/api/devices/$deviceId/location-sharing',
-      {'enabled': enabled},
-      auth: _Auth.parent,
-    );
+    final m = await _send('PUT', '/api/devices/$deviceId/location-sharing', {
+      'enabled': enabled,
+    }, auth: _Auth.parent);
     return m is Map<String, dynamic> ? m['enabled'] == true : enabled;
   }
 
@@ -1018,8 +1017,12 @@ class ApiClient {
 
   /// Máy con xem tên máy, tên gia đình, phiên bản luật (API-01).
   Future<DeviceSelfInfo> fetchMyInfo() async {
-    final m = await _send('GET', '/api/devices/me', null, auth: _Auth.device)
-        as Map<String, dynamic>;
+    final m = await _send(
+      'GET',
+      '/api/devices/me',
+      null,
+      auth: _Auth.device,
+    ) as Map<String, dynamic>;
     return DeviceSelfInfo(
       m['name'] as String,
       m['familyName'] as String,
@@ -1082,11 +1085,8 @@ class ApiClient {
       } else if (_refreshRejected || session.refreshToken == null) {
         onSessionExpired?.call();
       }
-    } else if (response.statusCode == 401 &&
-        auth == _Auth.device &&
-        session.deviceToken != null) {
-      onSessionExpired?.call();
     }
+    // Máy con ghép bằng mã nên không có "hết phiên": 401 của token thiết bị không đẩy con về màn chọn vai trò.
     return _decode(response);
   }
 
